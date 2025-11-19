@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect, useMemo, FC } from 'react';
-import { getReports, getAllDukuh, getAllRT, getPengeluaran, getUnpaidWargaForDate, getScheduleForDate, getDukuhById, getRTById } from '@/services/api';
+import { getReports, getAllDukuh, getAllRT, getPengeluaran, getUnpaidWargaForDate, getScheduleForDate, getDukuhById, getRTById, getParticipationReport } from '@/services/api';
 import { exportToExcel } from '@/services/excel';
-import type { Transaksi, Dukuh, RT, Pengeluaran, Warga } from '@/types';
-import { UserSlashIcon, FileExcelIcon } from '@/components/icons';
+import type { Transaksi, Dukuh, RT, Pengeluaran, Warga, ParticipationStats } from '@/types';
+import { UserSlashIcon, FileExcelIcon, EyeIcon, ChevronDownIcon } from '@/components/icons';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import Modal from '@/components/Modal';
 
 interface ReportRow extends Transaksi {
     wargaName: string;
@@ -570,6 +572,158 @@ const LaporanTahunan: FC = () => {
     );
 };
 
+const LaporanPartisipasi: FC = () => {
+    const [stats, setStats] = useState<ParticipationStats[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+    const [selectedRT, setSelectedRT] = useState<ParticipationStats | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            setLoading(true);
+            const [year, monthNum] = month.split('-').map(Number);
+            try {
+                const data = await getParticipationReport(monthNum, year);
+                setStats(data);
+            } catch (error) {
+                console.error("Failed to fetch participation report", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStats();
+    }, [month]);
+
+    const openDetailModal = (stat: ParticipationStats) => {
+        setSelectedRT(stat);
+        setIsModalOpen(true);
+    };
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200/80 flex gap-4 items-center">
+                 <div className="flex-grow">
+                     <label className="block text-sm font-medium text-slate-700 mb-1">Pilih Bulan & Tahun</label>
+                     <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="p-2 border border-slate-300 rounded-lg w-full" />
+                </div>
+            </div>
+
+            {/* Chart Section */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Grafik Partisipasi per RT (%)</h3>
+                <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={stats} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="rtNumber" tickFormatter={(val) => `RT ${val}`} />
+                            <YAxis domain={[0, 100]} />
+                            <Tooltip 
+                                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Partisipasi']}
+                                labelFormatter={(label) => `RT ${label}`}
+                            />
+                            <Bar dataKey="participationRate" fill="#10b981" radius={[4, 4, 0, 0]} name="Persentase Partisipasi" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Table Section */}
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500">RT</th>
+                                <th className="p-4 text-center uppercase text-xs font-semibold text-slate-500">Total Warga</th>
+                                <th className="p-4 text-center uppercase text-xs font-semibold text-slate-500">Sudah Bayar</th>
+                                <th className="p-4 text-center uppercase text-xs font-semibold text-slate-500">Belum Bayar</th>
+                                <th className="p-4 text-right uppercase text-xs font-semibold text-slate-500">Persentase</th>
+                                <th className="p-4 text-center uppercase text-xs font-semibold text-slate-500">Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {loading ? (
+                                <tr><td colSpan={6} className="p-6 text-center text-slate-500">Memuat data...</td></tr>
+                            ) : stats.length > 0 ? (
+                                stats.map((stat) => (
+                                    <tr key={stat.rtId} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-4 font-bold text-slate-800">RT {stat.rtNumber}</td>
+                                        <td className="p-4 text-center text-slate-600">{stat.totalWarga}</td>
+                                        <td className="p-4 text-center text-emerald-600 font-semibold">{stat.activeWarga}</td>
+                                        <td className="p-4 text-center text-red-600 font-semibold">{stat.totalWarga - stat.activeWarga}</td>
+                                        <td className="p-4 text-right font-mono">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <span>{stat.participationRate.toFixed(1)}%</span>
+                                                <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full rounded-full ${stat.participationRate >= 80 ? 'bg-emerald-500' : stat.participationRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                        style={{ width: `${stat.participationRate}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <button 
+                                                onClick={() => openDetailModal(stat)}
+                                                className="text-slate-500 hover:text-primary p-2 rounded-full hover:bg-slate-100"
+                                                title="Lihat Warga Belum Bayar"
+                                            >
+                                                <EyeIcon />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan={6} className="p-6 text-center text-slate-500">Tidak ada data.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Warga Belum Bayar - RT ${selectedRT?.rtNumber}`}>
+                {selectedRT && (
+                    <div>
+                        <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg border border-red-100 text-sm">
+                            Menampilkan <strong>{selectedRT.unpaidWargaList.length}</strong> warga yang belum melakukan transaksi sama sekali pada bulan ini.
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto">
+                            {selectedRT.unpaidWargaList.length > 0 ? (
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                                        <tr>
+                                            <th className="p-3 font-semibold">ID</th>
+                                            <th className="p-3 font-semibold">Nama</th>
+                                            <th className="p-3 font-semibold">Dukuh</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {selectedRT.unpaidWargaList.map(warga => (
+                                            <tr key={warga.id}>
+                                                <td className="p-3 font-mono text-slate-500">{warga.id}</td>
+                                                <td className="p-3 font-medium text-slate-800">{warga.name}</td>
+                                                <td className="p-3 text-slate-500">{getDukuhById(warga.dukuhId)?.name || '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <div className="text-center py-8 text-slate-500">
+                                    <p>Semua warga di RT ini sudah berpartisipasi!</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="mt-4 text-right">
+                            <button onClick={() => setIsModalOpen(false)} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-300">Tutup</button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+        </div>
+    );
+};
+
 const LaporanBelumBayar: FC = () => {
     const [unpaidWarga, setUnpaidWarga] = useState<Warga[]>([]);
     const [scheduleInfo, setScheduleInfo] = useState<{ isHoliday: boolean; dukuhNames: string[] } | null>(null);
@@ -758,7 +912,7 @@ const ReportTable: FC<{reports: ReportRow[], loading: boolean}> = ({ reports, lo
 );
 
 const AdminLaporanPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'wilayah' | 'tahunan' | 'belumBayar'>('harian');
+    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'wilayah' | 'tahunan' | 'partisipasi' | 'belumBayar'>('harian');
     
     const renderContent = () => {
         switch(activeTab) {
@@ -766,12 +920,13 @@ const AdminLaporanPage: React.FC = () => {
             case 'bulanan': return <LaporanBulanan />;
             case 'wilayah': return <LaporanWilayah />;
             case 'tahunan': return <LaporanTahunan />;
+            case 'partisipasi': return <LaporanPartisipasi />;
             case 'belumBayar': return <LaporanBelumBayar />;
             default: return null;
         }
     };
     
-    const TabButton: FC<{tabName: 'harian' | 'bulanan' | 'wilayah' | 'tahunan' | 'belumBayar', children: React.ReactNode}> = ({tabName, children}) => (
+    const TabButton: FC<{tabName: 'harian' | 'bulanan' | 'wilayah' | 'tahunan' | 'partisipasi' | 'belumBayar', children: React.ReactNode}> = ({tabName, children}) => (
          <button
             onClick={() => setActiveTab(tabName)}
             className={`${activeTab === tabName ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-3 px-4 border-b-2 font-semibold text-sm transition-colors focus:outline-none`}
@@ -794,6 +949,7 @@ const AdminLaporanPage: React.FC = () => {
                         <TabButton tabName="bulanan">Laporan Bulanan</TabButton>
                         <TabButton tabName="wilayah">Laporan Wilayah</TabButton>
                         <TabButton tabName="tahunan">Laporan Tahunan</TabButton>
+                        <TabButton tabName="partisipasi">Laporan Partisipasi</TabButton>
                         <TabButton tabName="belumBayar">Warga Belum Bayar</TabButton>
                     </nav>
                 </div>

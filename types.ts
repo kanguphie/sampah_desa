@@ -68,3 +68,12 @@ export interface PublicStats {
     totalTransaksiBulanIni: number;
     totalDanaTerkumpulBulanIni: number;
 }
+
+export interface ParticipationStats {
+    rtId: number;
+    rtNumber: string;
+    totalWarga: number;
+    activeWarga: number; // Warga yang transaksi minimal 1x bulan ini
+    participationRate: number; // Persentase
+    unpaidWargaList: Warga[]; // List warga yang 0 transaksi
+}

@@ -1,5 +1,5 @@
 
-import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, ContactMessage, Announcement, PublicStats } from '@/types';
+import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, ContactMessage, Announcement, PublicStats, ParticipationStats } from '@/types';
 
 // --- Mock Database ---
 let dukuhs: Dukuh[] = [
@@ -592,6 +592,59 @@ export const getReports = async (filters: ReportFilters): Promise<ReportRow[]> =
     }
     
     return finalReport.map(({ _warga, ...rest }) => rest).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
+};
+
+export const getParticipationReport = async (month: number, year: number): Promise<ParticipationStats[]> => {
+    await delay(600);
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    // 1. Get all transactions for the period
+    const periodTransactions = transactions.filter(tx => {
+        const tDate = new Date(tx.timestamp);
+        return tDate >= startDate && tDate <= endDate;
+    });
+
+    // 2. Get Set of Warga IDs who have paid
+    const paidWargaIds = new Set(periodTransactions.map(tx => tx.wargaId));
+
+    // 3. Group Stats by RT
+    const statsMap = new Map<number, ParticipationStats>();
+
+    // Initialize entries for all known RTs (even if no wargas in them yet, though strictly we rely on existing wargas)
+    // Better: Iterate through all Wargas and aggregate.
+
+    for (const warga of wargas) {
+        if (!statsMap.has(warga.rtId)) {
+            const rt = rts.find(r => r.id === warga.rtId);
+            statsMap.set(warga.rtId, {
+                rtId: warga.rtId,
+                rtNumber: rt ? rt.number : '?',
+                totalWarga: 0,
+                activeWarga: 0,
+                participationRate: 0,
+                unpaidWargaList: []
+            });
+        }
+
+        const stat = statsMap.get(warga.rtId)!;
+        stat.totalWarga++;
+
+        if (paidWargaIds.has(warga.id)) {
+            stat.activeWarga++;
+        } else {
+            stat.unpaidWargaList.push(warga);
+        }
+    }
+
+    // Calculate percentages
+    const result = Array.from(statsMap.values()).map(stat => {
+        stat.participationRate = stat.totalWarga > 0 ? (stat.activeWarga / stat.totalWarga) * 100 : 0;
+        return stat;
+    });
+
+    // Sort by RT Number for display
+    return result.sort((a, b) => a.rtNumber.localeCompare(b.rtNumber));
 };
 
 export const deleteTransaksi = async (id: string): Promise<void> => {
