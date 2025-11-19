@@ -78,9 +78,9 @@ const ContactPage: React.FC = () => {
                             </div>
                             <h3 className="font-bold text-lg text-slate-800 mb-2">Kantor Desa</h3>
                             <p className="text-slate-600 text-sm leading-relaxed">
-                                Jl. Raya Rowosari No. 1,<br/>
-                                Kec. Rowosari, Kendal,<br/>
-                                Jawa Tengah 51354
+                                2W3M+JW8, Pencar, Rowosari,<br/>
+                                Kec. Limpung, Kab. Batang,<br/>
+                                Jawa Tengah 51271
                             </p>
                         </div>
                         <div className="glass-card p-6 rounded-2xl bg-white/60 hover:-translate-y-1 transition-transform duration-300">
@@ -99,14 +99,14 @@ const ContactPage: React.FC = () => {
                     {/* Map Embed */}
                     <div className="glass-card p-2 rounded-2xl bg-white/60 h-80 w-full overflow-hidden">
                         <iframe 
-                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3960.775194748759!2d110.0365487147729!3d-6.917434995001778!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e7042a61930534d%3A0x4027a76e352e3d0!2sRowosari%2C%20Kendal%20Regency%2C%20Central%20Java!5e0!3m2!1sen!2sid!4v1679887761234!5m2!1sen!2sid" 
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d31678.54264625336!2d109.90784168370973!3d-7.023066491562325!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e703f816623181d%3A0x5027a76e3566880!2sRowosari%2C%20Limpung%2C%20Batang%20Regency%2C%20Central%20Java!5e0!3m2!1sen!2sid!4v1680000000000!5m2!1sen!2sid" 
                             width="100%" 
                             height="100%" 
                             style={{border:0, borderRadius: '1rem'}} 
                             allowFullScreen 
                             loading="lazy" 
                             referrerPolicy="no-referrer-when-downgrade"
-                            title="Peta Lokasi"
+                            title="Peta Lokasi Rowosari, Limpung"
                         ></iframe>
                     </div>
                 </div>
