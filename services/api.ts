@@ -1,5 +1,5 @@
 
-import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran } from '@/types';
+import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, ContactMessage, Announcement, PublicStats } from '@/types';
 
 // --- Mock Database ---
 let dukuhs: Dukuh[] = [
@@ -61,9 +61,12 @@ let petugases: Petugas[] = [
     { id: 'petugas02', name: 'Bambang', phone: '081234567891', pin: '5678' },
 ];
 
-const admins: Admin[] = [
+let admins: Admin[] = [
     { id: 'admin01', username: 'admin', name: 'Admin Desa' },
 ];
+
+// Password Mock for Admin (Not secure in frontend, just for demo)
+let adminPassword = 'password';
 
 let transactions: Transaksi[] = [];
 // Create 40 recent sample transactions
@@ -114,6 +117,45 @@ let schedule: Record<string, number[] | 'libur'> = {
     Minggu: [4, 3],
 };
 
+let messages: ContactMessage[] = [
+    {
+        id: 'msg1',
+        name: 'Slamet Riyadi',
+        contact: '081234567890',
+        message: 'Mohon info apakah hari libur tetap ada pengambilan sampah? Terima kasih.',
+        timestamp: new Date(new Date().setDate(new Date().getDate() - 1)),
+        isRead: false
+    },
+    {
+        id: 'msg2',
+        name: 'Ibu Ani',
+        contact: 'ani@email.com',
+        message: 'Saya ingin mendaftar layanan sampah, bagaimana caranya ya?',
+        timestamp: new Date(new Date().setDate(new Date().getDate() - 3)),
+        isRead: true
+    }
+];
+
+let announcements: Announcement[] = [
+    {
+        id: 'ann1',
+        title: 'Libur Hari Raya',
+        content: 'Pengambilan sampah akan diliburkan selama 2 hari pada tanggal 10-11 April dalam rangka Hari Raya Idul Fitri.',
+        isActive: true,
+        date: new Date()
+    },
+    {
+        id: 'ann2',
+        title: 'Himbauan Pemilahan Sampah',
+        content: 'Mohon warga memisahkan sampah organik dan anorganik sebelum dibuang.',
+        isActive: true,
+        date: new Date(Date.now() - 86400000 * 5)
+    }
+];
+
+// Offline Buffer Mock
+let offlineTransactions: Transaksi[] = [];
+
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -131,11 +173,106 @@ export const getTransactionsByWargaId = async (wargaId: string, days: number): P
     return transactions.filter(tx => tx.wargaId === wargaId && tx.timestamp >= limitDate).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 };
 
+export const getPublicDashboardStats = async (): Promise<PublicStats> => {
+    await delay(400);
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    const transactionsThisMonth = transactions.filter(tx => {
+        const d = new Date(tx.timestamp);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
+    return {
+        totalWarga: wargas.length,
+        totalTransaksiBulanIni: transactionsThisMonth.length,
+        totalDanaTerkumpulBulanIni: transactionsThisMonth.reduce((sum, tx) => sum + tx.amount, 0)
+    };
+};
+
+// --- Announcement API ---
+export const getAnnouncements = async (): Promise<Announcement[]> => {
+    await delay(300);
+    return [...announcements].sort((a, b) => b.date.getTime() - a.date.getTime());
+};
+
+export const getActiveAnnouncements = async (): Promise<Announcement[]> => {
+    await delay(300);
+    return announcements.filter(a => a.isActive).sort((a, b) => b.date.getTime() - a.date.getTime());
+};
+
+export const createAnnouncement = async (data: Omit<Announcement, 'id' | 'date'>): Promise<Announcement> => {
+    await delay(300);
+    const newAnnouncement: Announcement = {
+        ...data,
+        id: `ann${Date.now()}`,
+        date: new Date()
+    };
+    announcements.unshift(newAnnouncement);
+    return newAnnouncement;
+};
+
+export const deleteAnnouncement = async (id: string): Promise<void> => {
+    await delay(300);
+    announcements = announcements.filter(a => a.id !== id);
+};
+
+export const updateAnnouncement = async (id: string, data: Partial<Announcement>): Promise<Announcement> => {
+    await delay(300);
+    const index = announcements.findIndex(a => a.id === id);
+    if (index > -1) {
+        announcements[index] = { ...announcements[index], ...data };
+        return announcements[index];
+    }
+    throw new Error("Announcement not found");
+};
+
+
+// --- Contact API ---
+export const sendMessage = async (data: Omit<ContactMessage, 'id' | 'timestamp' | 'isRead'>): Promise<ContactMessage> => {
+    await delay(600);
+    const newMessage: ContactMessage = {
+        ...data,
+        id: `msg${Date.now()}`,
+        timestamp: new Date(),
+        isRead: false
+    };
+    messages.unshift(newMessage);
+    return newMessage;
+};
+
+export const getMessages = async (): Promise<ContactMessage[]> => {
+    await delay(400);
+    return [...messages].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+};
+
+export const markMessageAsRead = async (id: string): Promise<void> => {
+    await delay(200);
+    const msg = messages.find(m => m.id === id);
+    if (msg) msg.isRead = true;
+};
+
+export const deleteMessage = async (id: string): Promise<void> => {
+    await delay(300);
+    messages = messages.filter(m => m.id !== id);
+};
+
 
 // --- Petugas API ---
 export const loginPetugas = async (pin: string): Promise<Petugas | null> => {
     await delay(500);
     return petugases.find(p => p.pin === pin) || null;
+};
+
+export const updatePetugasProfile = async (id: string, name: string, phone: string, pin: string): Promise<Petugas> => {
+    await delay(400);
+    const index = petugases.findIndex(p => p.id === id);
+    if (index > -1) {
+        petugases[index] = { ...petugases[index], name, phone, pin };
+        return petugases[index];
+    }
+    throw new Error('Petugas not found');
 };
 
 export const checkIfWargaPaidToday = async (wargaId: string): Promise<boolean> => {
@@ -194,12 +331,28 @@ export const getPetugasDailySummary = async (petugasId: string): Promise<{ total
         txDate.setHours(0,0,0,0);
         return tx.petugasId === petugasId && txDate.getTime() === today.getTime();
     });
+    
+    // Also check offline buffer if strictly simulating
+    // In a real app, we would query IndexedDB or localStorage
+    
     const total = dailyTx.reduce((sum, tx) => sum + tx.amount, 0);
     const count = new Set(dailyTx.map(tx => tx.wargaId)).size;
     return { total, count };
 };
 
 export const createTransaksi = async (txData: {wargaId: string, petugasId: string, amount: number}): Promise<Transaksi> => {
+    // Check connectivity
+    if (!navigator.onLine) {
+         const newTx: Transaksi = {
+            ...txData,
+            id: `offline_${Date.now()}`,
+            timestamp: new Date(),
+        };
+        offlineTransactions.push(newTx);
+        // In real app: localStorage.setItem('offline_tx', JSON.stringify(offlineTransactions));
+        return newTx;
+    }
+
     await delay(500);
     
     const hasPaidToday = await checkIfWargaPaidToday(txData.wargaId);
@@ -220,10 +373,22 @@ export const createTransaksi = async (txData: {wargaId: string, petugasId: strin
 // --- Admin API ---
 export const loginAdmin = async (username: string, password: string): Promise<Admin | null> => {
     await delay(500);
-    if (username === 'admin' && password === 'password') {
+    if (username === 'admin' && password === adminPassword) {
         return admins[0];
     }
     return null;
+};
+
+export const updateAdminProfile = async (id: string, name: string, password?: string): Promise<Admin> => {
+    await delay(400);
+    if (admins[0].id === id) {
+        admins[0].name = name;
+        if (password) {
+            adminPassword = password;
+        }
+        return admins[0];
+    }
+    throw new Error('Admin not found');
 };
 
 export const getAdminDashboardStats = async () => {
@@ -268,7 +433,11 @@ export const getAdminDashboardStats = async () => {
 export const getAllWarga = async (): Promise<Warga[]> => { await delay(200); return [...wargas]; };
 export const createWarga = async (wargaData: Omit<Warga, 'id'>): Promise<Warga> => {
     await delay(300);
-    const newWarga: Warga = { ...wargaData, id: String(Math.floor(100000 + Math.random() * 900000)) };
+    // Generate random ID if not provided (for imports)
+    const newWarga: Warga = { 
+        ...wargaData, 
+        id: String(Math.floor(100000 + Math.random() * 900000)) 
+    };
     wargas.push(newWarga);
     return newWarga;
 };

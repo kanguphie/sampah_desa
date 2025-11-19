@@ -9,6 +9,7 @@ import PetugasLayout from './pages/petugas/PetugasLayout';
 import PetugasDashboardPage from './pages/petugas/PetugasDashboardPage';
 import PetugasScanPage from './pages/petugas/PetugasScanPage';
 import PetugasBelumBayarPage from './pages/petugas/PetugasBelumBayarPage';
+import PetugasProfilePage from './pages/petugas/PetugasProfilePage';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminWargaPage from './pages/admin/AdminWargaPage';
@@ -19,6 +20,9 @@ import AdminCetakBarcodePage from './pages/admin/AdminCetakBarcodePage';
 import AdminPengaturanPage from './pages/admin/AdminPengaturanPage';
 import AdminKeuanganPage from './pages/admin/AdminKeuanganPage';
 import AdminRiwayatTransaksiPage from './pages/admin/AdminRiwayatTransaksiPage';
+import AdminInboxPage from './pages/admin/AdminInboxPage';
+import AdminPengumumanPage from './pages/admin/AdminPengumumanPage';
+import AdminProfilePage from './pages/admin/AdminProfilePage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const PetugasRoutes: React.FC = () => {
@@ -29,6 +33,7 @@ const PetugasRoutes: React.FC = () => {
                 <Route path="/dashboard" element={<PetugasDashboardPage />} />
                 <Route path="/scan" element={<PetugasScanPage />} />
                 <Route path="/belum-bayar" element={<PetugasBelumBayarPage />} />
+                <Route path="/profile" element={<PetugasProfilePage />} />
                 <Route path="/*" element={<Navigate to="/petugas/dashboard" />} />
             </Routes>
         </PetugasLayout>
@@ -49,8 +54,11 @@ const AdminRoutes: React.FC = () => {
                 <Route path="/riwayat" element={<AdminRiwayatTransaksiPage />} />
                 <Route path="/laporan" element={<AdminLaporanPage />} />
                 <Route path="/keuangan" element={<AdminKeuanganPage />} />
+                <Route path="/inbox" element={<AdminInboxPage />} />
+                <Route path="/pengumuman" element={<AdminPengumumanPage />} />
                 <Route path="/cetak-barcode" element={<AdminCetakBarcodePage />} />
                 <Route path="/pengaturan" element={<AdminPengaturanPage />} />
+                <Route path="/profile" element={<AdminProfilePage />} />
                 <Route path="/*" element={<Navigate to="/admin/dashboard" />} />
             </Routes>
         </AdminLayout>

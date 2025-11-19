@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useMemo, FC } from 'react';
 import { getReports, getAllDukuh, getAllRT, getPengeluaran, getUnpaidWargaForDate, getScheduleForDate, getDukuhById, getRTById } from '@/services/api';
+import { exportToExcel } from '@/services/excel';
 import type { Transaksi, Dukuh, RT, Pengeluaran, Warga } from '@/types';
-import { UserSlashIcon } from '@/components/icons';
+import { UserSlashIcon, FileExcelIcon } from '@/components/icons';
 
 interface ReportRow extends Transaksi {
     wargaName: string;
@@ -96,6 +97,19 @@ const LaporanHarian: FC = () => {
     const totalPengeluaran = useMemo(() => pengeluaranList.reduce((sum, item) => sum + item.amount, 0), [pengeluaranList]);
     const saldo = totalPemasukan - totalPengeluaran;
 
+    const handleExportExcel = () => {
+        const data = reports.map(r => ({
+            Tanggal: new Date(r.timestamp).toLocaleDateString(),
+            Waktu: new Date(r.timestamp).toLocaleTimeString(),
+            Warga: r.wargaName,
+            Dukuh: r.dukuhName,
+            RT: r.rtNumber,
+            Petugas: r.petugasName,
+            Jumlah: r.amount
+        }));
+        exportToExcel(data, `Laporan_Harian_${date}`);
+    };
+
     const handlePrint = () => {
         const formattedDate = new Date(date + 'T00:00:00').toLocaleDateString('id-ID', { dateStyle: 'full' });
         const title = `Laporan Harian - ${formattedDate}`;
@@ -149,7 +163,10 @@ const LaporanHarian: FC = () => {
                      <label className="block text-sm font-medium text-slate-700 mb-1">Pilih Tanggal</label>
                      <input type="date" value={date} onChange={e => setDate(e.target.value)} className="p-2 border border-slate-300 rounded-lg w-full" />
                 </div>
-                <button onClick={handlePrint} className="self-end bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus transition-colors">Cetak</button>
+                <div className="flex items-end gap-2">
+                    <button onClick={handleExportExcel} className="self-end bg-white text-emerald-600 border border-emerald-200 font-semibold px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors flex items-center gap-2"><FileExcelIcon /> Export Excel</button>
+                    <button onClick={handlePrint} className="self-end bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus transition-colors">Cetak</button>
+                </div>
             </div>
             <ReportSummary totalPemasukan={totalPemasukan} totalPengeluaran={totalPengeluaran} saldo={saldo} count={reports.length} />
             <ReportTable reports={reports} loading={loading} />
@@ -188,6 +205,17 @@ const LaporanBulanan: FC = () => {
     const totalPemasukan = useMemo(() => reports.reduce((sum, item) => sum + item.amount, 0), [reports]);
     const totalPengeluaran = useMemo(() => pengeluaranList.reduce((sum, item) => sum + item.amount, 0), [pengeluaranList]);
     const saldo = totalPemasukan - totalPengeluaran;
+
+    const handleExportExcel = () => {
+         const data = reports.map(r => ({
+            Tanggal: new Date(r.timestamp).toLocaleDateString(),
+            Warga: r.wargaName,
+            Dukuh: r.dukuhName,
+            RT: r.rtNumber,
+            Jumlah: r.amount
+        }));
+        exportToExcel(data, `Laporan_Bulanan_${month}`);
+    };
 
     const handlePrint = () => {
         const [year, monthNum] = month.split('-');
@@ -242,7 +270,10 @@ const LaporanBulanan: FC = () => {
                      <label className="block text-sm font-medium text-slate-700 mb-1">Pilih Bulan & Tahun</label>
                      <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="p-2 border border-slate-300 rounded-lg w-full" />
                 </div>
-                <button onClick={handlePrint} className="self-end bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus transition-colors">Cetak</button>
+                <div className="flex items-end gap-2">
+                     <button onClick={handleExportExcel} className="self-end bg-white text-emerald-600 border border-emerald-200 font-semibold px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors flex items-center gap-2"><FileExcelIcon /> Export Excel</button>
+                     <button onClick={handlePrint} className="self-end bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus transition-colors">Cetak</button>
+                </div>
             </div>
             <ReportSummary totalPemasukan={totalPemasukan} totalPengeluaran={totalPengeluaran} saldo={saldo} count={reports.length} />
             <ReportTable reports={reports} loading={loading} />
@@ -299,7 +330,6 @@ const LaporanWilayah: FC = () => {
         const { name, value } = e.target;
         setFilters(prev => {
             const newFilters = {...prev, [name]: value};
-            // Dukuh change doesn't affect RT dropdown availability anymore
             return newFilters;
         });
     };
@@ -754,7 +784,7 @@ const AdminLaporanPage: React.FC = () => {
         <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
                 <h1 className="text-2xl font-bold font-display text-slate-800">Laporan</h1>
-                <p className="mt-1 text-slate-500">Lihat dan cetak laporan pemasukan, pengeluaran, dan data tunggakan.</p>
+                <p className="mt-1 text-slate-500">Lihat, cetak, dan ekspor laporan pemasukan, pengeluaran, dan data tunggakan.</p>
             </div>
             
             <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm">

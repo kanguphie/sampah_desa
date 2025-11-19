@@ -45,3 +45,26 @@ export interface Pengeluaran {
     description: string;
     amount: number;
 }
+
+export interface ContactMessage {
+    id: string;
+    name: string;
+    contact: string; // Email or Phone
+    message: string;
+    timestamp: Date;
+    isRead: boolean;
+}
+
+export interface Announcement {
+    id: string;
+    title: string;
+    content: string;
+    isActive: boolean;
+    date: Date;
+}
+
+export interface PublicStats {
+    totalWarga: number;
+    totalTransaksiBulanIni: number;
+    totalDanaTerkumpulBulanIni: number;
+}

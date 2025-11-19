@@ -122,3 +122,39 @@ export const ClockIcon: React.FC<IconProps> = ({ className }) => (
 export const PhoneIcon: React.FC<IconProps> = ({ className }) => (
     <i className={`fa-solid fa-phone ${className || ''}`}></i>
 );
+
+export const EnvelopeIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-envelope ${className || ''}`}></i>
+);
+
+export const EnvelopeOpenIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-envelope-open ${className || ''}`}></i>
+);
+
+export const MegaphoneIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-bullhorn ${className || ''}`}></i>
+);
+
+export const FileExcelIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-file-excel ${className || ''}`}></i>
+);
+
+export const UploadIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-upload ${className || ''}`}></i>
+);
+
+export const DownloadIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-download ${className || ''}`}></i>
+);
+
+export const WifiIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-wifi ${className || ''}`}></i>
+);
+
+export const WifiOffIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-wifi-slash ${className || ''}`}></i>
+);
+
+export const UserIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-user ${className || ''}`}></i>
+);

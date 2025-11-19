@@ -2,7 +2,7 @@
 import React, { ReactNode, useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { HomeIcon, ChartBarIcon, LogoutIcon, DatabaseIcon, ChevronDownIcon, QrCodeIcon, UserCircleIcon, MenuIcon, XIcon, CogIcon, BanknotesIcon, ClipboardListIcon, ClockIcon } from '../../components/icons';
+import { HomeIcon, ChartBarIcon, LogoutIcon, DatabaseIcon, ChevronDownIcon, QrCodeIcon, UserCircleIcon, MenuIcon, XIcon, CogIcon, BanknotesIcon, ClipboardListIcon, ClockIcon, EnvelopeIcon, MegaphoneIcon, UserIcon } from '../../components/icons';
 
 const UserMenu: React.FC = () => {
     const { admin, logoutAdmin } = useAuth();
@@ -47,6 +47,10 @@ const UserMenu: React.FC = () => {
                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Akun</p>
                         <p className="text-sm font-medium text-slate-800 truncate">{admin?.username}</p>
                     </div>
+                    <button onClick={() => { navigate('/admin/profile'); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 transition-colors">
+                        <UserIcon className="text-lg mr-3" />
+                        Profil Saya
+                    </button>
                     <button onClick={handleLogout} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
                         <LogoutIcon className="text-lg mr-3" />
                         Keluar Aplikasi
@@ -191,11 +195,23 @@ const AdminLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
                     Laporan
                 </NavLink>
 
+                <NavLink to="/admin/inbox" className={({isActive}) => `${baseLinkClasses} ${isActive ? activeLinkClasses : inactiveLinkClasses}`} >
+                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-emerald-400 transition-opacity duration-300 ${location.pathname === '/admin/inbox' ? 'opacity-100' : 'opacity-0'}`}></div>
+                    <EnvelopeIcon className="text-lg mr-3 transition-transform group-hover:scale-110" />
+                    Kotak Masuk
+                </NavLink>
+
                 <div className="my-4 border-t border-slate-800 mx-6"></div>
                 
                 <div className="px-6 py-2">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-3">Lainnya</p>
                 </div>
+                
+                <NavLink to="/admin/pengumuman" className={({isActive}) => `${baseLinkClasses} ${isActive ? activeLinkClasses : inactiveLinkClasses}`} >
+                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-emerald-400 transition-opacity duration-300 ${location.pathname === '/admin/pengumuman' ? 'opacity-100' : 'opacity-0'}`}></div>
+                    <MegaphoneIcon className="text-lg mr-3 transition-transform group-hover:scale-110" />
+                    Pengumuman
+                </NavLink>
 
                 <NavLink to="/admin/cetak-barcode" className={({isActive}) => `${baseLinkClasses} ${isActive ? activeLinkClasses : inactiveLinkClasses}`} >
                     <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-emerald-400 transition-opacity duration-300 ${location.pathname === '/admin/cetak-barcode' ? 'opacity-100' : 'opacity-0'}`}></div>
@@ -252,6 +268,9 @@ const AdminLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
                                  location.pathname.includes('riwayat') ? 'Riwayat Transaksi' : 
                                  location.pathname.includes('keuangan') ? 'Keuangan' :
                                  location.pathname.includes('laporan') ? 'Laporan' :
+                                 location.pathname.includes('inbox') ? 'Kotak Masuk' :
+                                 location.pathname.includes('pengumuman') ? 'Pengumuman' :
+                                 location.pathname.includes('profile') ? 'Profil Saya' :
                                  location.pathname.includes('barcode') ? 'Cetak Barcode' : 'Pengaturan'}
                             </h2>
                         </div>

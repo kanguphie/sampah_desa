@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getWargaById, getTransactionsByWargaId, getDukuhById, getRTById, loginPetugas, loginAdmin } from '@/services/api';
-import type { Warga, Transaksi } from '@/types';
-import { SearchIcon, EyeIcon, EyeOffIcon, MenuIcon, XIcon } from '@/components/icons';
+import { getWargaById, getTransactionsByWargaId, getDukuhById, getRTById, loginPetugas, loginAdmin, getActiveAnnouncements, getPublicDashboardStats } from '@/services/api';
+import type { Warga, Transaksi, Announcement, PublicStats } from '@/types';
+import { SearchIcon, EyeIcon, EyeOffIcon, MenuIcon, XIcon, MegaphoneIcon, LeafIcon, RecycleIcon, SparklesIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 import { useAuth } from '@/context/AuthContext';
 
@@ -24,6 +24,9 @@ const PublicHomePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [stats, setStats] = useState<PublicStats | null>(null);
+
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [credential, setCredential] = useState('');
@@ -33,6 +36,19 @@ const PublicHomePage: React.FC = () => {
   
   const navigate = useNavigate();
   const { loginAdmin: authLoginAdmin, loginPetugas: authLoginPetugas } = useAuth();
+
+  useEffect(() => {
+      const fetchPublicData = async () => {
+          try {
+              const [announcementData, statsData] = await Promise.all([getActiveAnnouncements(), getPublicDashboardStats()]);
+              setAnnouncements(announcementData);
+              setStats(statsData);
+          } catch (e) {
+              console.error("Error loading public data", e);
+          }
+      };
+      fetchPublicData();
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +135,7 @@ const PublicHomePage: React.FC = () => {
                     </div>
                 </Link>
                 <nav className="hidden md:flex items-center space-x-8">
-                    <Link to="/" className="text-slate-600 hover:text-primary transition-colors font-medium">Home</Link>
+                    <Link to="/" className="text-primary font-semibold transition-colors">Home</Link>
                     <Link to="/tips" className="text-slate-600 hover:text-primary transition-colors font-medium">Tips Sampah</Link>
                     <Link to="/contact" className="text-slate-600 hover:text-primary transition-colors font-medium">Kontak</Link>
                 </nav>
@@ -150,16 +166,32 @@ const PublicHomePage: React.FC = () => {
                     </button>
                 </div>
                 <nav className="flex flex-col items-center justify-center flex-grow space-y-8">
-                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Home</Link>
+                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-primary hover:text-primary">Home</Link>
                     <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Tips Sampah</Link>
                     <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Kontak</Link>
                 </nav>
             </div>
         )}
 
+        {/* Announcement Banner */}
+        {announcements.length > 0 && (
+            <div className="bg-amber-100 border-y border-amber-200 text-amber-800 px-4 py-3">
+                <div className="container mx-auto flex items-start gap-3">
+                    <MegaphoneIcon className="text-xl mt-0.5 shrink-0" />
+                    <div>
+                         {announcements.map(ann => (
+                             <div key={ann.id} className="mb-1 last:mb-0">
+                                 <span className="font-bold mr-2">{ann.title}:</span>
+                                 <span>{ann.content}</span>
+                             </div>
+                         ))}
+                    </div>
+                </div>
+            </div>
+        )}
 
         <main className="flex-grow">
-            <section id="cek-status-form" className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-20">
+            <section id="cek-status-form" className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
                 <div className="grid lg:grid-cols-2 gap-12 items-center">
                     <div className="animate-fade-in">
                         <p className="font-semibold text-teal-500 text-lg">#GOGREEN_NOW!</p>
@@ -197,6 +229,41 @@ const PublicHomePage: React.FC = () => {
                     </div>
                 </div>
             </section>
+
+            {/* Public Stats Dashboard */}
+            {stats && (
+                <section className="py-12 bg-white">
+                    <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center mb-10">
+                             <h2 className="text-2xl font-bold text-slate-800">Transparansi Pengelolaan Sampah</h2>
+                             <p className="text-slate-500">Bersama membangun desa yang bersih dan transparan.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col items-center text-center hover:-translate-y-1 transition-transform">
+                                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+                                    <LeafIcon className="text-2xl"/>
+                                </div>
+                                <h3 className="text-3xl font-bold text-slate-800">{stats.totalWarga}</h3>
+                                <p className="text-sm font-medium text-slate-500 mt-1">Warga Terdaftar</p>
+                            </div>
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col items-center text-center hover:-translate-y-1 transition-transform">
+                                 <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3">
+                                    <RecycleIcon className="text-2xl"/>
+                                </div>
+                                <h3 className="text-3xl font-bold text-slate-800">{stats.totalTransaksiBulanIni}</h3>
+                                <p className="text-sm font-medium text-slate-500 mt-1">Transaksi Bulan Ini</p>
+                            </div>
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col items-center text-center hover:-translate-y-1 transition-transform">
+                                 <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-3">
+                                    <SparklesIcon className="text-2xl"/>
+                                </div>
+                                <h3 className="text-3xl font-bold text-slate-800">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', notation: 'compact' }).format(stats.totalDanaTerkumpulBulanIni)}</h3>
+                                <p className="text-sm font-medium text-slate-500 mt-1">Dana Terkumpul (Bln Ini)</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            )}
             
             {warga && (
               <section id="hasil-pencarian" className="py-10 md:py-16 bg-slate-50">

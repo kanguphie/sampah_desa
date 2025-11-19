@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga } from '@/services/api';
+import { exportToExcel, readWargaExcel } from '@/services/excel';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon, QrCodeIcon, ChevronDownIcon, SearchIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, QrCodeIcon, ChevronDownIcon, SearchIcon, FileExcelIcon, UploadIcon, DownloadIcon } from '@/components/icons';
 
 const WargaForm: React.FC<{
   warga?: Warga | null;
@@ -71,6 +72,7 @@ const AdminWargaPage: React.FC = () => {
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     // Modals
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -256,7 +258,52 @@ const AdminWargaPage: React.FC = () => {
         </th>
     );
 
-     // --- Print ---
+     // --- Excel & Print ---
+    const handleExport = () => {
+        const dataToExport = sortedWarga.map(w => ({
+            ID: w.id,
+            Nama: w.name,
+            'Kode RT': w.rtId,
+            'Kode Dukuh': w.dukuhId,
+            Tarif: w.dailyFee
+        }));
+        exportToExcel(dataToExport, `Data_Warga_SapaDesa_${new Date().toISOString().split('T')[0]}`);
+    };
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        setLoading(true);
+        try {
+            const importedData = await readWargaExcel(file);
+            // Bulk Create Logic
+            for (const item of importedData) {
+                if(item.name && item.dukuhId && item.rtId) {
+                     await createWarga({
+                         name: item.name,
+                         dukuhId: Number(item.dukuhId),
+                         rtId: Number(item.rtId),
+                         dailyFee: Number(item.dailyFee) || 2000
+                     });
+                }
+            }
+            alert(`Berhasil mengimpor data. Refresh tabel untuk melihat perubahan.`);
+            fetchData();
+        } catch (error) {
+            console.error("Import error:", error);
+            alert("Gagal mengimpor file. Pastikan format sesuai.");
+        } finally {
+            setLoading(false);
+            // Reset file input
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (printWindow) {
@@ -294,7 +341,7 @@ const AdminWargaPage: React.FC = () => {
                     <h1 className="text-3xl font-bold font-display text-slate-800 tracking-tight">Data Warga</h1>
                     <p className="mt-1 text-slate-500 text-lg">Kelola data penduduk Desa Rowosari.</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     {selectedIds.size > 0 ? (
                          <button 
                             onClick={() => setIsBulkDeleteModalOpen(true)} 
@@ -305,8 +352,18 @@ const AdminWargaPage: React.FC = () => {
                         </button>
                     ) : (
                         <>
-                             <button onClick={handlePrint} className="bg-white text-slate-600 font-semibold px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm">
-                                Cetak
+                             <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleFileChange} 
+                                accept=".xlsx, .xls" 
+                                className="hidden" 
+                             />
+                             <button onClick={handleImportClick} className="bg-white text-slate-600 font-semibold px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2">
+                                <UploadIcon /> Import
+                            </button>
+                            <button onClick={handleExport} className="bg-white text-emerald-600 font-semibold px-4 py-2.5 rounded-xl border border-emerald-200 hover:bg-emerald-50 transition-colors shadow-sm flex items-center gap-2">
+                                <FileExcelIcon /> Export
                             </button>
                             <button onClick={() => openFormModal()} className="bg-emerald-500 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 transition-all transform hover:-translate-y-0.5">
                                 + Warga Baru

@@ -2,10 +2,38 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MenuIcon, XIcon, HomeIcon, PhoneIcon } from '@/components/icons';
+import { sendMessage } from '@/services/api';
 
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [formData, setFormData] = useState({ name: '', contact: '', message: '' });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const { name, value } = e.target;
+      setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!formData.name || !formData.contact || !formData.message) return;
+      
+      setLoading(true);
+      try {
+          await sendMessage(formData);
+          setSuccess(true);
+          setFormData({ name: '', contact: '', message: '' });
+          // Hide success message after 5 seconds
+          setTimeout(() => setSuccess(false), 5000);
+      } catch (error) {
+          console.error("Failed to send message", error);
+          alert("Gagal mengirim pesan. Silakan coba lagi.");
+      } finally {
+          setLoading(false);
+      }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
@@ -76,8 +104,9 @@ const ContactPage: React.FC = () => {
                             <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
                                 <HomeIcon className="text-2xl" />
                             </div>
-                            <h3 className="font-bold text-lg text-slate-800 mb-2">Kantor Desa</h3>
+                            <h3 className="font-bold text-lg text-slate-800 mb-2">Karang Taruna Mahardika</h3>
                             <p className="text-slate-600 text-sm leading-relaxed">
+                                Sekretariat: Kantor Desa Rowosari<br/>
                                 2W3M+JW8, Pencar, Rowosari,<br/>
                                 Kec. Limpung, Kab. Batang,<br/>
                                 Jawa Tengah 51271
@@ -116,37 +145,66 @@ const ContactPage: React.FC = () => {
                     <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full opacity-20 blur-3xl"></div>
                     
                     <h3 className="text-2xl font-bold font-display text-slate-800 mb-6 relative z-10">Kirim Pesan</h3>
-                    <form className="space-y-5 relative z-10" onSubmit={(e) => e.preventDefault()}>
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-600 mb-1">Nama Lengkap</label>
-                            <input 
-                                type="text" 
-                                placeholder="Nama Anda" 
-                                className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400"
-                            />
+                    
+                    {success ? (
+                         <div className="bg-green-100 border border-green-200 text-green-800 p-6 rounded-xl text-center animate-fade-in relative z-10">
+                            <p className="font-bold text-lg mb-2">Pesan Terkirim!</p>
+                            <p>Terima kasih telah menghubungi kami. Kami akan segera merespon pesan Anda.</p>
+                            <button 
+                                onClick={() => setSuccess(false)}
+                                className="mt-4 text-green-700 font-semibold hover:underline"
+                            >
+                                Kirim pesan lain
+                            </button>
                         </div>
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-600 mb-1">Email / WhatsApp</label>
-                            <input 
-                                type="text" 
-                                placeholder="kontak@email.com atau 08..." 
-                                className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-600 mb-1">Pesan</label>
-                            <textarea 
-                                rows={4}
-                                placeholder="Tulis pesan Anda di sini..." 
-                                className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400 resize-none"
-                            ></textarea>
-                        </div>
-                        <button 
-                            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:scale-[1.02] transition-all duration-300"
-                        >
-                            Kirim Pesan
-                        </button>
-                    </form>
+                    ) : (
+                         <form className="space-y-5 relative z-10" onSubmit={handleSubmit}>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-600 mb-1">Nama Lengkap</label>
+                                <input 
+                                    type="text" 
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    required
+                                    placeholder="Nama Anda" 
+                                    className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-600 mb-1">Email / WhatsApp</label>
+                                <input 
+                                    type="text" 
+                                    name="contact"
+                                    value={formData.contact}
+                                    onChange={handleInputChange}
+                                    required
+                                    placeholder="kontak@email.com atau 08..." 
+                                    className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-600 mb-1">Pesan</label>
+                                <textarea 
+                                    name="message"
+                                    value={formData.message}
+                                    onChange={handleInputChange}
+                                    required
+                                    rows={4}
+                                    placeholder="Tulis pesan Anda di sini..." 
+                                    className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400 resize-none"
+                                ></textarea>
+                            </div>
+                            <button 
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 disabled:opacity-70 disabled:hover:scale-100"
+                            >
+                                {loading ? 'Mengirim...' : 'Kirim Pesan'}
+                            </button>
+                        </form>
+                    )}
+                   
                 </div>
             </div>
         </main>
