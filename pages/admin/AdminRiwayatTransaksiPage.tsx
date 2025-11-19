@@ -201,7 +201,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
             <div className="glass-card p-2 rounded-2xl">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
                     <div className="md:col-span-3">
-                        <div className="bg-white/50 rounded-xl p-1 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
+                        <div className="bg-white rounded-xl p-1 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
                             <label className="block text-xs font-bold text-slate-400 uppercase ml-3 mt-1">Dari Tanggal</label>
                             <input 
                                 type="date" 
@@ -212,7 +212,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="md:col-span-3">
-                         <div className="bg-white/50 rounded-xl p-1 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
+                         <div className="bg-white rounded-xl p-1 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
                             <label className="block text-xs font-bold text-slate-400 uppercase ml-3 mt-1">Sampai Tanggal</label>
                             <input 
                                 type="date" 
@@ -223,7 +223,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="md:col-span-6">
-                         <div className="relative bg-white/50 rounded-xl p-1 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all h-full flex flex-col justify-center">
+                         <div className="relative bg-white rounded-xl p-1 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all h-full flex flex-col justify-center">
                             <input 
                                 type="text" 
                                 placeholder="Cari nama warga, petugas, atau ID..." 

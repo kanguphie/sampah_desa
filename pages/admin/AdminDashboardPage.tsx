@@ -73,7 +73,7 @@ const StatCard: React.FC<{
                             <div className="h-10 w-3/4 bg-slate-200/70 rounded-xl"></div>
                         </div>
                     ) : (
-                        <h3 className={`text-[2.5rem] leading-none font-extrabold tracking-tight ${style.text}`}>
+                        <h3 className={`text-2xl sm:text-3xl xl:text-2xl 2xl:text-3xl leading-tight font-extrabold tracking-tight ${style.text} break-words`} title={value}>
                             {value}
                         </h3>
                     )}
