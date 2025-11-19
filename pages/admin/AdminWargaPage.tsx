@@ -416,7 +416,7 @@ const AdminWargaPage: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="p-4 rounded-r-2xl">
-                                        <div className="flex justify-center items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <div className="flex justify-center items-center gap-2">
                                             <button onClick={() => openQrModal(warga)} className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors" title="QR Code"><QrCodeIcon className="text-lg"/></button>
                                             <button onClick={() => openFormModal(warga)} className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit"><PencilIcon className="text-lg" /></button>
                                             <button onClick={() => setWargaToDelete(warga)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Hapus"><TrashIcon className="text-lg" /></button>
