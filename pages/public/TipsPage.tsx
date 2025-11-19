@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RecycleIcon, LeafIcon, SparklesIcon, ShoppingBagIcon, BanknotesIcon, TrashIcon, MenuIcon, XIcon } from '@/components/icons';
@@ -26,7 +27,7 @@ const tips = [
   {
     icon: <BanknotesIcon className="text-5xl text-emerald-600" />,
     title: 'Jual ke Bank Sampah',
-    description: 'Kumpulkan sampah anorganik yang masih memiliki nilai jual seperti botol plastik, kardus, dan logam. Setorkan ke bank sampah untuk ditukar dengan uang.',
+    description: 'Kumpulkan sampah organik yang masih memiliki nilai jual seperti botol plastik, kardus, dan logam. Setorkan ke bank sampah untuk ditukar dengan uang.',
   },
   {
     icon: <TrashIcon className="text-5xl text-slate-500" />,
@@ -60,8 +61,8 @@ const TipsPage: React.FC = () => {
                 </Link>
                  <nav className="hidden md:flex items-center space-x-8">
                     <Link to="/" className="text-slate-600 hover:text-primary transition-colors font-medium">Home</Link>
-                    <a href="/#cek-status-form" className="text-slate-600 hover:text-primary transition-colors font-medium">Cek Status</a>
                     <Link to="/tips" className="text-primary font-semibold transition-colors">Tips Sampah</Link>
+                    <Link to="/contact" className="text-slate-600 hover:text-primary transition-colors font-medium">Kontak</Link>
                 </nav>
                 <div className="flex items-center gap-4">
                      <button 
@@ -90,8 +91,8 @@ const TipsPage: React.FC = () => {
                 </div>
                 <nav className="flex flex-col items-center justify-center flex-grow space-y-8">
                     <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Home</Link>
-                    <a href="/#cek-status-form" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Cek Status</a>
-                    <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Tips Sampah</Link>
+                    <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-primary hover:text-primary">Tips Sampah</Link>
+                    <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Kontak</Link>
                 </nav>
             </div>
         )}

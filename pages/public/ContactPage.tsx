@@ -1,0 +1,163 @@
+
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { MenuIcon, XIcon, HomeIcon, PhoneIcon } from '@/components/icons';
+
+const ContactPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
+        <div className="absolute top-0 left-0 w-full h-4 bg-teal-400"></div>
+        
+        {/* Header */}
+        <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-5 relative z-20">
+            <div className="flex justify-between items-center">
+                <Link to="/" className="flex items-center">
+                    <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12">
+                        SapaDesa
+                    </div>
+                </Link>
+                 <nav className="hidden md:flex items-center space-x-8">
+                    <Link to="/" className="text-slate-600 hover:text-primary transition-colors font-medium">Home</Link>
+                    <Link to="/tips" className="text-slate-600 hover:text-primary transition-colors font-medium">Tips Sampah</Link>
+                    <Link to="/contact" className="text-primary font-semibold transition-colors">Kontak</Link>
+                </nav>
+                <div className="flex items-center gap-4">
+                     <button 
+                      onClick={() => navigate('/')}
+                      className="hidden sm:block bg-slate-100 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors shadow-sm border border-slate-200"
+                    >
+                      Kembali ke Home
+                    </button>
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-slate-600 hover:text-primary" aria-label="Open menu">
+                        <MenuIcon className="text-2xl" />
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+            <div className="fixed inset-0 bg-white z-50 flex flex-col animate-fade-in md:hidden">
+                <div className="flex justify-between items-center p-4 border-b">
+                    <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12">
+                        SapaDesa
+                    </div>
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-600" aria-label="Close menu">
+                        <XIcon className="text-2xl" />
+                    </button>
+                </div>
+                <nav className="flex flex-col items-center justify-center flex-grow space-y-8">
+                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Home</Link>
+                    <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Tips Sampah</Link>
+                    <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-primary">Kontak</Link>
+                </nav>
+            </div>
+        )}
+
+        {/* Main Content */}
+        <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16 relative z-10">
+            <div className="text-center max-w-3xl mx-auto mb-16">
+                <h1 className="font-display text-4xl md:text-5xl font-bold text-slate-800 leading-tight">
+                    Hubungi <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500">Kami</span>
+                </h1>
+                <p className="mt-4 text-slate-600 text-lg">
+                    Punya pertanyaan seputar retribusi sampah atau layanan SapaDesa? Kami siap membantu Anda.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {/* Contact Info & Map */}
+                <div className="space-y-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="glass-card p-6 rounded-2xl bg-white/60 hover:-translate-y-1 transition-transform duration-300">
+                            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
+                                <HomeIcon className="text-2xl" />
+                            </div>
+                            <h3 className="font-bold text-lg text-slate-800 mb-2">Kantor Desa</h3>
+                            <p className="text-slate-600 text-sm leading-relaxed">
+                                Jl. Raya Rowosari No. 1,<br/>
+                                Kec. Rowosari, Kendal,<br/>
+                                Jawa Tengah 51354
+                            </p>
+                        </div>
+                        <div className="glass-card p-6 rounded-2xl bg-white/60 hover:-translate-y-1 transition-transform duration-300">
+                            <div className="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center text-sky-600 mb-4">
+                                <PhoneIcon className="text-2xl" />
+                            </div>
+                            <h3 className="font-bold text-lg text-slate-800 mb-2">Layanan Warga</h3>
+                            <p className="text-slate-600 text-sm leading-relaxed">
+                                WhatsApp: +62 812-3456-7890<br/>
+                                Email: admin@sapadesa.id<br/>
+                                Jam Kerja: 08.00 - 15.00 WIB
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Map Embed */}
+                    <div className="glass-card p-2 rounded-2xl bg-white/60 h-80 w-full overflow-hidden">
+                        <iframe 
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3960.775194748759!2d110.0365487147729!3d-6.917434995001778!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e7042a61930534d%3A0x4027a76e352e3d0!2sRowosari%2C%20Kendal%20Regency%2C%20Central%20Java!5e0!3m2!1sen!2sid!4v1679887761234!5m2!1sen!2sid" 
+                            width="100%" 
+                            height="100%" 
+                            style={{border:0, borderRadius: '1rem'}} 
+                            allowFullScreen 
+                            loading="lazy" 
+                            referrerPolicy="no-referrer-when-downgrade"
+                            title="Peta Lokasi"
+                        ></iframe>
+                    </div>
+                </div>
+
+                {/* Contact Form */}
+                <div className="glass-card p-8 rounded-3xl bg-white relative overflow-hidden">
+                    <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full opacity-20 blur-3xl"></div>
+                    
+                    <h3 className="text-2xl font-bold font-display text-slate-800 mb-6 relative z-10">Kirim Pesan</h3>
+                    <form className="space-y-5 relative z-10" onSubmit={(e) => e.preventDefault()}>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-600 mb-1">Nama Lengkap</label>
+                            <input 
+                                type="text" 
+                                placeholder="Nama Anda" 
+                                className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-600 mb-1">Email / WhatsApp</label>
+                            <input 
+                                type="text" 
+                                placeholder="kontak@email.com atau 08..." 
+                                className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-600 mb-1">Pesan</label>
+                            <textarea 
+                                rows={4}
+                                placeholder="Tulis pesan Anda di sini..." 
+                                className="w-full px-4 py-3 bg-slate-50 border-b-2 border-slate-200 focus:border-emerald-500 rounded-t-lg focus:bg-white outline-none transition-all placeholder-slate-400 resize-none"
+                            ></textarea>
+                        </div>
+                        <button 
+                            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:scale-[1.02] transition-all duration-300"
+                        >
+                            Kirim Pesan
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </main>
+
+        <footer className="bg-slate-800 text-slate-400 py-8 mt-16">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <p>&copy; {new Date().getFullYear()} Karang Taruna Mahardika Rowosari. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+  );
+};
+
+export default ContactPage;

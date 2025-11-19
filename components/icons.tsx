@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 type IconProps = { className?: string };
@@ -112,4 +113,12 @@ export const ScaleBalancedIcon: React.FC<IconProps> = ({ className }) => (
 
 export const UserSlashIcon: React.FC<IconProps> = ({ className }) => (
     <i className={`fa-solid fa-user-slash ${className || ''}`}></i>
+);
+
+export const ClockIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-clock ${className || ''}`}></i>
+);
+
+export const PhoneIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-phone ${className || ''}`}></i>
 );

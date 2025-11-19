@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import type { RT, Dukuh } from '@/types';
-import { getAllRT, createRT, updateRT, deleteRT, getAllDukuh } from '@/services/api';
+import type { RT } from '@/types';
+import { getAllRT, createRT, updateRT, deleteRT } from '@/services/api';
 import Modal from '@/components/Modal';
 import { TrashIcon, PencilIcon } from '@/components/icons';
 
@@ -8,16 +9,13 @@ const RTForm: React.FC<{
   rt?: RT | null;
   onSave: (rt: Omit<RT, 'id'> | RT) => void;
   onCancel: () => void;
-  dukuhList: Dukuh[];
-}> = ({ rt, onSave, onCancel, dukuhList }) => {
+}> = ({ rt, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     number: rt?.number || '',
-    dukuhId: rt?.dukuhId || 0,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.dukuhId === 0) return; // Prevent saving without a Dukuh
     onSave(rt ? { ...rt, ...formData } : formData);
   };
 
@@ -26,13 +24,6 @@ const RTForm: React.FC<{
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Nomor RT</label>
         <input type="text" placeholder="Contoh: 01, 02" value={formData.number} onChange={e => setFormData({...formData, number: e.target.value})} className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary" required />
-      </div>
-       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Dukuh</label>
-        <select value={formData.dukuhId} onChange={e => setFormData({...formData, dukuhId: Number(e.target.value)})} className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary" required>
-          <option value={0} disabled>Pilih Dukuh</option>
-          {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
       </div>
       <div className="flex justify-end gap-3 pt-4">
         <button type="button" onClick={onCancel} className="bg-slate-200 text-slate-800 font-semibold px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors">Batal</button>
@@ -44,7 +35,6 @@ const RTForm: React.FC<{
 
 const AdminRtPage: React.FC = () => {
     const [rtList, setRtList] = useState<RT[]>([]);
-    const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedRT, setSelectedRT] = useState<RT | null>(null);
@@ -53,9 +43,8 @@ const AdminRtPage: React.FC = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [rtData, dukuhData] = await Promise.all([getAllRT(), getAllDukuh()]);
+            const rtData = await getAllRT();
             setRtList(rtData);
-            setDukuhList(dukuhData);
         } catch (error) {
             console.error("Failed to fetch data", error);
         } finally {
@@ -89,10 +78,6 @@ const AdminRtPage: React.FC = () => {
         setIsModalOpen(true);
     };
     
-    const getDukuhName = (dukuhId: number) => {
-        return dukuhList.find(d => d.id === dukuhId)?.name || 'N/A';
-    }
-
     return (
         <div className="space-y-6">
              <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
@@ -114,7 +99,6 @@ const AdminRtPage: React.FC = () => {
                             <tr>
                                 <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">ID</th>
                                 <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Nomor RT</th>
-                                <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Dukuh</th>
                                 <th className="p-4 text-center uppercase text-xs font-semibold text-slate-500 tracking-wider">Aksi</th>
                             </tr>
                         </thead>
@@ -122,14 +106,13 @@ const AdminRtPage: React.FC = () => {
                              {loading ? (
                                 Array.from({ length: 4 }).map((_, i) => (
                                     <tr key={i}>
-                                        <td className="p-4" colSpan={4}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
+                                        <td className="p-4" colSpan={3}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
                                     </tr>
                                 ))
                             ) : rtList.map((rt) => (
                                 <tr key={rt.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4 font-mono text-slate-600">{rt.id}</td>
                                     <td className="p-4 font-semibold text-slate-800">RT {rt.number}</td>
-                                    <td className="p-4 text-slate-600">{getDukuhName(rt.dukuhId)}</td>
                                     <td className="p-4">
                                         <div className="flex justify-center items-center gap-3">
                                             <button onClick={() => openFormModal(rt)} className="text-slate-500 hover:text-blue-600" title="Edit RT"><PencilIcon className="text-xl" /></button>
@@ -144,7 +127,7 @@ const AdminRtPage: React.FC = () => {
             </div>
 
             <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setSelectedRT(null); }} title={selectedRT ? 'Edit Data RT' : 'Tambah RT Baru'}>
-                <RTForm rt={selectedRT} onSave={handleSave} onCancel={() => { setIsModalOpen(false); setSelectedRT(null); }} dukuhList={dukuhList} />
+                <RTForm rt={selectedRT} onSave={handleSave} onCancel={() => { setIsModalOpen(false); setSelectedRT(null); }} />
             </Modal>
 
             <Modal isOpen={!!rtToDelete} onClose={() => setRtToDelete(null)} title="Konfirmasi Hapus Data" size="md">
@@ -154,10 +137,10 @@ const AdminRtPage: React.FC = () => {
                             Apakah Anda yakin ingin menghapus data RT ini?
                         </p>
                         <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-center">
-                             <strong className="font-semibold text-red-800 text-lg">RT {rtToDelete.number} - {getDukuhName(rtToDelete.dukuhId)}</strong>
+                             <strong className="font-semibold text-red-800 text-lg">RT {rtToDelete.number}</strong>
                         </div>
                         <p className="text-sm text-center text-red-600">
-                            Semua data Warga yang terkait akan ikut terhapus permanen.
+                            Semua data Warga yang terkait akan kehilangan referensi RT.
                         </p>
                         <div className="flex justify-center gap-3 mt-6">
                             <button type="button" onClick={() => setRtToDelete(null)} className="bg-slate-200 text-slate-800 px-5 py-2 rounded-lg hover:bg-slate-300 font-semibold">

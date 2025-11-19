@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -8,30 +9,32 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script>
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              display: ['Poppins', 'sans-serif'],
+              sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+              display: ['"Plus Jakarta Sans"', 'sans-serif'],
             },
             colors: {
               primary: {
-                DEFAULT: '#0d9488', // teal-600
-                focus: '#0f766e',   // teal-700
+                DEFAULT: '#10b981', // emerald-500
+                focus: '#059669',   // emerald-600
                 content: '#ffffff',
-                light: '#ccfbf1',  // teal-100
+                light: '#d1fae5',  // emerald-100
+                gradientStart: '#34d399', // emerald-400
+                gradientEnd: '#0d9488', // teal-600
               },
               secondary: '#6366f1', // indigo-500
               accent: '#f59e0b', // amber-500
-              neutral: '#374151', // gray-700
+              neutral: '#1e293b', // slate-800
               'base-100': '#f8fafc', // slate-50
               info: '#3b82f6', // blue-500
-              success: '#16a34a', // green-600
-              warning: '#facc15', // yellow-400
+              success: '#22c55e', // green-500
+              warning: '#eab308', // yellow-500
               error: '#ef4444', // red-500
               slate: {
                 50: '#f8fafc',
@@ -46,43 +49,87 @@
                 900: '#0f172a',
               }
             },
+            boxShadow: {
+              'soft': '0 10px 40px -10px rgba(0, 0, 0, 0.08)',
+              'glow': '0 0 20px rgba(16, 185, 129, 0.4)',
+              'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+            }
           },
         },
       }
     </script>
     <style>
       body {
-        font-family: 'Inter', sans-serif;
-        color: #334152; /* slate-700 */
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        color: #334152;
+        background-color: #f8fafc;
+        background-image: 
+          radial-gradient(at 0% 0%, hsla(160,60%,96%,1) 0, transparent 50%), 
+          radial-gradient(at 50% 100%, hsla(190,60%,96%,1) 0, transparent 50%),
+          radial-gradient(at 100% 0%, hsla(210,60%,97%,1) 0, transparent 50%);
+        background-attachment: fixed;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
       h1, h2, h3, h4, h5, h6 {
-        font-family: 'Poppins', 'sans-serif';
+        font-family: 'Plus Jakarta Sans', 'sans-serif';
       }
+      
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+
       .smooth-transition {
-        transition: all 0.3s ease-in-out;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
+      
       @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
       }
       .animate-fade-in {
-        animation: fadeIn 0.5s ease-out forwards;
+        animation: fadeIn 0.4s ease-out forwards;
       }
+      
       @keyframes slideInUp {
         from { transform: translateY(20px); opacity: 0; }
         to { transform: translateY(0); opacity: 1; }
       }
       .animate-slide-in-up {
-        animation: slideInUp 0.5s ease-out forwards;
+        animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
-      /* For modals */
-      .modal-backdrop {
-        animation: fadeIn 0.2s ease-out forwards;
+
+      /* Glassmorphism */
+      .glass {
+        background: rgba(255, 255, 255, 0.65);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.4);
       }
-      .modal-content {
-        animation: slideInUp 0.3s ease-out forwards;
+      
+      .glass-card {
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+      }
+      
+      .floating-dock {
+         background: #0f172a; /* Midnight Blue */
+         color: white;
       }
     </style>
   <script type="importmap">
@@ -100,7 +147,7 @@
 }
 </script>
 </head>
-  <body class="bg-base-100">
+  <body class="text-slate-800">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

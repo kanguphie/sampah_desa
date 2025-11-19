@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { getWargaById, getTransactionsByWargaId, getDukuhById, getRTById, loginPetugas, loginAdmin } from '@/services/api';
@@ -119,8 +120,8 @@ const PublicHomePage: React.FC = () => {
                 </Link>
                 <nav className="hidden md:flex items-center space-x-8">
                     <Link to="/" className="text-slate-600 hover:text-primary transition-colors font-medium">Home</Link>
-                    <a href="/#cek-status-form" className="text-slate-600 hover:text-primary transition-colors font-medium">Cek Status</a>
                     <Link to="/tips" className="text-slate-600 hover:text-primary transition-colors font-medium">Tips Sampah</Link>
+                    <Link to="/contact" className="text-slate-600 hover:text-primary transition-colors font-medium">Kontak</Link>
                 </nav>
                 <div className="flex items-center gap-4">
                      <button 
@@ -150,8 +151,8 @@ const PublicHomePage: React.FC = () => {
                 </div>
                 <nav className="flex flex-col items-center justify-center flex-grow space-y-8">
                     <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Home</Link>
-                    <a href="/#cek-status-form" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Cek Status</a>
                     <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Tips Sampah</Link>
+                    <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Kontak</Link>
                 </nav>
             </div>
         )}

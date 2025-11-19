@@ -3,6 +3,7 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PublicHomePage from './pages/public/PublicHomePage';
 import TipsPage from './pages/public/TipsPage';
+import ContactPage from './pages/public/ContactPage';
 // import UnifiedLoginPage from './pages/auth/UnifiedLoginPage';
 import PetugasLayout from './pages/petugas/PetugasLayout';
 import PetugasDashboardPage from './pages/petugas/PetugasDashboardPage';
@@ -66,6 +67,7 @@ const App: React.FC = () => {
             <Routes>
                 <Route path="/" element={<PublicHomePage />} />
                 <Route path="/tips" element={<TipsPage />} />
+                <Route path="/contact" element={<ContactPage />} />
                 {/* <Route path="/login" element={<UnifiedLoginPage />} /> */}
                 <Route path="/petugas/*" element={<PetugasRoutes />} />
                 <Route path="/admin/*" element={<AdminRoutes />} />
