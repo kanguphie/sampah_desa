@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Petugas } from '@/types';
 import { getAllPetugas, createPetugas, updatePetugas, deletePetugas } from '@/services/api';
 import Modal from '@/components/Modal';
@@ -50,13 +51,16 @@ const AdminPetugasPage: React.FC = () => {
     const [selectedPetugas, setSelectedPetugas] = useState<Petugas | null>(null);
     const [petugasToDelete, setPetugasToDelete] = useState<Petugas | null>(null);
 
-    // Fix: Wrapped fetchData in useCallback to ensure function identity across re-renders and fix scoping issues.
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const data = await getAllPetugas();
             setPetugasList(data);
-        } catch (err) { // Fix: Changed 'error' variable to 'err' to avoid potential conflicts.
+        } catch (err) {
             console.error("Failed to fetch petugas", err);
         } finally {
             setLoading(false);
@@ -67,7 +71,16 @@ const AdminPetugasPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    // Fix: Wrapped handleSave in useCallback to memoize the function.
+    // Pagination Logic
+    const paginatedPetugas = useMemo(() => {
+        if (itemsPerPage === 'all') return petugasList;
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return petugasList.slice(startIndex, startIndex + itemsPerPage);
+    }, [petugasList, currentPage, itemsPerPage]);
+
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(petugasList.length / itemsPerPage);
+
+
     const handleSave = useCallback(async (petugas: Omit<Petugas, 'id'> | Petugas) => {
         if ('id' in petugas) {
             await updatePetugas(petugas.id, petugas);
@@ -79,14 +92,12 @@ const AdminPetugasPage: React.FC = () => {
         setSelectedPetugas(null);
     }, [fetchData]);
 
-    // Fix: Wrapped handleDeleteConfirm in useCallback.
     const handleDeleteConfirm = useCallback(async (id: string) => {
         await deletePetugas(id);
         fetchData();
         setPetugasToDelete(null);
     }, [fetchData]);
 
-    // Fix: Wrapped openFormModal in useCallback.
     const openFormModal = useCallback((petugas: Petugas | null = null) => {
         setSelectedPetugas(petugas);
         setIsModalOpen(true);
@@ -124,7 +135,7 @@ const AdminPetugasPage: React.FC = () => {
                                         <td className="p-4" colSpan={4}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
                                     </tr>
                                 ))
-                            ) : petugasList.map((petugas) => (
+                            ) : paginatedPetugas.map((petugas) => (
                                 <tr key={petugas.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4 font-mono text-slate-600">{petugas.id}</td>
                                     <td className="p-4 font-semibold text-slate-800">{petugas.name}</td>
@@ -137,9 +148,54 @@ const AdminPetugasPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
+                             {!loading && petugasList.length === 0 && (
+                                <tr><td colSpan={4} className="text-center p-6 text-slate-500">Tidak ada data petugas.</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
+                 {/* Pagination Controls */}
+                 {!loading && petugasList.length > 0 && (
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center text-sm text-slate-600">
+                            <span className="mr-2">Tampilkan</span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                className="border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary bg-white"
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                            <span className="ml-2">
+                                data per halaman. (Total: {petugasList.length})
+                            </span>
+                        </div>
+                        {itemsPerPage !== 'all' && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Prev
+                                </button>
+                                <span className="text-sm font-medium text-slate-600">
+                                    Halaman {currentPage} dari {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setSelectedPetugas(null); }} title={selectedPetugas ? 'Edit Data Petugas' : 'Tambah Petugas Baru'}>

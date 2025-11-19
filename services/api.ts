@@ -425,6 +425,11 @@ export const getReports = async (filters: ReportFilters): Promise<ReportRow[]> =
     return finalReport.map(({ _warga, ...rest }) => rest).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
 };
 
+export const deleteTransaksi = async (id: string): Promise<void> => {
+    await delay(300);
+    transactions = transactions.filter(t => t.id !== id);
+};
+
 
 // --- Settings API ---
 export const getSchedule = async (): Promise<typeof schedule> => {

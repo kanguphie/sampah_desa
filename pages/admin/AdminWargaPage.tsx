@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga } from '@/services/api';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon, QrCodeIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, QrCodeIcon, ChevronDownIcon } from '@/components/icons';
 
 const WargaForm: React.FC<{
   warga?: Warga | null;
@@ -83,6 +83,10 @@ const AdminWargaPage: React.FC = () => {
     const [filters, setFilters] = useState({ search: '', dukuhId: 'all', rtId: 'all' });
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'name', direction: 'ascending'});
 
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -101,11 +105,13 @@ const AdminWargaPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
+    // Reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filters, itemsPerPage]);
+
     const getDukuhName = useCallback((dukuhId: number) => dukuhList.find(d => d.id === dukuhId)?.name || 'N/A', [dukuhList]);
     const getRTNumber = useCallback((rtId: number) => rtList.find(rt => rt.id === rtId)?.number || 'N/A', [rtList]);
-
-    // Filter options for dropdown (always show all RTs now)
-    const availableRTs = useMemo(() => rtList, [rtList]);
 
     const filteredWarga = useMemo(() => {
         return wargaList.filter(w => {
@@ -141,6 +147,15 @@ const AdminWargaPage: React.FC = () => {
         return sortableItems;
     }, [filteredWarga, sortConfig, getDukuhName, getRTNumber]);
     
+    // Pagination Logic
+    const paginatedWarga = useMemo(() => {
+        if (itemsPerPage === 'all') return sortedWarga;
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return sortedWarga.slice(startIndex, startIndex + itemsPerPage);
+    }, [sortedWarga, currentPage, itemsPerPage]);
+
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedWarga.length / itemsPerPage);
+
     const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -150,11 +165,7 @@ const AdminWargaPage: React.FC = () => {
     };
 
     const handleFilterChange = (name: string, value: string) => {
-        setFilters(prev => {
-            const newFilters = { ...prev, [name]: value };
-            // Note: We don't reset RT filter when Dukuh changes anymore because RTs are independent IDs
-            return newFilters;
-        });
+        setFilters(prev => ({ ...prev, [name]: value }));
         setSelectedIds(new Set()); // Reset selection on filter change
     };
 
@@ -162,7 +173,6 @@ const AdminWargaPage: React.FC = () => {
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
-            // Select all visible items
             const allVisibleIds = sortedWarga.map(w => w.id);
             setSelectedIds(new Set(allVisibleIds));
         } else {
@@ -407,7 +417,7 @@ const AdminWargaPage: React.FC = () => {
                                         <td className="p-4" colSpan={7}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
                                     </tr>
                                 ))
-                            ) : sortedWarga.map((warga) => (
+                            ) : paginatedWarga.map((warga) => (
                                 <tr key={warga.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.has(warga.id) ? 'bg-teal-50/60' : ''}`}>
                                     <td className="p-4 text-center">
                                          <input 
@@ -438,6 +448,48 @@ const AdminWargaPage: React.FC = () => {
                     <div className="text-center p-8 text-slate-500">
                         <h3 className="font-semibold text-lg">Data Tidak Ditemukan</h3>
                         <p>Tidak ada data warga yang cocok dengan filter atau pencarian Anda.</p>
+                    </div>
+                )}
+                 {/* Pagination Controls */}
+                {!loading && sortedWarga.length > 0 && (
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center text-sm text-slate-600">
+                            <span className="mr-2">Tampilkan</span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                className="border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary bg-white"
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                            <span className="ml-2">
+                                data per halaman. (Total: {sortedWarga.length})
+                            </span>
+                        </div>
+                        {itemsPerPage !== 'all' && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Prev
+                                </button>
+                                <span className="text-sm font-medium text-slate-600">
+                                    Halaman {currentPage} dari {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

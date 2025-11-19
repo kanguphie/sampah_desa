@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Pengeluaran } from '@/types';
 import { getAllPengeluaran, createPengeluaran, updatePengeluaran, deletePengeluaran } from '@/services/api';
@@ -71,6 +72,10 @@ const AdminKeuanganPage: React.FC = () => {
     const [pengeluaranToEdit, setPengeluaranToEdit] = useState<Pengeluaran | null>(null);
     const [pengeluaranToDelete, setPengeluaranToDelete] = useState<Pengeluaran | null>(null);
 
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -86,6 +91,16 @@ const AdminKeuanganPage: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Pagination Logic
+    const paginatedPengeluaran = useMemo(() => {
+        if (itemsPerPage === 'all') return pengeluaranList;
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return pengeluaranList.slice(startIndex, startIndex + itemsPerPage);
+    }, [pengeluaranList, currentPage, itemsPerPage]);
+
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(pengeluaranList.length / itemsPerPage);
+
 
     const handleSave = async (pengeluaran: Omit<Pengeluaran, 'id'> | Pengeluaran) => {
         if ('id' in pengeluaran) {
@@ -167,7 +182,7 @@ const AdminKeuanganPage: React.FC = () => {
                                         <td className="p-4" colSpan={4}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
                                     </tr>
                                 ))
-                            ) : pengeluaranList.map((pengeluaran) => (
+                            ) : paginatedPengeluaran.map((pengeluaran) => (
                                 <tr key={pengeluaran.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-4 text-slate-600">{new Date(pengeluaran.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</td>
                                     <td className="p-4 font-semibold text-slate-800">{pengeluaran.description}</td>
@@ -189,6 +204,48 @@ const AdminKeuanganPage: React.FC = () => {
                         </div>
                     )}
                 </div>
+                {/* Pagination Controls */}
+                {!loading && pengeluaranList.length > 0 && (
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center text-sm text-slate-600">
+                            <span className="mr-2">Tampilkan</span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                className="border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary bg-white"
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                            <span className="ml-2">
+                                data per halaman. (Total: {pengeluaranList.length})
+                            </span>
+                        </div>
+                        {itemsPerPage !== 'all' && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Prev
+                                </button>
+                                <span className="text-sm font-medium text-slate-600">
+                                    Halaman {currentPage} dari {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <Modal isOpen={isFormModalOpen} onClose={() => { setIsFormModalOpen(false); setPengeluaranToEdit(null); }} title={pengeluaranToEdit ? 'Edit Pengeluaran' : 'Tambah Pengeluaran Baru'}>

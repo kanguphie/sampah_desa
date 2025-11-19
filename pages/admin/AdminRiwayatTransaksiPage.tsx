@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { getReports } from '@/services/api';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { getReports, deleteTransaksi } from '@/services/api';
 import type { Transaksi } from '@/types';
-import { SearchIcon, ClipboardListIcon } from '@/components/icons';
+import { SearchIcon, ClipboardListIcon, TrashIcon } from '@/components/icons';
+import Modal from '@/components/Modal';
 
 interface ReportRow extends Transaksi {
     wargaName: string;
@@ -14,29 +15,41 @@ interface ReportRow extends Transaksi {
 const AdminRiwayatTransaksiPage: React.FC = () => {
     const [transactions, setTransactions] = useState<ReportRow[]>([]);
     const [loading, setLoading] = useState(true);
+    const [transactionToDelete, setTransactionToDelete] = useState<ReportRow | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     // Filters
     const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [searchQuery, setSearchQuery] = useState('');
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const data = await getReports({
-                    startDate: new Date(startDate),
-                    endDate: new Date(endDate)
-                });
-                setTransactions(data);
-            } catch (error) {
-                console.error("Failed to fetch transactions", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await getReports({
+                startDate: new Date(startDate),
+                endDate: new Date(endDate)
+            });
+            setTransactions(data);
+        } catch (error) {
+            console.error("Failed to fetch transactions", error);
+        } finally {
+            setLoading(false);
+        }
     }, [startDate, endDate]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [startDate, endDate, searchQuery, itemsPerPage]);
 
     const filteredTransactions = useMemo(() => {
         return transactions.filter(tx => {
@@ -50,7 +63,31 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
         });
     }, [transactions, searchQuery]);
 
+    // Pagination Logic
+    const paginatedTransactions = useMemo(() => {
+        if (itemsPerPage === 'all') return filteredTransactions;
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredTransactions.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredTransactions, currentPage, itemsPerPage]);
+
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(filteredTransactions.length / itemsPerPage);
+
     const totalAmount = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0), [filteredTransactions]);
+
+    const handleDeleteConfirm = async () => {
+        if (!transactionToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteTransaksi(transactionToDelete.id);
+            await fetchData(); // Refresh data
+            setTransactionToDelete(null);
+        } catch (error) {
+            console.error("Gagal menghapus transaksi", error);
+            alert("Gagal menghapus transaksi. Silakan coba lagi.");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
@@ -207,17 +244,18 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                 <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Wilayah</th>
                                 <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Petugas</th>
                                 <th className="p-4 text-right uppercase text-xs font-semibold text-slate-500 tracking-wider">Jumlah</th>
+                                <th className="p-4 text-center uppercase text-xs font-semibold text-slate-500 tracking-wider">Aksi</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
                             {loading ? (
                                 Array.from({ length: 5 }).map((_, i) => (
                                     <tr key={i}>
-                                        <td className="p-4" colSpan={5}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
+                                        <td className="p-4" colSpan={6}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
                                     </tr>
                                 ))
-                            ) : filteredTransactions.length > 0 ? (
-                                filteredTransactions.map((tx) => (
+                            ) : paginatedTransactions.length > 0 ? (
+                                paginatedTransactions.map((tx) => (
                                     <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-4 text-slate-700">
                                             <div>{new Date(tx.timestamp).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' })}</div>
@@ -231,11 +269,20 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                         <td className="p-4 text-right font-mono font-medium text-primary">
                                             {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.amount)}
                                         </td>
+                                        <td className="p-4 text-center">
+                                            <button 
+                                                onClick={() => setTransactionToDelete(tx)}
+                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                                title="Hapus Transaksi"
+                                            >
+                                                <TrashIcon className="text-lg" />
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="p-8 text-center text-slate-500">
+                                    <td colSpan={6} className="p-8 text-center text-slate-500">
                                         Tidak ada data transaksi yang ditemukan.
                                     </td>
                                 </tr>
@@ -245,13 +292,94 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                             <tfoot className="bg-slate-50 font-semibold text-slate-800 border-t border-slate-200">
                                 <tr>
                                     <td colSpan={4} className="p-4 text-right">Total Halaman Ini</td>
-                                    <td className="p-4 text-right font-mono">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(totalAmount)}</td>
+                                    <td className="p-4 text-right font-mono">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(paginatedTransactions.reduce((sum, tx) => sum + tx.amount, 0))}</td>
+                                    <td></td>
                                 </tr>
                             </tfoot>
                         )}
                     </table>
                  </div>
+                 {/* Pagination Controls */}
+                 {!loading && filteredTransactions.length > 0 && (
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center text-sm text-slate-600">
+                            <span className="mr-2">Tampilkan</span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                className="border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary bg-white"
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                            <span className="ml-2">
+                                data per halaman. (Total: {filteredTransactions.length})
+                            </span>
+                        </div>
+                        {itemsPerPage !== 'all' && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Prev
+                                </button>
+                                <span className="text-sm font-medium text-slate-600">
+                                    Halaman {currentPage} dari {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
+
+            <Modal isOpen={!!transactionToDelete} onClose={() => setTransactionToDelete(null)} title="Hapus Transaksi" size="md">
+                {transactionToDelete && (
+                    <div>
+                        <p className="text-slate-700 text-center mb-4">
+                            Apakah Anda yakin ingin menghapus riwayat transaksi ini?
+                        </p>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center mb-4">
+                            <p className="font-bold text-slate-800 text-lg mb-1">{transactionToDelete.wargaName}</p>
+                            <p className="text-sm text-slate-600 mb-2">
+                                {new Date(transactionToDelete.timestamp).toLocaleDateString('id-ID', { dateStyle: 'full' })} - {new Date(transactionToDelete.timestamp).toLocaleTimeString('id-ID')}
+                            </p>
+                            <p className="font-mono text-xl font-bold text-red-700">
+                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(transactionToDelete.amount)}
+                            </p>
+                        </div>
+                         <p className="text-xs text-center text-slate-500">
+                            Tindakan ini akan menghapus catatan keuangan dan tidak dapat dibatalkan.
+                        </p>
+                        <div className="flex justify-center gap-3 mt-6">
+                            <button 
+                                onClick={() => setTransactionToDelete(null)} 
+                                className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-semibold hover:bg-slate-300 transition-colors"
+                                disabled={isDeleting}
+                            >
+                                Batal
+                            </button>
+                            <button 
+                                onClick={handleDeleteConfirm} 
+                                className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:bg-slate-400"
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 };

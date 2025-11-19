@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Dukuh, RT } from '@/types';
 import { getAllDukuh, createDukuh, updateDukuh, deleteDukuh, getAllRT, createRT, updateRT, deleteRT } from '@/services/api';
 import Modal from '@/components/Modal';
@@ -72,12 +72,18 @@ const AdminWilayahPage: React.FC = () => {
     const [isDukuhModalOpen, setIsDukuhModalOpen] = useState(false);
     const [selectedDukuh, setSelectedDukuh] = useState<Dukuh | null>(null);
     const [dukuhToDelete, setDukuhToDelete] = useState<Dukuh | null>(null);
+    // Pagination Dukuh
+    const [dukuhPage, setDukuhPage] = useState(1);
+    const [dukuhLimit, setDukuhLimit] = useState<number | 'all'>(10);
 
     // State for RT
     const [rtList, setRtList] = useState<RT[]>([]);
     const [isRtModalOpen, setIsRtModalOpen] = useState(false);
     const [selectedRT, setSelectedRT] = useState<RT | null>(null);
     const [rtToDelete, setRtToDelete] = useState<RT | null>(null);
+    // Pagination RT
+    const [rtPage, setRtPage] = useState(1);
+    const [rtLimit, setRtLimit] = useState<number | 'all'>(10);
 
     const [loading, setLoading] = useState(true);
 
@@ -97,6 +103,23 @@ const AdminWilayahPage: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, []);
+
+    // --- Pagination Logic Dukuh ---
+    const paginatedDukuh = useMemo(() => {
+        if (dukuhLimit === 'all') return dukuhList;
+        const startIndex = (dukuhPage - 1) * dukuhLimit;
+        return dukuhList.slice(startIndex, startIndex + dukuhLimit);
+    }, [dukuhList, dukuhPage, dukuhLimit]);
+    const totalDukuhPages = dukuhLimit === 'all' ? 1 : Math.ceil(dukuhList.length / dukuhLimit);
+
+    // --- Pagination Logic RT ---
+    const paginatedRt = useMemo(() => {
+        if (rtLimit === 'all') return rtList;
+        const startIndex = (rtPage - 1) * rtLimit;
+        return rtList.slice(startIndex, startIndex + rtLimit);
+    }, [rtList, rtPage, rtLimit]);
+    const totalRtPages = rtLimit === 'all' ? 1 : Math.ceil(rtList.length / rtLimit);
+
 
     // --- Handlers: Dukuh ---
     const handleSaveDukuh = async (dukuh: Omit<Dukuh, 'id'> | Dukuh) => {
@@ -180,8 +203,8 @@ const AdminWilayahPage: React.FC = () => {
                                 <tbody className="divide-y divide-slate-200">
                                      {loading ? (
                                         <tr><td colSpan={2} className="p-4 text-center text-slate-400">Memuat...</td></tr>
-                                    ) : dukuhList.length > 0 ? (
-                                        dukuhList.map((dukuh) => (
+                                    ) : paginatedDukuh.length > 0 ? (
+                                        paginatedDukuh.map((dukuh) => (
                                         <tr 
                                             key={dukuh.id} 
                                             className="hover:bg-slate-50 transition-colors"
@@ -204,6 +227,44 @@ const AdminWilayahPage: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
+                        {/* Pagination Controls Dukuh */}
+                        {!loading && dukuhList.length > 0 && (
+                            <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center text-xs text-slate-600">
+                                    <select
+                                        value={dukuhLimit}
+                                        onChange={(e) => setDukuhLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                        className="border border-slate-300 rounded px-1 py-1 focus:outline-none bg-white mr-2"
+                                    >
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                    <span>Data (Total: {dukuhList.length})</span>
+                                </div>
+                                {dukuhLimit !== 'all' && (
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setDukuhPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={dukuhPage === 1}
+                                            className="px-2 py-1 border border-slate-300 rounded bg-white text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                        >
+                                            Prev
+                                        </button>
+                                        <span className="text-xs font-medium text-slate-600">
+                                            {dukuhPage} / {totalDukuhPages}
+                                        </span>
+                                        <button
+                                            onClick={() => setDukuhPage(prev => Math.min(prev + 1, totalDukuhPages))}
+                                            disabled={dukuhPage === totalDukuhPages}
+                                            className="px-2 py-1 border border-slate-300 rounded bg-white text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -234,8 +295,8 @@ const AdminWilayahPage: React.FC = () => {
                                 <tbody className="divide-y divide-slate-200">
                                     {loading ? (
                                          <tr><td colSpan={2} className="p-4 text-center text-slate-400">Memuat...</td></tr>
-                                    ) : rtList.length > 0 ? (
-                                        rtList.map((rt) => (
+                                    ) : paginatedRt.length > 0 ? (
+                                        paginatedRt.map((rt) => (
                                             <tr key={rt.id} className="hover:bg-slate-50 transition-colors">
                                                 <td className="p-4 font-semibold text-slate-800">RT {rt.number}</td>
                                                 <td className="p-4">
@@ -252,6 +313,44 @@ const AdminWilayahPage: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
+                        {/* Pagination Controls RT */}
+                        {!loading && rtList.length > 0 && (
+                            <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center text-xs text-slate-600">
+                                    <select
+                                        value={rtLimit}
+                                        onChange={(e) => setRtLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                        className="border border-slate-300 rounded px-1 py-1 focus:outline-none bg-white mr-2"
+                                    >
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                    <span>Data (Total: {rtList.length})</span>
+                                </div>
+                                {rtLimit !== 'all' && (
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setRtPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={rtPage === 1}
+                                            className="px-2 py-1 border border-slate-300 rounded bg-white text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                        >
+                                            Prev
+                                        </button>
+                                        <span className="text-xs font-medium text-slate-600">
+                                            {rtPage} / {totalRtPages}
+                                        </span>
+                                        <button
+                                            onClick={() => setRtPage(prev => Math.min(prev + 1, totalRtPages))}
+                                            disabled={rtPage === totalRtPages}
+                                            className="px-2 py-1 border border-slate-300 rounded bg-white text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <p className="text-xs text-slate-400 italic text-center">* Data RT bersifat global dan tidak terikat pada dukuh tertentu di tabel ini.</p>
                 </div>
