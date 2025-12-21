@@ -619,7 +619,7 @@ const LaporanPartisipasi: FC = () => {
                 ) : null}
                 
                 <div className="h-[300px] w-full">
-                    {stats.length > 0 ? (
+                    {!loading && stats.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={stats} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -627,8 +627,8 @@ const LaporanPartisipasi: FC = () => {
                                 <YAxis domain={[0, 100]} />
                                 <Tooltip 
                                     formatter={(value: any) => {
-                                        const numValue = typeof value === 'number' ? value : parseFloat(value);
-                                        return [!isNaN(numValue) ? `${numValue.toFixed(1)}%` : '0%', 'Partisipasi'];
+                                        const numValue = (typeof value === 'number') ? value : parseFloat(value || '0');
+                                        return [`${numValue.toFixed(1)}%`, 'Partisipasi'];
                                     }}
                                     labelFormatter={(label) => `RT ${label}`}
                                 />
@@ -636,7 +636,7 @@ const LaporanPartisipasi: FC = () => {
                                 <Bar dataKey="participationRate" fill="#10b981" radius={[4, 4, 0, 0]} name="Persentase Partisipasi" />
                             </BarChart>
                         </ResponsiveContainer>
-                    ) : (
+                    ) : !loading && (
                         <div className="h-full flex items-center justify-center text-slate-400 italic">
                             Tidak ada data untuk ditampilkan
                         </div>
@@ -670,11 +670,11 @@ const LaporanPartisipasi: FC = () => {
                                         <td className="p-4 text-center text-red-600 font-semibold">{stat.totalWarga - stat.activeWarga}</td>
                                         <td className="p-4 text-right font-mono">
                                             <div className="flex items-center justify-end gap-2">
-                                                <span>{stat.participationRate.toFixed(1)}%</span>
+                                                <span>{(stat.participationRate || 0).toFixed(1)}%</span>
                                                 <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
                                                     <div 
-                                                        className={`h-full rounded-full ${stat.participationRate >= 80 ? 'bg-emerald-500' : stat.participationRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} 
-                                                        style={{ width: `${stat.participationRate}%` }}
+                                                        className={`h-full rounded-full ${(stat.participationRate || 0) >= 80 ? 'bg-emerald-500' : (stat.participationRate || 0) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                        style={{ width: `${stat.participationRate || 0}%` }}
                                                     ></div>
                                                 </div>
                                             </div>
@@ -702,10 +702,10 @@ const LaporanPartisipasi: FC = () => {
                 {selectedRT && (
                     <div>
                         <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg border border-red-100 text-sm">
-                            Menampilkan <strong>{selectedRT.unpaidWargaList.length}</strong> warga yang belum melakukan transaksi sama sekali pada bulan ini.
+                            Menampilkan <strong>{selectedRT.unpaidWargaList?.length || 0}</strong> warga yang belum melakukan transaksi sama sekali pada bulan ini.
                         </div>
                         <div className="max-h-[60vh] overflow-y-auto">
-                            {selectedRT.unpaidWargaList.length > 0 ? (
+                            {selectedRT.unpaidWargaList && selectedRT.unpaidWargaList.length > 0 ? (
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-slate-50 text-slate-500 sticky top-0">
                                         <tr>
