@@ -86,9 +86,12 @@ const AdminWargaPage: React.FC = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    // Sorting Logic
     const handleSort = (key: keyof Warga | 'address') => {
         let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
         setSortConfig({ key, direction });
     };
 
@@ -100,13 +103,14 @@ const AdminWargaPage: React.FC = () => {
             return matchSearch && matchDukuh && matchRT;
         });
 
+        // Sorting
         return items.sort((a, b) => {
             let aVal: any, bVal: any;
             if (sortConfig.key === 'address') {
                 const dukuhA = dukuhList.find(d => d.id === a.dukuhId)?.name || '';
                 const dukuhB = dukuhList.find(d => d.id === b.dukuhId)?.name || '';
-                aVal = dukuhA + a.rtId;
-                bVal = dukuhB + b.rtId;
+                aVal = dukuhA + (rtList.find(r => r.id === a.rtId)?.number || '');
+                bVal = dukuhB + (rtList.find(r => r.id === b.rtId)?.number || '');
             } else {
                 aVal = a[sortConfig.key as keyof Warga];
                 bVal = b[sortConfig.key as keyof Warga];
@@ -117,7 +121,7 @@ const AdminWargaPage: React.FC = () => {
             }
             return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
         });
-    }, [wargaList, filters, sortConfig, dukuhList]);
+    }, [wargaList, filters, sortConfig, dukuhList, rtList]);
 
     const paginatedWarga = useMemo(() => {
         if (itemsPerPage === 'all') return sortedAndFilteredWarga;
@@ -127,6 +131,7 @@ const AdminWargaPage: React.FC = () => {
 
     const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / itemsPerPage);
 
+    // Import/Export Handlers
     const handleDownloadTemplate = () => {
         const templateData = [
             { "Nama": "Budi Santoso", "Tarif": 2000, "Kode Dukuh": 1, "Kode RT": 1 },
@@ -142,17 +147,18 @@ const AdminWargaPage: React.FC = () => {
         setImportLoading(true);
         try {
             const importedData = await readWargaExcel(file);
+            // Basic validation
             const validData = importedData.filter(d => d.name && d.dailyFee && d.dukuhId && d.rtId) as Omit<Warga, 'id' | 'totalDebt'>[];
             
             if (validData.length === 0) {
-                alert("Format file tidak sesuai atau data kosong.");
+                alert("Format file tidak sesuai atau data kosong. Pastikan kolom Nama, Tarif, Kode Dukuh, dan Kode RT terisi.");
             } else {
                 await bulkCreateWarga(validData);
                 fetchData();
                 alert(`Berhasil mengimpor ${validData.length} data warga.`);
             }
         } catch (error) {
-            alert("Gagal membaca file Excel.");
+            alert("Gagal membaca file Excel. Pastikan file valid.");
         } finally {
             setImportLoading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -221,10 +227,18 @@ const AdminWargaPage: React.FC = () => {
                     <table className="w-full text-sm text-left">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100 font-bold text-slate-400 uppercase text-[10px] tracking-widest">
-                                <th onClick={() => handleSort('id')} className="p-5 cursor-pointer hover:text-primary transition-colors">ID <SortIcon col="id"/></th>
-                                <th onClick={() => handleSort('name')} className="p-5 cursor-pointer hover:text-primary transition-colors">Nama <SortIcon col="name"/></th>
-                                <th onClick={() => handleSort('address')} className="p-5 cursor-pointer hover:text-primary transition-colors">Wilayah <SortIcon col="address"/></th>
-                                <th onClick={() => handleSort('dailyFee')} className="p-5 text-right cursor-pointer hover:text-primary transition-colors">Tarif <SortIcon col="dailyFee"/></th>
+                                <th onClick={() => handleSort('id')} className="p-5 cursor-pointer group hover:text-primary transition-colors">
+                                    ID <SortIcon col="id" />
+                                </th>
+                                <th onClick={() => handleSort('name')} className="p-5 cursor-pointer group hover:text-primary transition-colors">
+                                    Nama <SortIcon col="name" />
+                                </th>
+                                <th onClick={() => handleSort('address')} className="p-5 cursor-pointer group hover:text-primary transition-colors">
+                                    Wilayah <SortIcon col="address" />
+                                </th>
+                                <th onClick={() => handleSort('dailyFee')} className="p-5 text-right cursor-pointer group hover:text-primary transition-colors">
+                                    Tarif <SortIcon col="dailyFee" />
+                                </th>
                                 <th className="p-5 text-center">Aksi</th>
                             </tr>
                         </thead>
@@ -244,6 +258,9 @@ const AdminWargaPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
+                            {paginatedWarga.length === 0 && (
+                                <tr><td colSpan={5} className="p-20 text-center text-slate-300 font-bold italic">Tidak ada data warga ditemukan</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
