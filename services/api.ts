@@ -34,7 +34,7 @@ dukuhs.forEach(dukuh => {
                 rtId: rt.id,
                 dukuhId: dukuh.id,
                 dailyFee: dailyFee,
-                totalDebt: Math.random() > 0.8 ? dailyFee * Math.floor(Math.random() * 5) : 0 
+                totalDebt: 0 // Will be populated by dummy transactions
             });
         }
     });
@@ -58,7 +58,82 @@ let schedule: Record<string, number[] | 'libur'> = {
 };
 
 let messages: ContactMessage[] = [];
-let announcements: Announcement[] = [];
+let announcements: Announcement[] = [
+    {
+        id: 'ann-01',
+        title: 'Pembayaran Digital',
+        content: 'Warga Rowosari kini bisa mengecek status iuran sampah secara mandiri melalui aplikasi ini.',
+        isActive: true,
+        date: new Date()
+    }
+];
+
+// --- Dummy Data Generator ---
+const generateDummyTransactions = () => {
+    const now = new Date();
+    const petugasIds = petugases.map(p => p.id);
+    
+    // Generate for the last 60 days
+    for (let i = 60; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(now.getDate() - i);
+        
+        // Mocking the schedule check: Friday is holiday in our mock config
+        const dayName = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][date.getDay()];
+        if (dayName === 'Jumat') continue;
+
+        // Daily random activities: 60-80% of wargas are recorded each day
+        const activeWargas = wargas.filter(() => Math.random() > 0.3);
+        
+        activeWargas.forEach(warga => {
+            const hour = Math.floor(Math.random() * 4) + 7; // 07:00 - 11:00 AM
+            const minute = Math.floor(Math.random() * 60);
+            const timestamp = new Date(date);
+            timestamp.setHours(hour, minute, 0);
+
+            // 15% probability of marking as DEBT (HUTANG)
+            const isDebt = Math.random() < 0.15;
+            const status: TransactionStatus = isDebt ? 'HUTANG' : 'LUNAS';
+
+            transactions.push({
+                id: `tx-dummy-${date.getTime()}-${warga.id}`,
+                timestamp: timestamp,
+                wargaId: warga.id,
+                petugasId: petugasIds[Math.floor(Math.random() * petugasIds.length)],
+                amount: warga.dailyFee,
+                status: status
+            });
+
+            if (isDebt) {
+                warga.totalDebt += warga.dailyFee;
+            }
+        });
+
+        // Weekly Expenses
+        if (date.getDay() === 1) { // Every Monday
+             pengeluarans.push({
+                 id: `exp-dummy-bensin-${date.getTime()}`,
+                 date: new Date(date),
+                 description: 'Pembelian Bensin Motor Tossa Pengangkut',
+                 amount: 150000
+             });
+        }
+        
+        if (i > 0 && date.getDate() === 1) { // Every 1st of month
+             pengeluarans.push({
+                 id: `exp-dummy-gaji-${date.getTime()}`,
+                 date: new Date(date),
+                 description: 'Honor Petugas Penagih & Kebersihan',
+                 amount: 1200000
+             });
+        }
+    }
+    // Sort transactions by most recent
+    transactions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+};
+
+// Execute dummy data generation on load
+generateDummyTransactions();
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -231,7 +306,12 @@ export const deleteTransaksi = async (id: string) => { transactions = transactio
 // --- Reports API ---
 
 export const getReports = async (f: { startDate: Date, endDate: Date, dukuhId?: number, rtId?: number }): Promise<any[]> => {
-    let filtered = transactions.filter(tx => tx.timestamp >= f.startDate && tx.timestamp <= f.endDate);
+    const start = new Date(f.startDate);
+    start.setHours(0,0,0,0);
+    const end = new Date(f.endDate);
+    end.setHours(23,59,59,999);
+
+    let filtered = transactions.filter(tx => tx.timestamp >= start && tx.timestamp <= end);
     
     return filtered.map(tx => {
         const w = wargas.find(w => w.id === tx.wargaId);
@@ -267,7 +347,7 @@ export const getAdminDashboardStats = async () => {
 
 export const getPublicDashboardStats = async (): Promise<PublicStats> => {
     const today = new Date();
-    const transactionsThisMonth = transactions.filter(tx => tx.status === 'LUNAS' && tx.timestamp.getMonth() === today.getMonth());
+    const transactionsThisMonth = transactions.filter(tx => tx.status === 'LUNAS' && tx.timestamp.getMonth() === today.getMonth() && tx.timestamp.getFullYear() === today.getFullYear());
     return {
         totalWarga: wargas.length,
         totalTransaksiBulanIni: transactionsThisMonth.length,
@@ -294,10 +374,14 @@ export const getParticipationReport = async (m: number, y: number): Promise<Part
 
 // --- Pengeluaran API ---
 
-export const getAllPengeluaran = async (): Promise<Pengeluaran[]> => [...pengeluarans];
+export const getAllPengeluaran = async (): Promise<Pengeluaran[]> => [...pengeluarans].sort((a,b) => b.date.getTime() - a.date.getTime());
 
 export const getPengeluaran = async (f: { startDate: Date, endDate: Date }) => {
-    return pengeluarans.filter(p => p.date >= f.startDate && p.date <= f.endDate);
+    const start = new Date(f.startDate);
+    start.setHours(0,0,0,0);
+    const end = new Date(f.endDate);
+    end.setHours(23,59,59,999);
+    return pengeluarans.filter(p => p.date >= start && p.date <= end);
 };
 
 export const createPengeluaran = async (data: Omit<Pengeluaran, 'id'>): Promise<Pengeluaran> => {
