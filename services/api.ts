@@ -50,6 +50,17 @@ let adminPassword = 'password';
 let transactions: Transaksi[] = [];
 let pengeluarans: Pengeluaran[] = [];
 
+// Store untuk Jadwal (Agar bisa diedit)
+let villageSchedule: Record<string, number[] | 'libur'> = { 
+    Senin: [1], 
+    Selasa: [2], 
+    Rabu: [3], 
+    Kamis: [4], 
+    Jumat: 'libur', 
+    Sabtu: [1], 
+    Minggu: [2] 
+};
+
 // --- Dummy Data Generator ---
 const generateDummyTransactions = () => {
     const now = new Date();
@@ -258,9 +269,30 @@ export const updatePengeluaran = async (id: string, data: Partial<Pengeluaran>):
     throw new Error('Not found');
 };
 export const deletePengeluaran = async (id: string) => { pengeluarans = pengeluarans.filter(p => p.id !== id); };
-export const updateSchedule = async (d: string, s: any) => {}; 
-export const getSchedule = async () => ({ Senin: [1], Selasa: [2], Rabu: [3], Kamis: [4], Jumat: 'libur', Sabtu: [1], Minggu: [2] });
-export const getScheduleForToday = async () => ({ isHoliday: false, dukuhIds: [1,2], dukuhNames: ['Rowosari', 'Pencar'] });
+
+// IMPLEMENTASI UPDATE JADWAL
+export const updateSchedule = async (day: string, s: any) => {
+    villageSchedule[day] = s;
+    return villageSchedule;
+}; 
+
+export const getSchedule = async () => ({ ...villageSchedule });
+
+export const getScheduleForToday = async () => {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const todayName = days[new Date().getDay()];
+    const todaySched = villageSchedule[todayName];
+    
+    if (todaySched === 'libur' || (Array.isArray(todaySched) && todaySched.length === 0)) {
+        return { isHoliday: true, dukuhIds: [], dukuhNames: [] };
+    }
+
+    const dukuhIds = Array.isArray(todaySched) ? todaySched : [];
+    const dukuhNames = dukuhIds.map(id => dukuhs.find(d => d.id === id)?.name || 'N/A');
+
+    return { isHoliday: false, dukuhIds, dukuhNames };
+};
+
 export const checkIfWargaPaidToday = async (id: string) => transactions.some(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString());
 export const getUnpaidWargaForToday = async () => wargas.filter(w => !transactions.some(tx => tx.wargaId === w.id && new Date(tx.timestamp).toDateString() === new Date().toDateString()));
 export const getPetugasDailySummary = async (id: string) => {
