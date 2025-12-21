@@ -19,10 +19,14 @@ const PetugasScanPage: FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('Berhasil');
     
+    // Debt partial payment states
+    const [isPayingDebt, setIsPayingDebt] = useState(false);
+    const [debtInput, setDebtInput] = useState<number>(0);
+    
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isScanning, setIsScanning] = useState(false);
-    const isScanningRef = useRef(false); // Used to avoid stale closures in requestAnimationFrame
+    const isScanningRef = useRef(false); 
     
     const { petugas } = useAuth();
     
@@ -33,6 +37,8 @@ const PetugasScanPage: FC = () => {
         setSuccess(false);
         setLoading(false);
         setHasPaidToday(false);
+        setIsPayingDebt(false);
+        setDebtInput(0);
         if (mode === 'scan') {
             setIsScanning(true);
             isScanningRef.current = true;
@@ -49,6 +55,7 @@ const PetugasScanPage: FC = () => {
             const data = await getWargaById(id);
             if (data) {
                 setWarga(data);
+                setDebtInput(data.totalDebt); // Default to full debt
                 const paidToday = await checkIfWargaPaidToday(id);
                 setHasPaidToday(paidToday);
             } else {
@@ -73,7 +80,6 @@ const PetugasScanPage: FC = () => {
         }
     }, [mode]);
 
-    // QR Scanner Logic
     useEffect(() => {
         let stream: MediaStream | null = null;
         let animationFrameId: number;
@@ -87,30 +93,21 @@ const PetugasScanPage: FC = () => {
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
                 const canvas = canvasRef.current;
                 const video = videoRef.current;
-                
                 canvas.height = video.videoHeight;
                 canvas.width = video.videoWidth;
-                
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                
                 if (ctx) {
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    
                     try {
-                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                            inversionAttempts: "dontInvert",
-                        });
-
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
                         if (code && code.data) {
                             isScanningRef.current = false;
                             setIsScanning(false);
                             fetchWarga(code.data);
                             return; 
                         }
-                    } catch (err) {
-                        console.error("jsQR error:", err);
-                    }
+                    } catch (err) { console.error("jsQR error:", err); }
                 }
             }
             animationFrameId = requestAnimationFrame(tick);
@@ -118,16 +115,10 @@ const PetugasScanPage: FC = () => {
 
         const startCamera = async () => {
             if (mode !== 'scan' || warga || success) return;
-            
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    } 
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
                 });
-                
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     videoRef.current.onloadedmetadata = () => {
@@ -139,19 +130,14 @@ const PetugasScanPage: FC = () => {
                 }
             } catch (err) {
                 console.error("Camera error:", err);
-                setError('Tidak dapat mengakses kamera. Pastikan izin kamera diberikan.');
+                setError('Akses kamera ditolak.');
                 setMode('manual');
             }
         };
 
-        if (mode === 'scan' && !warga && !success) {
-            startCamera();
-        }
-
+        if (mode === 'scan' && !warga && !success) startCamera();
         return () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
+            if (stream) stream.getTracks().forEach(track => track.stop());
             cancelAnimationFrame(animationFrameId);
             isScanningRef.current = false;
         };
@@ -159,11 +145,8 @@ const PetugasScanPage: FC = () => {
 
     const handleManualSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (wargaId.length === 6) {
-            fetchWarga(wargaId);
-        } else {
-            setError('ID Warga harus 6 digit.');
-        }
+        if (wargaId.length === 6) fetchWarga(wargaId);
+        else setError('ID Warga harus 6 digit.');
     };
 
     const handleSavePayment = async (status: TransactionStatus) => {
@@ -179,36 +162,27 @@ const PetugasScanPage: FC = () => {
             setModalTitle(status === 'LUNAS' ? 'Pembayaran Berhasil' : 'Tunggakan Dicatat');
             setSuccess(true);
             setIsModalOpen(true);
-            setTimeout(() => {
-                setIsModalOpen(false);
-                resetState();
-            }, 2000);
-        } catch (err: any) {
-            setError(err.message || 'Gagal menyimpan.');
-        } finally {
-            setLoading(false);
-        }
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err: any) { setError(err.message || 'Gagal menyimpan.'); }
+        finally { setLoading(false); }
     };
 
     const handlePayDebt = async () => {
-        if (!warga || !petugas) return;
-        if (warga.totalDebt <= 0) return;
+        if (!warga || !petugas || debtInput <= 0) return;
+        if (debtInput > warga.totalDebt) {
+            setError('Nominal melebihi total tunggakan!');
+            return;
+        }
         
         setLoading(true);
         try {
-            await payDebt(warga.id, petugas.id, warga.totalDebt);
-            setModalTitle('Pelunasan Berhasil');
+            await payDebt(warga.id, petugas.id, debtInput);
+            setModalTitle('Pembayaran Tunggakan Berhasil');
             setSuccess(true);
             setIsModalOpen(true);
-            setTimeout(() => {
-                setIsModalOpen(false);
-                resetState();
-            }, 2000);
-        } catch (err: any) {
-            setError(err.message || 'Gagal melunasi tunggakan.');
-        } finally {
-            setLoading(false);
-        }
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err: any) { setError(err.message || 'Gagal menyimpan.'); }
+        finally { setLoading(false); }
     };
 
     const getDukuhName = (id: number) => getDukuhById(id)?.name || 'N/A';
@@ -217,167 +191,131 @@ const PetugasScanPage: FC = () => {
     return (
         <div className="flex-grow p-4 max-w-md mx-auto w-full">
             {!warga && (
-                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 mb-6">
-                    <button 
-                        onClick={() => setMode('scan')}
-                        className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${mode === 'scan' ? 'bg-primary text-white shadow-md' : 'text-slate-500'}`}
-                    >
+                <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 mb-6">
+                    <button onClick={() => setMode('scan')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${mode === 'scan' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400'}`}>
                         <QrCodeIcon className="text-lg" /> Scan QR
                     </button>
-                    <button 
-                        onClick={() => setMode('manual')}
-                        className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${mode === 'manual' ? 'bg-primary text-white shadow-md' : 'text-slate-500'}`}
-                    >
+                    <button onClick={() => setMode('manual')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${mode === 'manual' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-400'}`}>
                         <SearchIcon className="text-lg" /> Manual
                     </button>
                 </div>
             )}
 
             {!warga && mode === 'scan' && (
-                <div className="relative aspect-square w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white animate-fade-in">
-                    <video 
-                        ref={videoRef} 
-                        className="w-full h-full object-cover" 
-                        playsInline 
-                        autoPlay 
-                        muted 
-                    />
+                <div className="relative aspect-square w-full bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white animate-fade-in">
+                    <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
                     <canvas ref={canvasRef} className="hidden" />
-                    <div className="absolute inset-0 border-[40px] border-slate-900/40 pointer-events-none">
-                        <div className="w-full h-full border-2 border-primary/50 rounded-xl relative">
-                            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary"></div>
-                            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary"></div>
-                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary"></div>
-                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary"></div>
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent animate-[scan_2s_linear_infinite]"></div>
+                    <div className="absolute inset-0 border-[45px] border-slate-900/40 pointer-events-none">
+                        <div className="w-full h-full border-2 border-primary/50 rounded-2xl relative">
+                            <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-primary rounded-tl-lg"></div>
+                            <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-primary rounded-tr-lg"></div>
+                            <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-primary rounded-bl-lg"></div>
+                            <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-primary rounded-br-lg"></div>
+                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-[scan_2.5s_linear_infinite]"></div>
                         </div>
-                    </div>
-                    <div className="absolute bottom-6 left-0 right-0 text-center">
-                        <p className="text-white text-xs font-bold bg-slate-900/60 inline-block px-4 py-2 rounded-full backdrop-blur-md">
-                            Arahkan kamera ke QR Code warga
-                        </p>
                     </div>
                 </div>
             )}
 
             {!warga && mode === 'manual' && (
                 <div className="animate-fade-in space-y-4">
-                    <form onSubmit={handleManualSubmit} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <label className="block text-slate-700 font-semibold mb-2">Input Manual ID Warga</label>
-                        <input
-                            type="tel"
-                            value={wargaId}
-                            onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))}
-                            maxLength={6}
-                            placeholder="Contoh: 100001"
-                            className="w-full text-lg px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                            autoFocus
-                        />
-                        <button type="submit" disabled={loading} className="w-full mt-4 bg-primary text-white font-bold py-3 rounded-lg hover:bg-primary-focus">
-                            Cari Warga
-                        </button>
+                    <form onSubmit={handleManualSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">ID Warga (6 Digit)</label>
+                        <input type="tel" value={wargaId} onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))} maxLength={6} placeholder="100001" className="w-full text-2xl font-bold px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all" autoFocus />
+                        <button type="submit" disabled={loading} className="w-full mt-6 bg-slate-800 text-white font-bold py-4 rounded-2xl hover:bg-slate-900 shadow-xl shadow-slate-900/10 transition-all">Cari Warga</button>
                     </form>
                 </div>
             )}
 
             {error && !warga && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium flex items-start gap-3 animate-shake">
-                    <XIcon className="mt-0.5" />
-                    <p>{error}</p>
+                <div className="mt-4 p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl text-xs font-bold flex items-center gap-3 animate-shake uppercase tracking-tight">
+                    <XIcon /> <p>{error}</p>
                 </div>
             )}
 
             {warga && !success && (
-                <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-200 animate-slide-in-up">
+                <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-200 animate-slide-in-up">
                     <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-primary-light rounded-2xl flex items-center justify-center mx-auto mb-3">
-                            <QrCodeIcon className="text-3xl text-primary" />
+                        <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100">
+                            <QrCodeIcon className="text-3xl text-emerald-500" />
                         </div>
-                        <h2 className="text-2xl font-bold text-slate-800">{warga.name}</h2>
-                        <p className="text-slate-500 font-medium">ID: {warga.id} • RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}</p>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">{warga.name}</h2>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {warga.id} • RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}</p>
                     </div>
                     
-                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 mb-6">
-                        <div className="flex flex-col items-center gap-1">
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Tarif Sampah Hari Ini</p>
-                            <p className="text-4xl font-extrabold text-slate-800">
-                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(warga.dailyFee)}
-                            </p>
-                        </div>
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 mb-6 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tarif Iuran Hari Ini</p>
+                        <p className="text-4xl font-black text-slate-800">Rp{warga.dailyFee.toLocaleString('id-ID')}</p>
                         
                         {warga.totalDebt > 0 && (
-                            <div className="mt-4 pt-4 border-t border-slate-200 text-center">
-                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Total Tunggakan Lama</p>
-                                <p className="text-xl font-bold text-red-600">
-                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(warga.totalDebt)}
-                                </p>
+                            <div className="mt-5 pt-5 border-t border-slate-200/60">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Total Tunggakan</p>
+                                <p className="text-2xl font-black text-rose-600">Rp{warga.totalDebt.toLocaleString('id-ID')}</p>
                             </div>
                         )}
                     </div>
 
-                    <div className="space-y-3">
-                        <div className="grid grid-cols-1 gap-3">
-                            <button 
-                                onClick={() => handleSavePayment('LUNAS')} 
-                                disabled={loading || hasPaidToday} 
-                                className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat Hari Ini' : 'Bayar Tunai (Hari Ini)'}
+                    {isPayingDebt ? (
+                        <div className="space-y-4 animate-fade-in">
+                            <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">Input Nominal Bayar Tunggakan</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
+                                    <input 
+                                        type="number" 
+                                        value={debtInput} 
+                                        onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            setDebtInput(val > warga.totalDebt ? warga.totalDebt : val);
+                                        }}
+                                        max={warga.totalDebt}
+                                        className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 mt-4">
+                                    <button onClick={() => setIsPayingDebt(false)} className="py-3 px-4 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-white transition-all">Batal</button>
+                                    <button onClick={handlePayDebt} disabled={loading || debtInput <= 0} className="py-3 px-4 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20 transition-all disabled:opacity-50">Bayar Sekarang</button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat Hari Ini' : 'Bayar Tunai (Iuran Hari Ini)'}
                             </button>
                             
                             {!hasPaidToday && (
-                                <button 
-                                    onClick={() => handleSavePayment('HUTANG')} 
-                                    disabled={loading} 
-                                    className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all disabled:opacity-50"
-                                >
-                                    Catat Tunggakan (Hari Ini)
+                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all disabled:opacity-50">
+                                    Catat Tunggakan (Iuran Hari Ini)
                                 </button>
                             )}
 
                             {warga.totalDebt > 0 && (
-                                <button 
-                                    onClick={handlePayDebt} 
-                                    disabled={loading} 
-                                    className="w-full bg-indigo-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    <BanknotesIcon /> Bayar Pelunasan Tunggakan
+                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg shadow-slate-900/20 hover:bg-slate-900 transition-all flex items-center justify-center gap-2">
+                                    <BanknotesIcon /> Bayar Tunggakan
                                 </button>
                             )}
+                            
+                            <button onClick={resetState} className="w-full text-slate-400 font-bold py-2 hover:text-slate-600 text-sm">Batal / Kembali</button>
                         </div>
-
-                        <button onClick={resetState} className="w-full text-slate-400 font-bold py-2 hover:text-slate-600">
-                            Batal
-                        </button>
-                    </div>
+                    )}
                 </div>
             )}
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalTitle}>
                 <div className="text-center py-6">
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                        <CheckCircleIcon className="text-5xl text-success" />
+                    <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-100">
+                        <CheckCircleIcon className="text-5xl" />
                     </div>
-                    <p className="text-2xl font-extrabold text-slate-800">{modalTitle}!</p>
-                    <p className="text-slate-500 mt-1">Sistem telah memperbarui data warga.</p>
+                    <p className="text-2xl font-black text-slate-800 tracking-tight">{modalTitle}!</p>
+                    <p className="text-slate-500 mt-1 font-medium">Data transaksi warga telah diperbarui.</p>
                 </div>
             </Modal>
             
             <style>{`
-                @keyframes scan {
-                    0% { top: 0; }
-                    50% { top: 100%; }
-                    100% { top: 0; }
-                }
-                .animate-shake {
-                    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-                }
-                @keyframes shake {
-                    10%, 90% { transform: translate3d(-1px, 0, 0); }
-                    20%, 80% { transform: translate3d(2px, 0, 0); }
-                    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-                    40%, 60% { transform: translate3d(4px, 0, 0); }
-                }
+                @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+                .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+                @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
             `}</style>
         </div>
     );
