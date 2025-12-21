@@ -105,10 +105,10 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
 
         printWindow.document.write(`
             <html>
-                <head><style>body{font-family:sans-serif;padding:20px;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;font-size:11px;} th{background:#f4f4f4;}</style></head>
+                <head><style>body{font-family:'Plus Jakarta Sans',sans-serif;padding:50px;color:#1e293b;} .kop{text-align:center;border-bottom:3px double #10b981;margin-bottom:30px;padding-bottom:15px;} h1{color:#10b981;margin:0;font-size:24pt;} .meta{display:flex;justify-content:space-between;margin-bottom:20px;font-size:10pt;font-weight:bold;color:#64748b;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #e2e8f0;padding:12px;text-align:left;font-size:10pt;} th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:9pt;letter-spacing:1px;}</style></head>
                 <body>
-                    <h2 style="text-align:center">Riwayat Transaksi SapaDesa</h2>
-                    <p style="text-align:center;font-size:12px">Periode: ${filters.startDate} s/d ${filters.endDate}</p>
+                    <div class="kop"><h1>SAPADESA</h1><p>ROWOSARI • LIMPUNG • BATANG</p></div>
+                    <div class="meta"><span>RIWAYAT TRANSAKSI</span><span>PERIODE: ${filters.startDate} s/d ${filters.endDate}</span></div>
                     <table><thead><tr><th>Tgl</th><th>Warga</th><th>Wilayah</th><th>Petugas</th><th style="text-align:right">Jumlah</th></tr></thead><tbody>${rows}</tbody></table>
                 </body>
             </html>
@@ -128,7 +128,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
         <div className="space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold font-display text-slate-800">Riwayat Transaksi</h1>
+                    <h1 className="text-2xl font-black text-slate-800 tracking-tight font-display">Riwayat Transaksi</h1>
                     <p className="mt-1 text-slate-500 text-sm font-medium">Monitoring arus kas harian retribusi warga.</p>
                 </div>
                 <button onClick={handlePrint} className="w-full md:w-auto bg-slate-800 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:bg-slate-900 transition-all flex items-center justify-center gap-2">
@@ -136,8 +136,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* Filter Panel with Row Selector */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                     <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Dari</label>
@@ -162,26 +161,22 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                    <div className="flex items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <span className="mr-3">Tampilkan:</span>
-                        <select 
-                            value={itemsPerPage} 
-                            onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} 
-                            className="bg-white border border-slate-200 px-2 py-1 rounded-md text-slate-700 font-bold"
-                        >
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tampilkan</span>
+                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20">
                             <option value={10}>10 Baris</option>
                             <option value={25}>25 Baris</option>
                             <option value={50}>50 Baris</option>
                             <option value="all">Semua</option>
                         </select>
                     </div>
-                    <div className="text-[10px] font-bold text-slate-400">Total {sortedAndFilteredTx.length} Transaksi</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total {sortedAndFilteredTx.length} Transaksi</div>
                 </div>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
+                    <table className="w-full text-sm text-left font-sans">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-black tracking-widest">
                                 <th onClick={() => requestSort('timestamp')} className="p-4 cursor-pointer hover:bg-slate-100 transition-all"><div className="flex items-center">Waktu <SortIcon column="timestamp" /></div></th>
@@ -195,17 +190,17 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                         <tbody className="divide-y divide-slate-100">
                             {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse">Memuat data transaksi...</td></tr> : 
                             paginatedTx.map(tx => (
-                                <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                                <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-4 text-xs font-medium text-slate-500">
                                         {new Date(tx.timestamp).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}
                                         <div className="text-[10px] text-slate-400">{new Date(tx.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</div>
                                     </td>
-                                    <td className="p-4 font-bold text-slate-700">{tx.wargaName}</td>
+                                    <td className="p-4 font-bold text-slate-700 group-hover:text-primary transition-colors">{tx.wargaName}</td>
                                     <td className="p-4 text-xs text-slate-500 font-medium">RT {tx.rtNumber}, {tx.dukuhName}</td>
-                                    <td className="p-4 text-slate-600 font-medium">{tx.petugasName}</td>
-                                    <td className="p-4 text-right font-mono font-bold text-emerald-600">Rp{tx.amount.toLocaleString('id-ID')}</td>
+                                    <td className="p-4 text-slate-600 font-medium text-xs uppercase tracking-tight">{tx.petugasName}</td>
+                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp{tx.amount.toLocaleString('id-ID')}</td>
                                     <td className="p-4 text-center">
-                                        <button onClick={() => setTransactionToDelete(tx)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg transition-all"><TrashIcon /></button>
+                                        <button onClick={() => setTransactionToDelete(tx)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg transition-all" title="Hapus"><TrashIcon /></button>
                                     </td>
                                 </tr>
                             ))}
@@ -213,14 +208,13 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                     </table>
                 </div>
 
-                {/* Page Controls at Bottom */}
                 {itemsPerPage !== 'all' && totalPages > 1 && (
                     <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex justify-center items-center">
                         <div className="flex items-center gap-1 font-bold text-sm">
-                            <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="p-2 disabled:opacity-20"><i className="fa-solid fa-chevron-left"></i></button>
-                            <span className="bg-primary text-white w-8 h-8 flex items-center justify-center rounded-lg">{currentPage}</span>
-                            <span className="px-2 text-slate-400">/ {totalPages}</span>
-                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 disabled:opacity-20"><i className="fa-solid fa-chevron-right"></i></button>
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="p-2 disabled:opacity-20 text-slate-400 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-left"></i></button>
+                            <span className="bg-primary text-white w-8 h-8 flex items-center justify-center rounded-lg shadow-sm">{currentPage}</span>
+                            <span className="px-2 text-slate-400 font-medium">dari {totalPages}</span>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 disabled:opacity-20 text-slate-400 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-right"></i></button>
                         </div>
                     </div>
                 )}
@@ -229,12 +223,14 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
             <Modal isOpen={!!transactionToDelete} onClose={() => setTransactionToDelete(null)} title="Hapus Transaksi">
                 {transactionToDelete && (
                     <div className="text-center">
-                        <TrashIcon className="text-5xl text-rose-500 mb-4 mx-auto" />
-                        <p className="font-bold text-slate-800">Hapus riwayat transaksi ini?</p>
-                        <p className="text-xs text-slate-400 mt-2 px-6">Tindakan ini akan mempengaruhi laporan keuangan secara permanen.</p>
+                        <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
+                          <TrashIcon className="text-3xl" />
+                        </div>
+                        <p className="font-bold text-slate-800 text-lg">Hapus riwayat transaksi ini?</p>
+                        <p className="text-xs text-slate-400 mt-2 px-6">Tindakan ini akan mempengaruhi laporan saldo keuangan desa secara permanen.</p>
                         <div className="mt-8 flex gap-3">
-                            <button onClick={() => setTransactionToDelete(null)} className="flex-1 py-3 font-bold text-slate-500">Batal</button>
-                            <button onClick={async () => { await deleteTransaksi(transactionToDelete.id); fetchData(); setTransactionToDelete(null); }} className="flex-1 py-3 font-bold bg-rose-500 text-white rounded-2xl">Hapus</button>
+                            <button onClick={() => setTransactionToDelete(null)} className="flex-1 py-4 font-bold text-slate-500 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all">Batal</button>
+                            <button onClick={async () => { await deleteTransaksi(transactionToDelete.id); fetchData(); setTransactionToDelete(null); }} className="flex-1 py-4 font-bold bg-rose-500 text-white rounded-2xl shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all">Ya, Hapus</button>
                         </div>
                     </div>
                 )}
