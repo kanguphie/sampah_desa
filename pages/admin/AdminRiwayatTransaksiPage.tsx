@@ -110,12 +110,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
                     @page { size: A4; margin: 1cm; }
                     body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
-                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
                     .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1.1; }
                     .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 5px 0 0 0; text-transform: uppercase; }
                     .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 3px 0 0 0; text-transform: uppercase; }
                     .header-right { text-align: right; }
-                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
+                    .report-title { font-size: 12pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
                     .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
                     
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
