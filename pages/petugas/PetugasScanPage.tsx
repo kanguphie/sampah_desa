@@ -19,7 +19,7 @@ const PetugasScanPage: FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('Berhasil');
     
-    // Debt partial payment states - Changed to allow empty string for better UX
+    // Debt partial payment states
     const [isPayingDebt, setIsPayingDebt] = useState(false);
     const [debtInput, setDebtInput] = useState<number | ''>('');
     
@@ -55,7 +55,6 @@ const PetugasScanPage: FC = () => {
             const data = await getWargaById(id);
             if (data) {
                 setWarga(data);
-                // ANTISIPASI: Jangan otomatis isi nominal (setDebtInput ditetap kosong/nol)
                 setDebtInput(''); 
                 const paidToday = await checkIfWargaPaidToday(id);
                 setHasPaidToday(paidToday);
@@ -189,6 +188,24 @@ const PetugasScanPage: FC = () => {
     const getDukuhName = (id: number) => getDukuhById(id)?.name || 'N/A';
     const getRTNumber = (id: number) => getRTById(id)?.number || 'N/A';
 
+    // Helper to format currency display for input
+    const formatInputDisplay = (val: number | '') => {
+        if (val === '') return '';
+        return val.toLocaleString('id-ID');
+    };
+
+    // Helper to handle numeric input with thousand separator
+    const handleDebtInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const rawValue = e.target.value.replace(/\D/g, ''); // Strip non-digits
+        const val = rawValue === '' ? '' : Number(rawValue);
+        
+        if (warga && val !== '' && val > warga.totalDebt) {
+            setDebtInput(warga.totalDebt);
+        } else {
+            setDebtInput(val);
+        }
+    };
+
     return (
         <div className="flex-grow p-4 max-w-md mx-auto w-full">
             {!warga && (
@@ -263,17 +280,11 @@ const PetugasScanPage: FC = () => {
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
                                     <input 
-                                        type="number" 
-                                        value={debtInput} 
+                                        type="text" 
+                                        inputMode="numeric"
+                                        value={formatInputDisplay(debtInput)} 
                                         placeholder="0"
-                                        onChange={(e) => {
-                                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                                            if (val !== '' && val > warga.totalDebt) {
-                                                setDebtInput(warga.totalDebt);
-                                            } else {
-                                                setDebtInput(val);
-                                            }
-                                        }}
+                                        onChange={handleDebtInputChange}
                                         className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary"
                                         autoFocus
                                     />
