@@ -7,16 +7,14 @@ import {
     ArrowLeftIcon, 
     BanknotesIcon, 
     CurrencyDollarIcon, 
-    CheckCircleIcon,
-    MenuIcon,
-    XIcon
+    CheckCircleIcon
 } from '@/components/icons';
+import PublicHeader from '@/components/PublicHeader';
 
 const PublicReportPage: React.FC = () => {
     const [year, setYear] = useState(new Date().getFullYear());
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -36,38 +34,7 @@ const PublicReportPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-white text-slate-800 flex flex-col selection:bg-emerald-100 selection:text-emerald-900">
             <div className="absolute top-0 left-0 w-full h-4 bg-emerald-500"></div>
-            
-            <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-5 sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100">
-                <div className="flex justify-between items-center">
-                    <Link to="/" className="flex items-center">
-                        <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12 hover:scale-105 transition-transform">SapaDesa</div>
-                    </Link>
-                    <nav className="hidden md:flex items-center space-x-8">
-                        <Link to="/" className="text-slate-600 hover:text-primary transition-colors font-bold text-sm">Cek Iuran</Link>
-                        <Link to="/laporan-publik" className="text-primary transition-colors font-black text-sm flex items-center gap-2">
-                            <ScaleBalancedIcon /> Laporan Publik
-                        </Link>
-                        <Link to="/tips" className="text-slate-600 hover:text-primary transition-colors font-bold text-sm">Tips Sampah</Link>
-                        <Link to="/contact" className="text-slate-600 hover:text-primary transition-colors font-bold text-sm">Kontak Kami</Link>
-                    </nav>
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-slate-600 hover:text-primary" aria-label="Open menu"><MenuIcon className="text-2xl" /></button>
-                </div>
-            </header>
-
-            {isMobileMenuOpen && (
-                <div className="fixed inset-0 bg-white z-50 flex flex-col animate-fade-in md:hidden">
-                    <div className="flex justify-between items-center p-4 border-b">
-                        <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12">SapaDesa</div>
-                        <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-600" aria-label="Close menu"><XIcon className="text-2xl" /></button>
-                    </div>
-                    <nav className="flex flex-col items-center justify-center flex-grow space-y-10">
-                        <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-3xl font-black text-slate-800">Cek Status Iuran</Link>
-                        <Link to="/laporan-publik" onClick={() => setIsMobileMenuOpen(false)} className="text-3xl font-black text-emerald-500">Laporan Publik</Link>
-                        <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-3xl font-black text-slate-800">Tips Sampah</Link>
-                        <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-3xl font-black text-slate-800">Hubungi Kami</Link>
-                    </nav>
-                </div>
-            )}
+            <PublicHeader />
 
             <main className="flex-grow pb-20">
                 {/* Hero Section */}
@@ -202,7 +169,7 @@ const PublicReportPage: React.FC = () => {
                         <div className="bg-white/10 text-white font-bold text-xl px-6 py-3 rounded-lg -skew-x-12">SapaDesa</div>
                         <nav className="flex flex-wrap justify-center gap-8 text-sm font-black uppercase tracking-widest">
                             <Link to="/" className="hover:text-white transition-colors">Home</Link>
-                            <Link to="/laporan-publik" className="text-emerald-400 transition-colors">Laporan Desa</Link>
+                            <Link to="/laporan-publik" className="hover:text-emerald-400 transition-colors">Laporan Desa</Link>
                             <Link to="/tips" className="hover:text-white transition-colors">Tips</Link>
                             <Link to="/contact" className="hover:text-white transition-colors">Kontak</Link>
                         </nav>

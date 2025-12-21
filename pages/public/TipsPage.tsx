@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { RecycleIcon, LeafIcon, SparklesIcon, ShoppingBagIcon, BanknotesIcon, TrashIcon, MenuIcon, XIcon } from '@/components/icons';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { RecycleIcon, LeafIcon, SparklesIcon, ShoppingBagIcon, BanknotesIcon, TrashIcon } from '@/components/icons';
+import PublicHeader from '@/components/PublicHeader';
 
 const tips = [
   {
@@ -46,56 +47,10 @@ const TipCard: React.FC<{ icon: React.ReactNode; title: string; description: str
 
 
 const TipsPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
         <div className="absolute top-0 left-0 w-full h-4 bg-teal-400"></div>
-        <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-5">
-            <div className="flex justify-between items-center">
-                <Link to="/" className="flex items-center">
-                    <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12">
-                        SapaDesa
-                    </div>
-                </Link>
-                 <nav className="hidden md:flex items-center space-x-8">
-                    <Link to="/" className="text-slate-600 hover:text-primary transition-colors font-medium">Home</Link>
-                    <Link to="/tips" className="text-primary font-semibold transition-colors">Tips Sampah</Link>
-                    <Link to="/contact" className="text-slate-600 hover:text-primary transition-colors font-medium">Kontak</Link>
-                </nav>
-                <div className="flex items-center gap-4">
-                     <button 
-                      onClick={() => navigate('/')}
-                      className="hidden sm:block bg-slate-100 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors shadow-sm border border-slate-200"
-                    >
-                      Kembali ke Home
-                    </button>
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-slate-600 hover:text-primary" aria-label="Open menu">
-                        <MenuIcon className="text-2xl" />
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-            <div className="fixed inset-0 bg-white z-50 flex flex-col animate-fade-in md:hidden">
-                <div className="flex justify-between items-center p-4 border-b">
-                    <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12">
-                        SapaDesa
-                    </div>
-                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-600" aria-label="Close menu">
-                        <XIcon className="text-2xl" />
-                    </button>
-                </div>
-                <nav className="flex flex-col items-center justify-center flex-grow space-y-8">
-                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Home</Link>
-                    <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-primary hover:text-primary">Tips Sampah</Link>
-                    <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Kontak</Link>
-                </nav>
-            </div>
-        )}
+        <PublicHeader />
 
         <main className="flex-grow">
             <section className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">

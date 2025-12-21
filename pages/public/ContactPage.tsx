@@ -1,12 +1,11 @@
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { MenuIcon, XIcon, HomeIcon, PhoneIcon } from '@/components/icons';
+import { Link } from 'react-router-dom';
+import { HomeIcon, PhoneIcon } from '@/components/icons';
 import { sendMessage } from '@/services/api';
+import PublicHeader from '@/components/PublicHeader';
 
 const ContactPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', contact: '', message: '' });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -25,7 +24,6 @@ const ContactPage: React.FC = () => {
           await sendMessage(formData);
           setSuccess(true);
           setFormData({ name: '', contact: '', message: '' });
-          // Hide success message after 5 seconds
           setTimeout(() => setSuccess(false), 5000);
       } catch (error) {
           console.error("Failed to send message", error);
@@ -38,52 +36,7 @@ const ContactPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
         <div className="absolute top-0 left-0 w-full h-4 bg-teal-400"></div>
-        
-        {/* Header */}
-        <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-5 relative z-20">
-            <div className="flex justify-between items-center">
-                <Link to="/" className="flex items-center">
-                    <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12">
-                        SapaDesa
-                    </div>
-                </Link>
-                 <nav className="hidden md:flex items-center space-x-8">
-                    <Link to="/" className="text-slate-600 hover:text-primary transition-colors font-medium">Home</Link>
-                    <Link to="/tips" className="text-slate-600 hover:text-primary transition-colors font-medium">Tips Sampah</Link>
-                    <Link to="/contact" className="text-primary font-semibold transition-colors">Kontak</Link>
-                </nav>
-                <div className="flex items-center gap-4">
-                     <button 
-                      onClick={() => navigate('/')}
-                      className="hidden sm:block bg-slate-100 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors shadow-sm border border-slate-200"
-                    >
-                      Kembali ke Home
-                    </button>
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-slate-600 hover:text-primary" aria-label="Open menu">
-                        <MenuIcon className="text-2xl" />
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-            <div className="fixed inset-0 bg-white z-50 flex flex-col animate-fade-in md:hidden">
-                <div className="flex justify-between items-center p-4 border-b">
-                    <div className="bg-slate-800 text-white font-bold text-lg px-4 py-2 rounded-md shadow-sm -skew-x-12">
-                        SapaDesa
-                    </div>
-                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-600" aria-label="Close menu">
-                        <XIcon className="text-2xl" />
-                    </button>
-                </div>
-                <nav className="flex flex-col items-center justify-center flex-grow space-y-8">
-                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Home</Link>
-                    <Link to="/tips" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-slate-700 hover:text-primary">Tips Sampah</Link>
-                    <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="text-2xl font-semibold text-primary">Kontak</Link>
-                </nav>
-            </div>
-        )}
+        <PublicHeader />
 
         {/* Main Content */}
         <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16 relative z-10">
