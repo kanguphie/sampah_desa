@@ -628,7 +628,7 @@ const LaporanPartisipasi: FC = () => {
                                 <Tooltip 
                                     formatter={(value: any) => {
                                         const numValue = (typeof value === 'number') ? value : parseFloat(value || '0');
-                                        return [`${numValue.toFixed(1)}%`, 'Partisipasi'];
+                                        return [!isNaN(numValue) ? `${numValue.toFixed(1)}%` : '0%', 'Partisipasi'];
                                     }}
                                     labelFormatter={(label) => `RT ${label}`}
                                 />
