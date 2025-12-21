@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getReports, deleteTransaksi } from '@/services/api';
-import type { Transaksi } from '@/types';
-import { SearchIcon, ClipboardListIcon, TrashIcon } from '@/components/icons';
+import { getReports, deleteTransaksi, getAllDukuh, getAllRT } from '@/services/api';
+import type { Transaksi, Dukuh, RT } from '@/types';
+import { SearchIcon, ClipboardListIcon, TrashIcon, ChevronDownIcon, DownloadIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 
 interface ReportRow extends Transaksi {
@@ -14,380 +14,214 @@ interface ReportRow extends Transaksi {
 
 const AdminRiwayatTransaksiPage: React.FC = () => {
     const [transactions, setTransactions] = useState<ReportRow[]>([]);
+    const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
+    const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
     const [transactionToDelete, setTransactionToDelete] = useState<ReportRow | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
     
-    // Filters
-    const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
-    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-    const [searchQuery, setSearchQuery] = useState('');
-
-    // Pagination
-    const [currentPage, setCurrentPage] = useState(1);
+    // Filters & Sorting
+    const [filters, setFilters] = useState({
+        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0],
+        search: '',
+        dukuhId: 'all',
+        rtId: 'all'
+    });
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'timestamp', direction: 'desc' });
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await getReports({
-                startDate: new Date(startDate),
-                endDate: new Date(endDate)
-            });
+            const [data, d, r] = await Promise.all([
+                getReports({ startDate: new Date(filters.startDate), endDate: new Date(filters.endDate) }),
+                getAllDukuh(),
+                getAllRT()
+            ]);
             setTransactions(data);
+            setDukuhList(d);
+            setRtList(r);
         } catch (error) {
             console.error("Failed to fetch transactions", error);
         } finally {
             setLoading(false);
         }
-    }, [startDate, endDate]);
+    }, [filters.startDate, filters.endDate]);
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    useEffect(() => { fetchData(); }, [fetchData]);
 
-    // Reset page when filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [startDate, endDate, searchQuery, itemsPerPage]);
-
-    const filteredTransactions = useMemo(() => {
-        return transactions.filter(tx => {
-            const query = searchQuery.toLowerCase();
-            return (
-                tx.wargaName.toLowerCase().includes(query) ||
-                tx.petugasName.toLowerCase().includes(query) ||
-                tx.id.toLowerCase().includes(query) ||
-                tx.dukuhName.toLowerCase().includes(query)
-            );
-        });
-    }, [transactions, searchQuery]);
-
-    // Pagination Logic
-    const paginatedTransactions = useMemo(() => {
-        if (itemsPerPage === 'all') return filteredTransactions;
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return filteredTransactions.slice(startIndex, startIndex + itemsPerPage);
-    }, [filteredTransactions, currentPage, itemsPerPage]);
-
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(filteredTransactions.length / itemsPerPage);
-
-    const totalAmount = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0), [filteredTransactions]);
-
-    const handleDeleteConfirm = async () => {
-        if (!transactionToDelete) return;
-        setIsDeleting(true);
-        try {
-            await deleteTransaksi(transactionToDelete.id);
-            await fetchData(); // Refresh data
-            setTransactionToDelete(null);
-        } catch (error) {
-            console.error("Gagal menghapus transaksi", error);
-            alert("Gagal menghapus transaksi. Silakan coba lagi.");
-        } finally {
-            setIsDeleting(false);
-        }
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+        setSortConfig({ key, direction });
     };
+
+    const sortedAndFilteredTx = useMemo(() => {
+        let items = transactions.filter(tx => {
+            const query = filters.search.toLowerCase();
+            const matchSearch = tx.wargaName.toLowerCase().includes(query) || tx.id.toLowerCase().includes(query);
+            const matchDukuh = filters.dukuhId === 'all' || tx.dukuhName === dukuhList.find(d => d.id === Number(filters.dukuhId))?.name;
+            const matchRT = filters.rtId === 'all' || tx.rtNumber === rtList.find(r => r.id === Number(filters.rtId))?.number;
+            return matchSearch && matchDukuh && matchRT;
+        });
+
+        items.sort((a, b) => {
+            let aVal: any, bVal: any;
+            switch(sortConfig.key) {
+                case 'warga': aVal = a.wargaName; bVal = b.wargaName; break;
+                case 'petugas': aVal = a.petugasName; bVal = b.petugasName; break;
+                case 'amount': aVal = a.amount; bVal = b.amount; break;
+                case 'wilayah': aVal = a.dukuhName + a.rtNumber; bVal = b.dukuhName + b.rtNumber; break;
+                default: aVal = new Date(a.timestamp).getTime(); bVal = new Date(b.timestamp).getTime();
+            }
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return items;
+    }, [transactions, filters, sortConfig, dukuhList, rtList]);
+
+    const paginatedTx = useMemo(() => {
+        if (itemsPerPage === 'all') return sortedAndFilteredTx;
+        const start = (currentPage - 1) * (itemsPerPage as number);
+        return sortedAndFilteredTx.slice(start, start + (itemsPerPage as number));
+    }, [sortedAndFilteredTx, itemsPerPage, currentPage]);
+
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredTx.length / (itemsPerPage as number));
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            const dateRange = `${new Date(startDate).toLocaleDateString('id-ID')} - ${new Date(endDate).toLocaleDateString('id-ID')}`;
-            
-            const tableRows = filteredTransactions.map(tx => `
-                <tr>
-                    <td>${new Date(tx.timestamp).toLocaleDateString('id-ID')} <br/> <span style="font-size: 0.8em; color: #666;">${new Date(tx.timestamp).toLocaleTimeString('id-ID')}</span></td>
-                    <td>${tx.wargaName}<br/><span style="font-size: 0.8em; color: #666;">RT ${tx.rtNumber}, ${tx.dukuhName}</span></td>
-                    <td>${tx.petugasName}</td>
-                    <td class="currency">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.amount)}</td>
-                </tr>
-            `).join('');
+        if (!printWindow) return;
+        const rows = sortedAndFilteredTx.map(tx => `
+            <tr>
+                <td>${new Date(tx.timestamp).toLocaleDateString('id-ID')}</td>
+                <td>${tx.wargaName}</td>
+                <td>RT ${tx.rtNumber}, ${tx.dukuhName}</td>
+                <td>${tx.petugasName}</td>
+                <td style="text-align:right">Rp${tx.amount.toLocaleString('id-ID')}</td>
+            </tr>
+        `).join('');
 
-            const content = `
-                <html>
-                    <head>
-                        <title>Riwayat Transaksi</title>
-                        <style>
-                            body { font-family: 'Inter', sans-serif; color: #333; -webkit-print-color-adjust: exact; font-size: 10pt; }
-                            @page { size: A4; margin: 1.5cm; }
-                            
-                            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #10b981; padding-bottom: 10px; margin-bottom: 20px; }
-                            .header h1 { font-size: 20px; color: #10b981; margin: 0; text-transform: uppercase; font-weight: 800; }
-                            .header p { margin: 0; font-size: 9pt; color: #666; }
-                            
-                            .meta { margin-bottom: 15px; font-size: 9pt; }
-                            .meta strong { margin-right: 5px; }
-                            
-                            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                            th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
-                            thead { background-color: #f1f5f9; color: #1e293b; display: table-header-group; }
-                            tr { page-break-inside: avoid; }
-                            
-                            .currency { text-align: right; font-family: monospace; white-space: nowrap; }
-                            
-                            .footer { margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; display: flex; justify-content: space-between; font-weight: bold; }
-                            .print-time { margin-top: 30px; text-align: center; font-size: 8pt; color: #9ca3af; font-weight: normal; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <div>
-                                <h1>SapaDesa</h1>
-                                <p>Desa Rowosari</p>
-                            </div>
-                            <div style="text-align: right;">
-                                <h1>Riwayat Transaksi</h1>
-                            </div>
-                        </div>
-                        
-                        <div class="meta">
-                            <p><strong>Periode:</strong> ${dateRange}</p>
-                            <p><strong>Total Data:</strong> ${filteredTransactions.length} Transaksi</p>
-                        </div>
+        printWindow.document.write(`
+            <html>
+                <head><style>body{font-family:sans-serif;padding:20px;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;font-size:11px;} th{background:#f4f4f4;}</style></head>
+                <body>
+                    <h2 style="text-align:center">Riwayat Transaksi SapaDesa</h2>
+                    <p style="text-align:center;font-size:12px">Periode: ${filters.startDate} s/d ${filters.endDate}</p>
+                    <table><thead><tr><th>Tgl</th><th>Warga</th><th>Wilayah</th><th>Petugas</th><th style="text-align:right">Jumlah</th></tr></thead><tbody>${rows}</tbody></table>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+    };
 
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 20%;">Waktu</th>
-                                    <th style="width: 40%;">Warga & Wilayah</th>
-                                    <th style="width: 25%;">Petugas</th>
-                                    <th style="width: 15%;" class="currency">Jumlah</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${filteredTransactions.length > 0 ? tableRows : '<tr><td colspan="4" style="text-align: center; padding: 20px;">Tidak ada data transaksi.</td></tr>'}
-                            </tbody>
-                        </table>
-
-                        <div class="footer">
-                            <span>Total Pemasukan Periode Ini:</span>
-                            <span>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(totalAmount)}</span>
-                        </div>
-
-                        <div class="print-time">
-                            Dicetak pada ${new Date().toLocaleString('id-ID')}
-                        </div>
-                        
-                        <script>
-                            window.onload = function() { window.print(); window.close(); }
-                        </script>
-                    </body>
-                </html>
-            `;
-            printWindow.document.write(content);
-            printWindow.document.close();
-        }
+    const SortIcon = ({ column }: { column: string }) => {
+        if (sortConfig.key !== column) return <ChevronDownIcon className="ml-1 opacity-20" />;
+        return sortConfig.direction === 'asc' 
+            ? <i className="fa-solid fa-sort-up ml-1 text-primary"></i> 
+            : <i className="fa-solid fa-sort-down ml-1 text-primary"></i>;
     };
 
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-soft">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold font-display text-slate-800">Riwayat Transaksi</h1>
-                        <p className="mt-1 text-slate-500">Lihat daftar lengkap transaksi pembayaran.</p>
-                    </div>
-                    <button 
-                        onClick={handlePrint}
-                        disabled={filteredTransactions.length === 0}
-                        className="bg-slate-800 text-white font-semibold px-5 py-3 rounded-xl shadow-lg hover:bg-slate-900 hover:-translate-y-0.5 transition-all flex items-center gap-2 disabled:bg-slate-400 disabled:shadow-none disabled:translate-y-0"
-                    >
-                        <ClipboardListIcon className="text-lg"/>
-                        Cetak Data
-                    </button>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold font-display text-slate-800">Riwayat Transaksi</h1>
+                    <p className="mt-1 text-slate-500 text-sm font-medium">Monitoring arus kas harian retribusi warga.</p>
+                </div>
+                <button onClick={handlePrint} className="w-full md:w-auto bg-slate-800 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:bg-slate-900 transition-all flex items-center justify-center gap-2">
+                    <DownloadIcon /> Cetak Laporan
+                </button>
+            </div>
+
+            {/* Filter Panel */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-5 gap-3">
+                <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Dari</label>
+                    <input type="date" value={filters.startDate} onChange={e => setFilters({...filters, startDate: e.target.value})} className="w-full bg-transparent font-bold text-sm outline-none" />
+                </div>
+                <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Sampai</label>
+                    <input type="date" value={filters.endDate} onChange={e => setFilters({...filters, endDate: e.target.value})} className="w-full bg-transparent font-bold text-sm outline-none" />
+                </div>
+                <select className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-sm bg-slate-50/50" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
+                    <option value="all">Semua Dukuh</option>
+                    {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+                <select className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-sm bg-slate-50/50" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
+                    <option value="all">Semua RT</option>
+                    {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
+                </select>
+                <div className="relative">
+                    <input type="text" placeholder="Cari warga/petugas..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50/50 outline-none" />
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>
             </div>
 
-            <div className="glass-card p-2 rounded-2xl">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                    <div className="md:col-span-3">
-                        <div className="bg-white rounded-xl p-1 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
-                            <label className="block text-xs font-bold text-slate-400 uppercase ml-3 mt-1">Dari Tanggal</label>
-                            <input 
-                                type="date" 
-                                value={startDate} 
-                                onChange={(e) => setStartDate(e.target.value)} 
-                                className="w-full px-3 py-1 bg-transparent border-none focus:ring-0 font-medium text-slate-700" 
-                            />
-                        </div>
-                    </div>
-                    <div className="md:col-span-3">
-                         <div className="bg-white rounded-xl p-1 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
-                            <label className="block text-xs font-bold text-slate-400 uppercase ml-3 mt-1">Sampai Tanggal</label>
-                            <input 
-                                type="date" 
-                                value={endDate} 
-                                onChange={(e) => setEndDate(e.target.value)} 
-                                className="w-full px-3 py-1 bg-transparent border-none focus:ring-0 font-medium text-slate-700" 
-                            />
-                        </div>
-                    </div>
-                    <div className="md:col-span-6">
-                         <div className="relative bg-white rounded-xl p-1 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all h-full flex flex-col justify-center">
-                            <input 
-                                type="text" 
-                                placeholder="Cari nama warga, petugas, atau ID..." 
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-transparent border-none focus:ring-0 font-medium text-slate-700 placeholder-slate-400" 
-                            />
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"/>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="overflow-hidden">
-                 <div className="overflow-x-auto pb-4">
-                    <table className="w-full border-separate border-spacing-y-3 text-left text-sm">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
                         <thead>
-                            <tr>
-                                <th className="p-4 text-left uppercase text-xs font-bold text-slate-400 tracking-wider">Waktu</th>
-                                <th className="p-4 text-left uppercase text-xs font-bold text-slate-400 tracking-wider">Warga</th>
-                                <th className="p-4 text-left uppercase text-xs font-bold text-slate-400 tracking-wider">Wilayah</th>
-                                <th className="p-4 text-left uppercase text-xs font-bold text-slate-400 tracking-wider">Petugas</th>
-                                <th className="p-4 text-right uppercase text-xs font-bold text-slate-400 tracking-wider">Jumlah</th>
-                                <th className="p-4 text-center uppercase text-xs font-bold text-slate-400 tracking-wider">Aksi</th>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-black tracking-widest">
+                                <th onClick={() => requestSort('timestamp')} className="p-4 cursor-pointer hover:bg-slate-100 transition-all"><div className="flex items-center">Waktu <SortIcon column="timestamp" /></div></th>
+                                <th onClick={() => requestSort('warga')} className="p-4 cursor-pointer hover:bg-slate-100 transition-all"><div className="flex items-center">Warga <SortIcon column="warga" /></div></th>
+                                <th onClick={() => requestSort('wilayah')} className="p-4 cursor-pointer hover:bg-slate-100 transition-all"><div className="flex items-center">Wilayah <SortIcon column="wilayah" /></div></th>
+                                <th onClick={() => requestSort('petugas')} className="p-4 cursor-pointer hover:bg-slate-100 transition-all"><div className="flex items-center">Petugas <SortIcon column="petugas" /></div></th>
+                                <th onClick={() => requestSort('amount')} className="p-4 text-right cursor-pointer hover:bg-slate-100 transition-all"><div className="flex items-center justify-end">Jumlah <SortIcon column="amount" /></div></th>
+                                <th className="p-4 text-center">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {loading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
-                                    <tr key={i} className="bg-white shadow-sm rounded-xl animate-pulse">
-                                        <td className="p-4 rounded-l-xl" colSpan={6}><div className="h-6 bg-slate-100 rounded"></div></td>
-                                    </tr>
-                                ))
-                            ) : paginatedTransactions.length > 0 ? (
-                                paginatedTransactions.map((tx) => (
-                                    <tr key={tx.id} className="bg-white shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 group">
-                                        <td className="p-4 text-slate-700 rounded-l-2xl">
-                                            <div className="font-medium">{new Date(tx.timestamp).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' })}</div>
-                                            <div className="text-xs text-slate-400 mt-0.5">{new Date(tx.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div>
-                                        </td>
-                                        <td className="p-4 font-bold text-slate-800">{tx.wargaName}</td>
-                                        <td className="p-4 text-slate-600 text-xs">
-                                            <span className="bg-slate-100 px-2 py-1 rounded-md">RT {tx.rtNumber}</span> <span className="text-slate-400 mx-1">•</span> {tx.dukuhName}
-                                        </td>
-                                        <td className="p-4 text-slate-600">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold">
-                                                    {tx.petugasName.charAt(0)}
-                                                </div>
-                                                {tx.petugasName}
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-right font-mono font-bold text-emerald-600">
-                                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.amount)}
-                                        </td>
-                                        <td className="p-4 text-center rounded-r-2xl">
-                                            <button 
-                                                onClick={() => setTransactionToDelete(tx)}
-                                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                                                title="Hapus Transaksi"
-                                            >
-                                                <TrashIcon className="text-lg" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={6} className="p-12 text-center text-slate-400 italic">
-                                        Tidak ada data transaksi yang ditemukan.
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse">Memuat data transaksi...</td></tr> : 
+                            paginatedTx.map(tx => (
+                                <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-4 text-xs font-medium text-slate-500">
+                                        {new Date(tx.timestamp).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}
+                                        <div className="text-[10px] text-slate-400">{new Date(tx.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</div>
+                                    </td>
+                                    <td className="p-4 font-bold text-slate-700">{tx.wargaName}</td>
+                                    <td className="p-4 text-xs text-slate-500 font-medium">RT {tx.rtNumber}, {tx.dukuhName}</td>
+                                    <td className="p-4 text-slate-600 font-medium">{tx.petugasName}</td>
+                                    <td className="p-4 text-right font-mono font-bold text-emerald-600">Rp{tx.amount.toLocaleString('id-ID')}</td>
+                                    <td className="p-4 text-center">
+                                        <button onClick={() => setTransactionToDelete(tx)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg transition-all"><TrashIcon /></button>
                                     </td>
                                 </tr>
-                            )}
+                            ))}
                         </tbody>
-                        {filteredTransactions.length > 0 && (
-                            <tfoot>
-                                <tr className="font-bold text-slate-700">
-                                    <td colSpan={4} className="p-4 text-right uppercase text-xs tracking-wider">Total Halaman Ini</td>
-                                    <td className="p-4 text-right font-mono text-emerald-700">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(paginatedTransactions.reduce((sum, tx) => sum + tx.amount, 0))}</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        )}
                     </table>
-                 </div>
-                 {/* Pagination Controls */}
-                 {!loading && filteredTransactions.length > 0 && (
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-4">
-                        <div className="flex items-center text-sm text-slate-500 font-medium bg-white px-4 py-2 rounded-xl shadow-sm">
-                            <span className="mr-2">Baris per halaman:</span>
-                            <select
-                                value={itemsPerPage}
-                                onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                className="border-none bg-transparent font-bold text-slate-700 focus:ring-0 cursor-pointer outline-none"
-                            >
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                            <span className="ml-4 text-slate-400 border-l border-slate-200 pl-4">
-                                data per halaman. (Total: {filteredTransactions.length})
-                            </span>
-                        </div>
-                        {itemsPerPage !== 'all' && (
-                            <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
-                                >
-                                    Sebelumnya
-                                </button>
-                                <span className="text-sm font-bold text-white bg-emerald-500 w-8 h-8 flex items-center justify-center rounded-lg shadow-md shadow-emerald-500/30">
-                                    {currentPage}
-                                </span>
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
-                                >
-                                    Selanjutnya
-                                </button>
-                            </div>
-                        )}
+                </div>
+
+                <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <span className="mr-3">Baris:</span>
+                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border p-1 rounded">
+                            <option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value="all">Semua</option>
+                        </select>
+                        <span className="ml-4">Total {sortedAndFilteredTx.length} Transaksi</span>
                     </div>
-                )}
+                    {itemsPerPage !== 'all' && totalPages > 1 && (
+                        <div className="flex items-center gap-1 font-bold text-sm">
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="p-2 disabled:opacity-20"><i className="fa-solid fa-chevron-left"></i></button>
+                            <span className="bg-primary text-white w-8 h-8 flex items-center justify-center rounded-lg">{currentPage}</span>
+                            <span className="px-2 text-slate-400">/ {totalPages}</span>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 disabled:opacity-20"><i className="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            <Modal isOpen={!!transactionToDelete} onClose={() => setTransactionToDelete(null)} title="Hapus Transaksi" size="md">
+            <Modal isOpen={!!transactionToDelete} onClose={() => setTransactionToDelete(null)} title="Hapus Transaksi">
                 {transactionToDelete && (
-                    <div>
-                        <p className="text-slate-700 text-center mb-6">
-                            Apakah Anda yakin ingin menghapus riwayat transaksi ini?
-                        </p>
-                        <div className="bg-rose-50 border border-rose-100 rounded-xl p-6 text-center mb-6 shadow-sm">
-                            <p className="font-bold text-slate-800 text-xl mb-1">{transactionToDelete.wargaName}</p>
-                            <p className="text-sm text-slate-500 mb-3">
-                                {new Date(transactionToDelete.timestamp).toLocaleDateString('id-ID', { dateStyle: 'full' })} • {new Date(transactionToDelete.timestamp).toLocaleTimeString('id-ID')}
-                            </p>
-                            <div className="inline-block bg-white px-4 py-1 rounded-full border border-rose-200">
-                                <p className="font-mono text-2xl font-bold text-rose-600">
-                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(transactionToDelete.amount)}
-                                </p>
-                            </div>
-                        </div>
-                         <p className="text-xs text-center text-slate-400 bg-slate-50 p-2 rounded-lg">
-                            ⚠ Tindakan ini akan menghapus catatan keuangan dan tidak dapat dibatalkan.
-                        </p>
-                        <div className="flex justify-center gap-3 mt-8">
-                            <button 
-                                onClick={() => setTransactionToDelete(null)} 
-                                className="bg-slate-100 text-slate-600 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-                                disabled={isDeleting}
-                            >
-                                Batal
-                            </button>
-                            <button 
-                                onClick={handleDeleteConfirm} 
-                                className="bg-rose-500 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-rose-600 shadow-lg shadow-rose-500/30 transition-all transform hover:-translate-y-0.5 disabled:bg-slate-400 disabled:shadow-none disabled:translate-y-0"
-                                disabled={isDeleting}
-                            >
-                                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
-                            </button>
+                    <div className="text-center">
+                        <TrashIcon className="text-5xl text-rose-500 mb-4 mx-auto" />
+                        <p className="font-bold text-slate-800">Hapus riwayat transaksi ini?</p>
+                        <p className="text-xs text-slate-400 mt-2 px-6">Tindakan ini akan mempengaruhi laporan keuangan secara permanen.</p>
+                        <div className="mt-8 flex gap-3">
+                            <button onClick={() => setTransactionToDelete(null)} className="flex-1 py-3 font-bold text-slate-500">Batal</button>
+                            <button onClick={async () => { await deleteTransaksi(transactionToDelete.id); fetchData(); setTransactionToDelete(null); }} className="flex-1 py-3 font-bold bg-rose-500 text-white rounded-2xl">Hapus</button>
                         </div>
                     </div>
                 )}
