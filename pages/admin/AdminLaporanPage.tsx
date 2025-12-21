@@ -84,8 +84,8 @@ const LaporanHarian: FC = () => {
                     getReports({ startDate: selectedDate, endDate: selectedDate }),
                     getPengeluaran({ startDate: selectedDate, endDate: selectedDate })
                 ]);
-                setReports(reportData);
-                setPengeluaranList(pengeluaranData);
+                setReports(reportData || []);
+                setPengeluaranList(pengeluaranData || []);
             } catch (error) {
                 console.error("Failed to fetch daily reports", error);
             } finally {
@@ -193,8 +193,8 @@ const LaporanBulanan: FC = () => {
                     getReports({ startDate, endDate }),
                     getPengeluaran({ startDate, endDate })
                 ]);
-                setReports(reportData);
-                setPengeluaranList(pengeluaranData);
+                setReports(reportData || []);
+                setPengeluaranList(pengeluaranData || []);
             } catch (error) {
                 console.error("Failed to fetch monthly reports", error);
             } finally {
@@ -299,8 +299,8 @@ const LaporanWilayah: FC = () => {
         const fetchFilterData = async () => {
             try {
                 const [dukuhData, rtData] = await Promise.all([getAllDukuh(), getAllRT()]);
-                setDukuhList(dukuhData);
-                setRtList(rtData);
+                setDukuhList(dukuhData || []);
+                setRtList(rtData || []);
             } catch (error) {
                 console.error("Failed to fetch filter data", error);
             }
@@ -318,7 +318,7 @@ const LaporanWilayah: FC = () => {
                     dukuhId: filters.dukuhId === 'all' ? undefined : Number(filters.dukuhId),
                     rtId: filters.rtId === 'all' ? undefined : Number(filters.rtId),
                 });
-                setReports(reportData);
+                setReports(reportData || []);
             } catch (error) {
                 console.error("Failed to fetch reports", error);
             } finally {
@@ -445,8 +445,8 @@ const LaporanTahunan: FC = () => {
                     getReports({ startDate, endDate }),
                     getPengeluaran({ startDate, endDate })
                 ]);
-                setReports(reportData);
-                setPengeluaranList(pengeluaranData);
+                setReports(reportData || []);
+                setPengeluaranList(pengeluaranData || []);
             } catch (error) {
                 console.error("Failed to fetch yearly reports", error);
             } finally {
@@ -467,12 +467,12 @@ const LaporanTahunan: FC = () => {
 
         reports.forEach(report => {
             const monthIndex = new Date(report.timestamp).getMonth();
-            summary[monthIndex].pemasukan += report.amount;
+            if (summary[monthIndex]) summary[monthIndex].pemasukan += report.amount;
         });
 
         pengeluaranList.forEach(expense => {
             const monthIndex = new Date(expense.date).getMonth();
-            summary[monthIndex].pengeluaran += expense.amount;
+            if (summary[monthIndex]) summary[monthIndex].pengeluaran += expense.amount;
         });
 
         summary.forEach(month => {
@@ -619,7 +619,7 @@ const LaporanPartisipasi: FC = () => {
                 ) : null}
                 
                 <div className="h-[300px] w-full">
-                    {!loading && stats.length > 0 ? (
+                    {!loading && stats && stats.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={stats} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -661,7 +661,7 @@ const LaporanPartisipasi: FC = () => {
                         <tbody className="divide-y divide-slate-200">
                             {loading ? (
                                 <tr><td colSpan={6} className="p-6 text-center text-slate-500">Memuat data...</td></tr>
-                            ) : stats.length > 0 ? (
+                            ) : stats && stats.length > 0 ? (
                                 stats.map((stat) => (
                                     <tr key={stat.rtId} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-4 font-bold text-slate-800">RT {stat.rtNumber}</td>
@@ -755,8 +755,8 @@ const LaporanBelumBayar: FC = () => {
                     getUnpaidWargaForDate(selectedDate),
                     getScheduleForDate(selectedDate)
                 ]);
-                setUnpaidWarga(wargaData);
-                setScheduleInfo(scheduleData);
+                setUnpaidWarga(wargaData || []);
+                setScheduleInfo(scheduleData || null);
             } catch (error) {
                 console.error("Failed to fetch unpaid warga report", error);
             } finally {
