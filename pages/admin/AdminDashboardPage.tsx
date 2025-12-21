@@ -40,6 +40,7 @@ const AdminDashboardPage: React.FC = () => {
                 const d = new Date(start);
                 d.setDate(d.getDate() + i);
                 const dateStr = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+                // Only sum Category IURAN for the chart to show real collection trend
                 const total = reports
                     .filter(r => new Date(r.timestamp).toDateString() === d.toDateString())
                     .reduce((sum, r) => sum + r.amount, 0);
@@ -100,12 +101,13 @@ const AdminDashboardPage: React.FC = () => {
                         <p className="text-slate-400 text-sm font-medium uppercase tracking-widest mt-1">7 Hari Terakhir</p>
                     </div>
                 </div>
-                <div className="h-80 w-full">
+                {/* Fixed height container for Recharts */}
+                <div className="h-[350px] w-full min-h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData}>
+                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
                                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                                 </linearGradient>
                             </defs>
@@ -114,14 +116,14 @@ const AdminDashboardPage: React.FC = () => {
                                 dataKey="name" 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 600}} 
-                                dy={10}
+                                tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 700}} 
+                                dy={15}
                             />
                             <YAxis 
                                 hide 
                             />
                             <Tooltip 
-                                contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px'}}
+                                contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '15px'}}
                                 formatter={(value: number) => [`Rp${value.toLocaleString('id-ID')}`, 'Pemasukan']}
                             />
                             <Area 
@@ -131,6 +133,7 @@ const AdminDashboardPage: React.FC = () => {
                                 strokeWidth={4} 
                                 fillOpacity={1} 
                                 fill="url(#colorTotal)" 
+                                animationDuration={1500}
                             />
                         </AreaChart>
                     </ResponsiveContainer>

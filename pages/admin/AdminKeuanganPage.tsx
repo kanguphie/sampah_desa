@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Pengeluaran } from '@/types';
-import { getAllPengeluaran, createPengeluaran, updatePengeluaran, deletePengeluaran, getAdminDashboardStats } from '@/services/api';
+import { getPengeluaran, createPengeluaran, updatePengeluaran, deletePengeluaran, getAdminDashboardStats } from '@/services/api';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon, BanknotesIcon, SearchIcon, ChevronDownIcon, DownloadIcon, ScaleBalancedIcon, CurrencyDollarIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, BanknotesIcon, SearchIcon, DownloadIcon, ScaleBalancedIcon, CurrencyDollarIcon, XIcon } from '@/components/icons';
 
 const PengeluaranForm: React.FC<{
   pengeluaran?: Pengeluaran | null;
@@ -15,6 +15,16 @@ const PengeluaranForm: React.FC<{
     description: pengeluaran?.description || '',
     amount: pengeluaran?.amount || 0,
   });
+
+  // Handler untuk format nominal uang (titik ribuan dan hapus nol depan)
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let raw = e.target.value.replace(/\D/g, '');
+    if (raw.startsWith('0') && raw.length > 1) raw = raw.replace(/^0+/, '');
+    const val = raw === '' ? 0 : Number(raw);
+    setFormData({ ...formData, amount: val });
+  };
+
+  const displayAmount = formData.amount === 0 ? '' : formData.amount.toLocaleString('id-ID');
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave(pengeluaran ? { ...pengeluaran, ...formData, date: new Date(formData.date) } : { ...formData, date: new Date(formData.date) }); }} className="space-y-6">
@@ -30,11 +40,20 @@ const PengeluaranForm: React.FC<{
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jumlah Nominal (Pengeluaran)</label>
         <div className="relative group">
             <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-slate-400 group-focus-within:text-rose-500 transition-colors">Rp</span>
-            <input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount: Number(e.target.value)})} className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500 outline-none font-black text-rose-600 text-lg" required />
+            <input 
+                type="text" 
+                inputMode="numeric"
+                value={displayAmount} 
+                onChange={handleAmountChange} 
+                placeholder="0"
+                className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-rose-500 outline-none font-black text-rose-600 text-lg" 
+                required 
+            />
         </div>
+        <p className="text-[10px] text-slate-400 italic ml-1">* Masukkan nominal tanpa titik/koma</p>
       </div>
       <div className="flex gap-3 pt-4">
-        <button type="button" onClick={onCancel} className="flex-1 py-4 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 transition-all">Batal</button>
+        <button type="button" onClick={onCancel} className="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-all">Batal</button>
         <button type="submit" className="flex-1 py-4 rounded-2xl font-bold bg-slate-900 text-white hover:bg-black shadow-xl shadow-slate-900/20 transition-all">Simpan Catatan</button>
       </div>
     </form>
@@ -45,7 +64,14 @@ const AdminKeuanganPage: React.FC = () => {
     const [list, setList] = useState<Pengeluaran[]>([]);
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [filters, setFilters] = useState({ search: '' });
+    
+    // Filters State
+    const [filters, setFilters] = useState({ 
+        search: '',
+        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0]
+    });
+
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
     const [currentPage, setCurrentPage] = useState(1);
     
@@ -55,17 +81,25 @@ const AdminKeuanganPage: React.FC = () => {
 
     const fetchData = useCallback(async () => {
         setLoading(true);
-        const [data, s] = await Promise.all([getAllPengeluaran(), getAdminDashboardStats()]);
-        setList(data);
-        setStats(s);
-        setLoading(false);
-    }, []);
+        try {
+            const [data, s] = await Promise.all([
+                getPengeluaran({ startDate: new Date(filters.startDate), endDate: new Date(filters.endDate) }),
+                getAdminDashboardStats()
+            ]);
+            setList(data);
+            setStats(s);
+        } catch (err) {
+            console.error("Failed to load financial data", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [filters.startDate, filters.endDate]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const filtered = useMemo(() => {
         return list.filter(p => p.description.toLowerCase().includes(filters.search.toLowerCase()));
-    }, [list, filters]);
+    }, [list, filters.search]);
 
     const paginated = useMemo(() => {
         if (itemsPerPage === 'all') return filtered;
@@ -107,6 +141,7 @@ const AdminKeuanganPage: React.FC = () => {
                     </div>
                     <div class="header-right">
                         <div class="report-title">Laporan Pengeluaran Kas</div>
+                        <div class="print-date">PERIODE: ${filters.startDate} s/d ${filters.endDate}</div>
                         <div class="print-date">DICETAK PADA: ${new Date().toLocaleString('id-ID')}</div>
                     </div>
                 </div>
@@ -154,43 +189,61 @@ const AdminKeuanganPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white p-5 rounded-[2rem] border border-slate-200/60 shadow-sm space-y-4">
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Dari Tanggal</label>
+                        <input type="date" value={filters.startDate} onChange={e => setFilters({...filters, startDate: e.target.value})} className="w-full bg-transparent font-bold text-xs outline-none text-slate-700" />
+                    </div>
+                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Sampai Tanggal</label>
+                        <input type="date" value={filters.endDate} onChange={e => setFilters({...filters, endDate: e.target.value})} className="w-full bg-transparent font-bold text-xs outline-none text-slate-700" />
+                    </div>
+                    <div className="lg:col-span-2 relative">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Pencarian Deskripsi</label>
+                        <div className="relative">
+                            <input type="text" placeholder="Contoh: Bensin, Gaji..." className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 font-semibold text-xs text-slate-700 placeholder-slate-400" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+                            <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                    <div className="flex items-center gap-3">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Tampilkan</span>
-                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20">
+                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20">
                             <option value={10}>10 Baris</option><option value={25}>25 Baris</option><option value="all">Semua</option>
                         </select>
                     </div>
-                    <div className="relative flex-1 w-full max-w-md">
-                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input type="text" placeholder="Cari keterangan pengeluaran..." className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-semibold text-slate-700 placeholder-slate-400" value={filters.search} onChange={e => setFilters({search: e.target.value})} />
-                    </div>
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Total {filtered.length} Catatan</p>
                 </div>
             </div>
 
             <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-sm overflow-hidden">
-                <table className="w-full text-sm text-left font-sans">
-                    <thead><tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="p-5">Tanggal</th><th className="p-5">Keperluan / Keterangan</th><th className="p-5 text-right">Nominal</th><th className="p-5 text-center">Aksi</th></tr></thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {paginated.map(p => (
-                            <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                                <td className="p-5 font-bold text-slate-400 text-xs font-mono">{new Date(p.date).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
-                                <td className="p-5 font-bold text-slate-700 group-hover:text-rose-500 transition-colors">{p.description}</td>
-                                <td className="p-5 text-right font-black text-rose-600 text-base font-mono">Rp{p.amount.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-center">
-                                    <div className="flex justify-center gap-1">
-                                        <button onClick={() => { setSelected(p); setIsModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition-all" title="Edit"><PencilIcon className="text-xl" /></button>
-                                        <button onClick={() => setToDelete(p)} className="p-2.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-all" title="Hapus"><TrashIcon className="text-xl" /></button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                        {!loading && filtered.length === 0 && (
-                            <tr><td colSpan={4} className="p-10 text-center text-slate-400 font-bold italic uppercase tracking-widest text-xs">Belum ada catatan pengeluaran</td></tr>
-                        )}
-                    </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left font-sans">
+                        <thead><tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="p-5">Tanggal</th><th className="p-5">Keperluan / Keterangan</th><th className="p-5 text-right">Nominal</th><th className="p-5 text-center">Aksi</th></tr></thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse font-bold text-slate-300 uppercase tracking-widest text-xs">Memuat data Keuangan...</td></tr> : 
+                            paginated.map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="p-5 font-bold text-slate-400 text-xs font-mono">{new Date(p.date).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
+                                    <td className="p-5 font-bold text-slate-700 group-hover:text-rose-500 transition-colors">{p.description}</td>
+                                    <td className="p-5 text-right font-black text-rose-600 text-base font-mono">Rp{p.amount.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-center">
+                                        <div className="flex justify-center gap-1">
+                                            <button onClick={() => { setSelected(p); setIsModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition-all" title="Edit"><PencilIcon className="text-xl" /></button>
+                                            <button onClick={() => setToDelete(p)} className="p-2.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-all" title="Hapus"><TrashIcon className="text-xl" /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {!loading && filtered.length === 0 && (
+                                <tr><td colSpan={4} className="p-10 text-center text-slate-400 font-bold italic uppercase tracking-widest text-xs">Belum ada catatan pengeluaran pada periode ini</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
                 {itemsPerPage !== 'all' && totalPages > 1 && (
                     <div className="p-6 bg-slate-50/30 border-t border-slate-100 flex justify-center gap-3">
                         <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 text-slate-400 disabled:opacity-30 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-left text-lg"></i></button>
