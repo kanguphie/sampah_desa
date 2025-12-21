@@ -26,53 +26,58 @@ const WargaForm: React.FC<{
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-bold text-slate-700 mb-1">Nama Lengkap Warga</label>
+        <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Nama Lengkap Warga</label>
         <input 
           type="text" 
           value={formData.name} 
           onChange={e => setFormData({...formData, name: e.target.value})} 
-          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none" 
-          placeholder="Masukkan nama lengkap"
+          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" 
+          placeholder="Contoh: Budi Santoso"
           required 
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-1">Dukuh / Wilayah</label>
+          <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Dukuh / Wilayah</label>
           <select 
             value={formData.dukuhId} 
             onChange={e => setFormData({...formData, dukuhId: Number(e.target.value)})}
-            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
           >
             {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-1">RT</label>
+          <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">RT</label>
           <select 
             value={formData.rtId} 
             onChange={e => setFormData({...formData, rtId: Number(e.target.value)})}
-            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
           >
             {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
           </select>
         </div>
       </div>
       <div>
-        <label className="block text-sm font-bold text-slate-700 mb-1">Tarif Iuran Harian (Rp)</label>
-        <input 
-          type="number" 
-          value={formData.dailyFee} 
-          onChange={e => setFormData({...formData, dailyFee: Number(e.target.value)})} 
-          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none font-mono font-bold" 
-          required 
-        />
+        <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Tarif Iuran Harian</label>
+        <div className="relative">
+             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <span className="text-slate-400 font-bold">Rp</span>
+            </div>
+            <input 
+              type="number" 
+              value={formData.dailyFee} 
+              onChange={e => setFormData({...formData, dailyFee: Number(e.target.value)})} 
+              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-mono font-bold" 
+              required 
+            />
+        </div>
       </div>
-      <div className="flex justify-end gap-3 pt-4">
-        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg font-bold text-slate-500 hover:bg-slate-100 transition-colors">Batal</button>
-        <button type="submit" className="px-6 py-2 rounded-lg font-bold bg-primary text-white hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all">Simpan Data</button>
+      <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+        <button type="button" onClick={onCancel} className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all">Batal</button>
+        <button type="submit" className="px-6 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all">Simpan Perubahan</button>
       </div>
     </form>
   );
@@ -152,13 +157,13 @@ const AdminWargaPage: React.FC = () => {
             <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Data Warga</h1>
-                    <p className="text-slate-500 text-sm mt-0.5 font-medium">Kelola daftar profil warga dan tarif iuran harian.</p>
+                    <p className="text-slate-500 text-sm mt-0.5 font-medium">Kelola profil warga dan biaya iuran tetap.</p>
                 </div>
                 <button 
                   onClick={() => { setSelectedWarga(null); setIsFormModalOpen(true); }}
                   className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
                 >
-                    <i className="fa-solid fa-plus text-sm"></i> Warga Baru
+                    <i className="fa-solid fa-plus text-sm"></i> Tambah Warga
                 </button>
             </div>
 
@@ -210,15 +215,15 @@ const AdminWargaPage: React.FC = () => {
                                     <td className="p-5">
                                         <div className="flex justify-center items-center gap-4">
                                             <button 
-                                              onClick={() => openEditModal(w)}
-                                              className="text-slate-400 hover:text-indigo-600 transition-colors"
+                                              onClick={(e) => { e.stopPropagation(); openEditModal(w); }}
+                                              className="text-slate-400 hover:text-indigo-600 transition-colors p-2 rounded-lg hover:bg-indigo-50"
                                               title="Edit Warga"
                                             >
                                                 <PencilIcon className="text-xl" />
                                             </button>
                                             <button 
-                                              onClick={() => setWargaToDelete(w)}
-                                              className="text-slate-400 hover:text-rose-600 transition-colors"
+                                              onClick={(e) => { e.stopPropagation(); setWargaToDelete(w); }}
+                                              className="text-slate-400 hover:text-rose-600 transition-colors p-2 rounded-lg hover:bg-rose-50"
                                               title="Hapus Warga"
                                             >
                                                 <TrashIcon className="text-xl" />
@@ -242,7 +247,7 @@ const AdminWargaPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Modals */}
+            {/* Modals are now robust and correctly centered */}
             <Modal 
               isOpen={isFormModalOpen} 
               onClose={() => { setIsFormModalOpen(false); setSelectedWarga(null); }} 
@@ -264,17 +269,17 @@ const AdminWargaPage: React.FC = () => {
                         <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
                              <TrashIcon className="text-3xl text-rose-500"/>
                         </div>
-                        <p className="text-slate-700 font-medium">
-                            Hapus data warga <span className="font-bold">"{wargaToDelete.name}"</span>?
+                        <p className="text-slate-700 font-medium px-4">
+                            Hapus data warga <span className="font-bold text-slate-900">"{wargaToDelete.name}"</span>?
                         </p>
-                        <p className="text-xs text-slate-400 mt-2 px-6">Seluruh riwayat transaksi warga ini tidak akan terhapus namun warga ini tidak akan muncul lagi di daftar penagihan.</p>
-                        <div className="mt-6 flex justify-center gap-3">
-                            <button onClick={() => setWargaToDelete(null)} className="px-6 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">Batal</button>
+                        <p className="text-xs text-slate-400 mt-2 px-6 italic">Tindakan ini permanen. Warga tidak akan muncul lagi di daftar penagihan petugas.</p>
+                        <div className="mt-8 flex justify-center gap-3">
+                            <button onClick={() => setWargaToDelete(null)} className="flex-1 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors border border-slate-200">Batal</button>
                             <button 
                                 onClick={() => handleDeleteConfirm(wargaToDelete.id)} 
-                                className="px-6 py-2.5 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all"
+                                className="flex-1 py-2.5 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all"
                             >
-                                Ya, Hapus Data
+                                Hapus
                             </button>
                         </div>
                     </div>
