@@ -7,7 +7,6 @@ export interface Dukuh {
 export interface RT {
     id: number;
     number: string;
-    // dukuhId removed: RT is now a generic master list
 }
 
 export interface Warga {
@@ -16,6 +15,7 @@ export interface Warga {
     rtId: number;
     dukuhId: number;
     dailyFee: number;
+    totalDebt: number; // Accumulated unpaid fees
 }
 
 export interface Petugas {
@@ -31,12 +31,15 @@ export interface Admin {
     name: string;
 }
 
+export type TransactionStatus = 'LUNAS' | 'HUTANG';
+
 export interface Transaksi {
     id: string;
     timestamp: Date;
     wargaId: string;
     petugasId: string;
     amount: number;
+    status: TransactionStatus;
 }
 
 export interface Pengeluaran {
@@ -73,7 +76,7 @@ export interface ParticipationStats {
     rtId: number;
     rtNumber: string;
     totalWarga: number;
-    activeWarga: number; // Warga yang transaksi minimal 1x bulan ini
-    participationRate: number; // Persentase
-    unpaidWargaList: Warga[]; // List warga yang 0 transaksi
+    activeWarga: number; 
+    participationRate: number; 
+    unpaidWargaList: Warga[]; 
 }

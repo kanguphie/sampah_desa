@@ -1,159 +1,14 @@
 
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import type { Warga } from '@/types';
-import { getWargaById, createTransaksi, getDukuhById, getRTById, checkIfWargaPaidToday, getScheduleForToday } from '@/services/api';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { FC } from 'react';
+import type { Warga, TransactionStatus } from '@/types';
+import { getWargaById, createTransaksi, payDebt, getDukuhById, getRTById, checkIfWargaPaidToday } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircleIcon } from '@/components/icons';
+import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 import jsQR from 'jsqr';
 
-const QRScanner: React.FC<{ onScan: (data: string) => void; onError: (error: string) => void }> = ({ onScan, onError }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const scannerActive = useRef(true);
-
-    useEffect(() => {
-        scannerActive.current = true;
-        let stream: MediaStream | null = null;
-        let animationFrameId: number | null = null;
-        
-        const useNativeScanner = 'BarcodeDetector' in window;
-        let barcodeDetector: any;
-        if(useNativeScanner) {
-             try {
-                barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-            } catch (e) {
-                console.error("Could not create BarcodeDetector.", e);
-            }
-        }
-       
-        const scanFrameNative = async () => {
-            if (!videoRef.current || videoRef.current.readyState < 2 || !scannerActive.current) {
-                if (scannerActive.current) {
-                    animationFrameId = requestAnimationFrame(scanFrameNative);
-                }
-                return;
-            }
-
-            try {
-                const barcodes = await barcodeDetector.detect(videoRef.current);
-                if (barcodes.length > 0 && scannerActive.current) {
-                    scannerActive.current = false; // Stop further scans
-                    onScan(barcodes[0].rawValue);
-                } else if(scannerActive.current) {
-                     animationFrameId = requestAnimationFrame(scanFrameNative);
-                }
-            } catch (err) {
-                console.error("QR Scan error:", err);
-                if (scannerActive.current) {
-                    animationFrameId = requestAnimationFrame(scanFrameNative);
-                }
-            }
-        };
-
-        const scanFrameJsQR = () => {
-             if (!videoRef.current || videoRef.current.readyState < 2 || !scannerActive.current) {
-                if (scannerActive.current) {
-                    animationFrameId = requestAnimationFrame(scanFrameJsQR);
-                }
-                return;
-            }
-
-            const canvas = canvasRef.current;
-            const video = videoRef.current;
-            if (canvas) {
-                const context = canvas.getContext('2d');
-                if (context) {
-                    canvas.height = video.videoHeight;
-                    canvas.width = video.videoWidth;
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
-                    
-                    if (code && scannerActive.current) {
-                        scannerActive.current = false;
-                        onScan(code.data);
-                    } else if (scannerActive.current) {
-                        animationFrameId = requestAnimationFrame(scanFrameJsQR);
-                    }
-                }
-            }
-        };
-
-        const startScan = async () => {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-                const videoElement = videoRef.current;
-                if (videoElement) {
-                    videoElement.srcObject = stream;
-                    videoElement.play().then(() => {
-                        if (scannerActive.current) {
-                            if (useNativeScanner && barcodeDetector) {
-                                scanFrameNative();
-                            } else {
-                                console.log("Using jsQR fallback for QR code scanning.");
-                                scanFrameJsQR();
-                            }
-                        }
-                    }).catch(err => {
-                        if (err.name !== 'AbortError') {
-                            console.error("Camera play error:", err);
-                            onError("Gagal memulai kamera.");
-                        } else {
-                            console.log("Camera play() was aborted on unmount.");
-                        }
-                    });
-                }
-            } catch (err) {
-                console.error("Camera error:", err);
-                if (err instanceof Error) {
-                    if (err.name === 'NotAllowedError') {
-                        onError("Izin kamera ditolak. Mohon izinkan akses kamera di pengaturan browser Anda.");
-                    } else if (err.name === 'NotFoundError') {
-                         onError("Tidak ada kamera yang ditemukan. Pastikan kamera terhubung dan tidak digunakan oleh aplikasi lain.");
-                    } else {
-                         onError("Tidak bisa mengakses kamera. Silakan coba lagi.");
-                    }
-                } else {
-                    onError("Terjadi kesalahan saat memulai kamera.");
-                }
-            }
-        };
-        
-        startScan();
-
-        return () => {
-            scannerActive.current = false;
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            if (videoRef.current) {
-                videoRef.current.pause();
-                videoRef.current.srcObject = null;
-            }
-        };
-    }, [onScan, onError]);
-
-    return (
-        <div className="relative w-full aspect-square bg-slate-800 rounded-xl overflow-hidden flex flex-col items-center justify-center text-white">
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline aria-label="Camera feed for QR code scanning" />
-            <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-4 pointer-events-none">
-                 <p className="mb-4 text-center bg-black bg-opacity-60 px-3 py-1.5 rounded-lg text-sm">Arahkan kamera ke QR Code</p>
-                <div className="w-2/3 max-w-xs aspect-square border-4 border-dashed border-primary/80 rounded-xl animate-pulse"></div>
-            </div>
-        </div>
-    );
-};
-
-const PetugasScanPage: React.FC = () => {
+const PetugasScanPage: FC = () => {
     const [mode, setMode] = useState<'scan' | 'manual'>('scan');
     const [wargaId, setWargaId] = useState('');
     const [warga, setWarga] = useState<Warga | null>(null);
@@ -162,7 +17,13 @@ const PetugasScanPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [scannerKey, setScannerKey] = useState(Date.now());
+    const [modalTitle, setModalTitle] = useState('Berhasil');
+    
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [isScanning, setIsScanning] = useState(false);
+    const isScanningRef = useRef(false); // Used to avoid stale closures in requestAnimationFrame
+    
     const { petugas } = useAuth();
     
     const resetState = useCallback(() => {
@@ -172,66 +33,129 @@ const PetugasScanPage: React.FC = () => {
         setSuccess(false);
         setLoading(false);
         setHasPaidToday(false);
-        setMode('scan');
-        setScannerKey(Date.now());
-    }, []);
+        if (mode === 'scan') {
+            setIsScanning(true);
+            isScanningRef.current = true;
+        }
+    }, [mode]);
 
     const fetchWarga = useCallback(async (id: string) => {
+        setIsScanning(false);
+        isScanningRef.current = false;
         setLoading(true);
         setError('');
-        setWarga(null);
-        setHasPaidToday(false);
+        
         try {
-            const [data, scheduleData] = await Promise.all([
-                getWargaById(id),
-                getScheduleForToday()
-            ]);
-
+            const data = await getWargaById(id);
             if (data) {
-                if (scheduleData.isHoliday) {
-                    setError('Hari ini jadwal libur, tidak ada pengambilan sampah.');
-                    const timer = setTimeout(() => resetState(), 2500);
-                    return () => clearTimeout(timer);
-                }
-
-                if (!scheduleData.dukuhIds.includes(data.dukuhId)) {
-                    setError('Warga ini tidak masuk dalam jadwal pengambilan hari ini.');
-                    const timer = setTimeout(() => resetState(), 2500);
-                    return () => clearTimeout(timer);
-                }
-
                 setWarga(data);
                 const paidToday = await checkIfWargaPaidToday(id);
                 setHasPaidToday(paidToday);
             } else {
                 setError(`ID Warga "${id}" tidak ditemukan.`);
-                const timer = setTimeout(() => {
-                    resetState();
-                }, 2500);
-                return () => clearTimeout(timer);
+                if (mode === 'scan') {
+                    setTimeout(() => {
+                        setIsScanning(true);
+                        isScanningRef.current = true;
+                    }, 3000);
+                }
             }
         } catch (err) {
             setError('Gagal memuat data warga.');
+            if (mode === 'scan') {
+                setTimeout(() => {
+                    setIsScanning(true);
+                    isScanningRef.current = true;
+                }, 3000);
+            }
         } finally {
             setLoading(false);
         }
-    }, [resetState]);
-    
-    useEffect(() => {
-        if (success) {
-            setIsModalOpen(true);
-            const timer = setTimeout(() => {
-                resetState();
-                setIsModalOpen(false);
-            }, 2000);
-            return () => clearTimeout(timer);
-        }
-    }, [success, resetState]);
+    }, [mode]);
 
-    const handleScan = useCallback((id: string) => {
-        setWargaId(id);
-        fetchWarga(id);
-    }, [fetchWarga]);
+    // QR Scanner Logic
+    useEffect(() => {
+        let stream: MediaStream | null = null;
+        let animationFrameId: number;
+
+        const tick = () => {
+            if (!isScanningRef.current) {
+                animationFrameId = requestAnimationFrame(tick);
+                return;
+            }
+
+            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
+                const canvas = canvasRef.current;
+                const video = videoRef.current;
+                
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                
+                if (ctx) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    try {
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: "dontInvert",
+                        });
+
+                        if (code && code.data) {
+                            isScanningRef.current = false;
+                            setIsScanning(false);
+                            fetchWarga(code.data);
+                            return; 
+                        }
+                    } catch (err) {
+                        console.error("jsQR error:", err);
+                    }
+                }
+            }
+            animationFrameId = requestAnimationFrame(tick);
+        };
+
+        const startCamera = async () => {
+            if (mode !== 'scan' || warga || success) return;
+            
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.onloadedmetadata = () => {
+                        videoRef.current?.play().catch(e => console.error("Play error:", e));
+                        setIsScanning(true);
+                        isScanningRef.current = true;
+                        tick();
+                    };
+                }
+            } catch (err) {
+                console.error("Camera error:", err);
+                setError('Tidak dapat mengakses kamera. Pastikan izin kamera diberikan.');
+                setMode('manual');
+            }
+        };
+
+        if (mode === 'scan' && !warga && !success) {
+            startCamera();
+        }
+
+        return () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            cancelAnimationFrame(animationFrameId);
+            isScanningRef.current = false;
+        };
+    }, [mode, warga, success, fetchWarga]);
 
     const handleManualSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -242,7 +166,7 @@ const PetugasScanPage: React.FC = () => {
         }
     };
 
-    const handleSavePayment = async () => {
+    const handleSavePayment = async (status: TransactionStatus) => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
@@ -250,14 +174,38 @@ const PetugasScanPage: React.FC = () => {
                 wargaId: warga.id,
                 petugasId: petugas.id,
                 amount: warga.dailyFee,
+                status: status
             });
+            setModalTitle(status === 'LUNAS' ? 'Pembayaran Berhasil' : 'Tunggakan Dicatat');
             setSuccess(true);
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError('Gagal menyimpan pembayaran.');
-            }
+            setIsModalOpen(true);
+            setTimeout(() => {
+                setIsModalOpen(false);
+                resetState();
+            }, 2000);
+        } catch (err: any) {
+            setError(err.message || 'Gagal menyimpan.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePayDebt = async () => {
+        if (!warga || !petugas) return;
+        if (warga.totalDebt <= 0) return;
+        
+        setLoading(true);
+        try {
+            await payDebt(warga.id, petugas.id, warga.totalDebt);
+            setModalTitle('Pelunasan Berhasil');
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => {
+                setIsModalOpen(false);
+                resetState();
+            }, 2000);
+        } catch (err: any) {
+            setError(err.message || 'Gagal melunasi tunggakan.');
         } finally {
             setLoading(false);
         }
@@ -268,80 +216,169 @@ const PetugasScanPage: React.FC = () => {
 
     return (
         <div className="flex-grow p-4 max-w-md mx-auto w-full">
-            {!warga && !success && (
-                <div className="animate-fade-in space-y-4">
-                    <div className="p-1 bg-slate-200 rounded-xl flex">
-                        <button onClick={() => { setError(''); setMode('scan'); }} className={`flex-1 py-2 text-center font-semibold rounded-lg transition-all ${mode === 'scan' ? 'bg-white text-primary shadow-md' : 'text-slate-600'}`}>Scan QR</button>
-                        <button onClick={() => { setError(''); setMode('manual'); }} className={`flex-1 py-2 text-center font-semibold rounded-lg transition-all ${mode === 'manual' ? 'bg-white text-primary shadow-md' : 'text-slate-600'}`}>Input Manual</button>
-                    </div>
-                    {mode === 'scan' ? (
-                        <QRScanner key={scannerKey} onScan={handleScan} onError={setError} />
-                    ) : (
-                        <form onSubmit={handleManualSubmit} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/80">
-                            <label htmlFor="wargaId" className="block text-slate-700 font-semibold mb-2">ID Warga (6 Digit)</label>
-                            <input
-                                type="tel"
-                                id="wargaId"
-                                value={wargaId}
-                                onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))}
-                                maxLength={6}
-                                className="w-full text-lg px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <button type="submit" disabled={loading} className="w-full mt-4 bg-primary text-primary-content font-bold py-3 rounded-lg hover:bg-primary-focus disabled:bg-slate-400">
-                                {loading ? 'Mencari...' : 'Cari Warga'}
-                            </button>
-                        </form>
-                    )}
-                    {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+            {!warga && (
+                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 mb-6">
+                    <button 
+                        onClick={() => setMode('scan')}
+                        className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${mode === 'scan' ? 'bg-primary text-white shadow-md' : 'text-slate-500'}`}
+                    >
+                        <QrCodeIcon className="text-lg" /> Scan QR
+                    </button>
+                    <button 
+                        onClick={() => setMode('manual')}
+                        className={`flex-1 py-2 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${mode === 'manual' ? 'bg-primary text-white shadow-md' : 'text-slate-500'}`}
+                    >
+                        <SearchIcon className="text-lg" /> Manual
+                    </button>
                 </div>
             )}
-            
-            {loading && !warga && !error && (
-                 <div className="bg-white p-6 rounded-lg shadow-lg animate-fade-in text-center">
-                    <p>Mencari data untuk ID: {wargaId}...</p>
+
+            {!warga && mode === 'scan' && (
+                <div className="relative aspect-square w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white animate-fade-in">
+                    <video 
+                        ref={videoRef} 
+                        className="w-full h-full object-cover" 
+                        playsInline 
+                        autoPlay 
+                        muted 
+                    />
+                    <canvas ref={canvasRef} className="hidden" />
+                    <div className="absolute inset-0 border-[40px] border-slate-900/40 pointer-events-none">
+                        <div className="w-full h-full border-2 border-primary/50 rounded-xl relative">
+                            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary"></div>
+                            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary"></div>
+                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary"></div>
+                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary"></div>
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent animate-[scan_2s_linear_infinite]"></div>
+                        </div>
+                    </div>
+                    <div className="absolute bottom-6 left-0 right-0 text-center">
+                        <p className="text-white text-xs font-bold bg-slate-900/60 inline-block px-4 py-2 rounded-full backdrop-blur-md">
+                            Arahkan kamera ke QR Code warga
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {!warga && mode === 'manual' && (
+                <div className="animate-fade-in space-y-4">
+                    <form onSubmit={handleManualSubmit} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <label className="block text-slate-700 font-semibold mb-2">Input Manual ID Warga</label>
+                        <input
+                            type="tel"
+                            value={wargaId}
+                            onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))}
+                            maxLength={6}
+                            placeholder="Contoh: 100001"
+                            className="w-full text-lg px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                            autoFocus
+                        />
+                        <button type="submit" disabled={loading} className="w-full mt-4 bg-primary text-white font-bold py-3 rounded-lg hover:bg-primary-focus">
+                            Cari Warga
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {error && !warga && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium flex items-start gap-3 animate-shake">
+                    <XIcon className="mt-0.5" />
+                    <p>{error}</p>
                 </div>
             )}
 
             {warga && !success && (
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200/80 animate-slide-in-up">
-                    <h2 className="text-2xl font-bold font-display text-slate-800">{warga.name}</h2>
-                    <p className="text-slate-500 mb-1">ID: <span className="font-mono">{warga.id}</span></p>
-                    <p className="text-slate-500 mb-4">Wilayah: <span className="font-semibold text-slate-600">RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}</span></p>
+                <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-200 animate-slide-in-up">
+                    <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-primary-light rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <QrCodeIcon className="text-3xl text-primary" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800">{warga.name}</h2>
+                        <p className="text-slate-500 font-medium">ID: {warga.id} • RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}</p>
+                    </div>
                     
-                    <div className="border-t border-slate-200 pt-4 mt-4">
-                        <p className="text-slate-600 text-center">Tarif Retribusi Harian</p>
-                        <p className="text-5xl font-bold font-display text-primary my-2 text-center">
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(warga.dailyFee)}
-                        </p>
+                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 mb-6">
+                        <div className="flex flex-col items-center gap-1">
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Tarif Sampah Hari Ini</p>
+                            <p className="text-4xl font-extrabold text-slate-800">
+                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(warga.dailyFee)}
+                            </p>
+                        </div>
+                        
+                        {warga.totalDebt > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-200 text-center">
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Total Tunggakan Lama</p>
+                                <p className="text-xl font-bold text-red-600">
+                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(warga.totalDebt)}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    {hasPaidToday && (
-                        <div className="mt-6 p-4 bg-green-100 border border-green-300 rounded-lg text-center">
-                            <p className="font-semibold text-green-800">Lunas Hari Ini</p>
-                            <p className="text-sm text-green-700">Warga ini sudah melakukan pembayaran hari ini.</p>
-                        </div>
-                    )}
-                    
-                    {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+                    <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-3">
+                            <button 
+                                onClick={() => handleSavePayment('LUNAS')} 
+                                disabled={loading || hasPaidToday} 
+                                className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat Hari Ini' : 'Bayar Tunai (Hari Ini)'}
+                            </button>
+                            
+                            {!hasPaidToday && (
+                                <button 
+                                    onClick={() => handleSavePayment('HUTANG')} 
+                                    disabled={loading} 
+                                    className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all disabled:opacity-50"
+                                >
+                                    Catat Tunggakan (Hari Ini)
+                                </button>
+                            )}
 
-                    <div className="mt-6 space-y-3">
-                        <button onClick={handleSavePayment} disabled={loading || hasPaidToday} className="w-full bg-gradient-to-br from-success to-green-500 text-white font-bold py-4 rounded-lg text-lg hover:shadow-lg disabled:bg-slate-400 disabled:from-slate-400 disabled:to-slate-400 disabled:opacity-60 transition-all">
-                            {loading ? 'Menyimpan...' : 'Simpan Pembayaran'}
-                        </button>
-                        <button onClick={resetState} className="w-full text-slate-600 font-semibold py-3 rounded-lg hover:bg-slate-100 transition-colors">
-                            Batal / Scan Ulang
+                            {warga.totalDebt > 0 && (
+                                <button 
+                                    onClick={handlePayDebt} 
+                                    disabled={loading} 
+                                    className="w-full bg-indigo-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <BanknotesIcon /> Bayar Pelunasan Tunggakan
+                                </button>
+                            )}
+                        </div>
+
+                        <button onClick={resetState} className="w-full text-slate-400 font-bold py-2 hover:text-slate-600">
+                            Batal
                         </button>
                     </div>
                 </div>
             )}
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Sukses">
-                <div className="text-center">
-                    <CheckCircleIcon className="text-6xl text-success mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold font-display text-slate-800">Pembayaran Berhasil</h3>
-                    <p className="text-slate-600 mt-2">Transaksi telah berhasil dicatat.</p>
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalTitle}>
+                <div className="text-center py-6">
+                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                        <CheckCircleIcon className="text-5xl text-success" />
+                    </div>
+                    <p className="text-2xl font-extrabold text-slate-800">{modalTitle}!</p>
+                    <p className="text-slate-500 mt-1">Sistem telah memperbarui data warga.</p>
                 </div>
             </Modal>
+            
+            <style>{`
+                @keyframes scan {
+                    0% { top: 0; }
+                    50% { top: 100%; }
+                    100% { top: 0; }
+                }
+                .animate-shake {
+                    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+                }
+                @keyframes shake {
+                    10%, 90% { transform: translate3d(-1px, 0, 0); }
+                    20%, 80% { transform: translate3d(2px, 0, 0); }
+                    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+                    40%, 60% { transform: translate3d(4px, 0, 0); }
+                }
+            `}</style>
         </div>
     );
 };

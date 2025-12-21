@@ -585,7 +585,7 @@ const LaporanPartisipasi: FC = () => {
             const [year, monthNum] = month.split('-').map(Number);
             try {
                 const data = await getParticipationReport(monthNum, year);
-                setStats(data);
+                setStats(data || []);
             } catch (error) {
                 console.error("Failed to fetch participation report", error);
             } finally {
@@ -610,21 +610,37 @@ const LaporanPartisipasi: FC = () => {
             </div>
 
             {/* Chart Section */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
+            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm relative min-h-[400px]">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Grafik Partisipasi per RT (%)</h3>
+                {loading ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                    </div>
+                ) : null}
+                
                 <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={stats} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="rtNumber" tickFormatter={(val) => `RT ${val}`} />
-                            <YAxis domain={[0, 100]} />
-                            <Tooltip 
-                                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Partisipasi']}
-                                labelFormatter={(label) => `RT ${label}`}
-                            />
-                            <Bar dataKey="participationRate" fill="#10b981" radius={[4, 4, 0, 0]} name="Persentase Partisipasi" />
-                        </BarChart>
-                    </ResponsiveContainer>
+                    {stats.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="rtNumber" tickFormatter={(val) => `RT ${val}`} />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip 
+                                    formatter={(value: any) => {
+                                        const numValue = typeof value === 'number' ? value : parseFloat(value);
+                                        return [!isNaN(numValue) ? `${numValue.toFixed(1)}%` : '0%', 'Partisipasi'];
+                                    }}
+                                    labelFormatter={(label) => `RT ${label}`}
+                                />
+                                <Legend />
+                                <Bar dataKey="participationRate" fill="#10b981" radius={[4, 4, 0, 0]} name="Persentase Partisipasi" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400 italic">
+                            Tidak ada data untuk ditampilkan
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -802,7 +818,7 @@ const LaporanBelumBayar: FC = () => {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Pilih Tanggal Laporan</label>
                     <input type="date" value={date} onChange={e => setDate(e.target.value)} className="p-2 border border-slate-300 rounded-lg w-full" />
                 </div>
-                <button onClick={handlePrint} disabled={loading} className="self-end bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus transition-colors disabled:bg-slate-400">Cetak</button>
+                <button onClick={handlePrint} disabled={loading} className="self-end bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus disabled:bg-slate-400">Cetak</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/80">
