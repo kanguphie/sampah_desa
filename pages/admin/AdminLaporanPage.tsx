@@ -186,7 +186,7 @@ const LaporanBulanan: FC = () => {
         const fetchReports = async () => {
             const [year, monthNum] = month.split('-').map(Number);
             const startDate = new Date(year, monthNum - 1, 1);
-            const endDate = new Date(year, monthNum, 0);
+            const endDate = new Date(year, monthNum, 0, 23, 59, 59);
             setLoading(true);
             try {
                  const [reportData, pengeluaranData] = await Promise.all([
@@ -204,44 +204,69 @@ const LaporanBulanan: FC = () => {
         fetchReports();
     }, [month]);
     
+    // Agregasi Data Berbasis Tanggal (Harian dalam Bulan)
+    const dailySummary = useMemo(() => {
+        const [year, monthNum] = month.split('-').map(Number);
+        const daysInMonth = new Date(year, monthNum, 0).getDate();
+        const summary = [];
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, monthNum - 1, d);
+            const dateStr = dateObj.toDateString();
+
+            const income = reports
+                .filter(r => new Date(r.timestamp).toDateString() === dateStr)
+                .reduce((sum, r) => sum + r.amount, 0);
+
+            const expense = pengeluaranList
+                .filter(p => new Date(p.date).toDateString() === dateStr)
+                .reduce((sum, p) => sum + p.amount, 0);
+
+            // Tampilkan hanya jika ada aktivitas atau tampilkan semua hari (user ingin berbasis tanggal)
+            if (income > 0 || expense > 0) {
+                summary.push({
+                    date: dateObj,
+                    income,
+                    expense,
+                    balance: income - expense
+                });
+            }
+        }
+        return summary;
+    }, [month, reports, pengeluaranList]);
+
     const totalPemasukan = useMemo(() => reports.reduce((sum, item) => sum + item.amount, 0), [reports]);
     const totalPengeluaran = useMemo(() => pengeluaranList.reduce((sum, item) => sum + item.amount, 0), [pengeluaranList]);
     const saldo = totalPemasukan - totalPengeluaran;
 
     const handleExportExcel = () => {
-         const data = reports.map(r => ({
-            Tanggal: new Date(r.timestamp).toLocaleDateString(),
-            Warga: r.wargaName,
-            Dukuh: r.dukuhName,
-            RT: r.rtNumber,
-            Jumlah: r.amount
+         const data = dailySummary.map(s => ({
+            Tanggal: s.date.toLocaleDateString('id-ID'),
+            Pemasukan: s.income,
+            Pengeluaran: s.expense,
+            Saldo: s.balance
         }));
-        exportToExcel(data, `Laporan_Bulanan_${month}`);
+        exportToExcel(data, `Laporan_Bulanan_Harian_${month}`);
     };
 
     const handlePrint = () => {
         const [year, monthNum] = month.split('-');
-        const title = `Laporan Bulanan - ${new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+        const monthTitle = new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        const title = `Laporan Ringkasan Harian - ${monthTitle}`;
         
-        let tableRows = reports.map(item => `
+        let tableRows = dailySummary.map(s => `
             <tr>
-                <td>${new Date(item.timestamp).toLocaleDateString('id-ID')}</td>
-                <td>${item.wargaName}</td>
-                <td>RT ${item.rtNumber}, ${item.dukuhName}</td>
-                <td class="currency">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.amount)}</td>
-            </tr>
-        `).join('');
-        
-        let pengeluaranRows = pengeluaranList.map(item => `
-            <tr>
-                <td>${new Date(item.date).toLocaleDateString('id-ID')}</td>
-                <td colspan="2">${item.description}</td>
-                <td class="currency">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.amount)}</td>
+                <td>${s.date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</td>
+                <td class="currency">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(s.income)}</td>
+                <td class="currency">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(s.expense)}</td>
+                <td class="currency" style="font-weight:bold; color: ${s.balance >= 0 ? '#15803d' : '#b91c1c'}">
+                    ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(s.balance)}
+                </td>
             </tr>
         `).join('');
 
         const content = `
-            <div class="print-header"><h1>SapaDesa</h1><p>Laporan Keuangan</p></div>
+            <div class="print-header"><h1>SapaDesa</h1><p>Laporan Bulanan (Harian)</p></div>
             <h2>${title}</h2>
             <div class="summary-grid">
                 <div class="summary-card"><p>Total Pemasukan</p><strong class="pemasukan">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(totalPemasukan)}</strong></div>
@@ -249,16 +274,17 @@ const LaporanBulanan: FC = () => {
                 <div class="summary-card"><p>Saldo Akhir</p><strong class="saldo">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(saldo)}</strong></div>
             </div>
 
-            <h3>Rincian Pemasukan</h3>
+            <h3>Rincian Arus Kas Harian</h3>
             <table>
-                <thead><tr><th>Tanggal</th><th>Warga</th><th>Wilayah</th><th class="currency">Jumlah</th></tr></thead>
-                <tbody>${reports.length > 0 ? tableRows : '<tr><td colspan="4" style="text-align: center;">Tidak ada pemasukan.</td></tr>'}</tbody>
-            </table>
-
-            <h3>Rincian Pengeluaran</h3>
-            <table>
-                <thead><tr><th>Tanggal</th><th colspan="2">Keterangan</th><th class="currency">Jumlah</th></tr></thead>
-                <tbody>${pengeluaranList.length > 0 ? pengeluaranRows : '<tr><td colspan="4" style="text-align: center;">Tidak ada pengeluaran.</td></tr>'}</tbody>
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th class="currency">Pemasukan</th>
+                        <th class="currency">Pengeluaran</th>
+                        <th class="currency">Saldo Harian</th>
+                    </tr>
+                </thead>
+                <tbody>${dailySummary.length > 0 ? tableRows : '<tr><td colspan="4" style="text-align: center;">Tidak ada aktivitas transaksi bulan ini.</td></tr>'}</tbody>
             </table>
             <div class="print-footer"><p>Dicetak pada ${new Date().toLocaleString('id-ID')}</p></div>
         `;
@@ -277,8 +303,41 @@ const LaporanBulanan: FC = () => {
                      <button onClick={handlePrint} className="self-end bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus transition-colors">Cetak</button>
                 </div>
             </div>
+            
             <ReportSummary totalPemasukan={totalPemasukan} totalPengeluaran={totalPengeluaran} saldo={saldo} count={reports.length} />
-            <ReportTable reports={reports} loading={loading} />
+            
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Tanggal</th>
+                                <th className="p-4 text-right uppercase text-xs font-semibold text-slate-500 tracking-wider">Pemasukan</th>
+                                <th className="p-4 text-right uppercase text-xs font-semibold text-slate-500 tracking-wider">Pengeluaran</th>
+                                <th className="p-4 text-right uppercase text-xs font-semibold text-slate-500 tracking-wider">Saldo Harian</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {loading ? (
+                                <tr><td colSpan={4} className="text-center p-6 text-slate-500">Memuat data bulanan...</td></tr>
+                            ) : dailySummary.length > 0 ? (
+                                dailySummary.map((s, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-4 font-medium text-slate-700">{s.date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</td>
+                                        <td className="p-4 text-right font-mono text-green-600">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(s.income)}</td>
+                                        <td className="p-4 text-right font-mono text-red-600">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(s.expense)}</td>
+                                        <td className={`p-4 text-right font-mono font-bold ${s.balance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(s.balance)}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan={4} className="text-center p-8 text-slate-500">Tidak ada aktivitas keuangan di bulan ini.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 };
