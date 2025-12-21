@@ -19,7 +19,6 @@ const PetugasScanPage: FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('Berhasil');
     
-    // Debt partial payment states
     const [isPayingDebt, setIsPayingDebt] = useState(false);
     const [debtInput, setDebtInput] = useState<number>(0);
     
@@ -55,7 +54,7 @@ const PetugasScanPage: FC = () => {
             const data = await getWargaById(id);
             if (data) {
                 setWarga(data);
-                setDebtInput(data.totalDebt); // Default to full debt
+                setDebtInput(data.totalDebt); 
                 const paidToday = await checkIfWargaPaidToday(id);
                 setHasPaidToday(paidToday);
             } else {
@@ -258,7 +257,7 @@ const PetugasScanPage: FC = () => {
                     {isPayingDebt ? (
                         <div className="space-y-4 animate-fade-in">
                             <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">Input Nominal Bayar Tunggakan</label>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Bayar Tunggakan</label>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
                                     <input 
@@ -280,8 +279,8 @@ const PetugasScanPage: FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat Hari Ini' : 'Bayar Tunai (Iuran Hari Ini)'}
+                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 ${hasPaidToday ? 'bg-emerald-100 text-emerald-500 cursor-not-allowed' : 'bg-emerald-500 text-white shadow-emerald-500/20 hover:bg-emerald-600'}`}>
+                                <CheckCircleIcon /> {hasPaidToday ? 'Iuran Sudah Tercatat Hari Ini' : 'Bayar Tunai (Iuran Hari Ini)'}
                             </button>
                             
                             {!hasPaidToday && (

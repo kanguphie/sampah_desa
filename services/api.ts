@@ -73,25 +73,21 @@ const generateDummyTransactions = () => {
     const now = new Date();
     const petugasIds = petugases.map(p => p.id);
     
-    // Generate for the last 60 days
     for (let i = 60; i >= 0; i--) {
         const date = new Date();
         date.setDate(now.getDate() - i);
         
-        // Mocking the schedule check: Friday is holiday in our mock config
         const dayName = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][date.getDay()];
         if (dayName === 'Jumat') continue;
 
-        // Daily random activities: 60-80% of wargas are recorded each day
         const activeWargas = wargas.filter(() => Math.random() > 0.3);
         
         activeWargas.forEach(warga => {
-            const hour = Math.floor(Math.random() * 4) + 7; // 07:00 - 11:00 AM
+            const hour = Math.floor(Math.random() * 4) + 7;
             const minute = Math.floor(Math.random() * 60);
             const timestamp = new Date(date);
             timestamp.setHours(hour, minute, 0);
 
-            // 15% probability of marking as DEBT (HUTANG)
             const isDebt = Math.random() < 0.15;
             const status: TransactionStatus = isDebt ? 'HUTANG' : 'LUNAS';
 
@@ -101,7 +97,8 @@ const generateDummyTransactions = () => {
                 wargaId: warga.id,
                 petugasId: petugasIds[Math.floor(Math.random() * petugasIds.length)],
                 amount: warga.dailyFee,
-                status: status
+                status: status,
+                category: 'IURAN'
             });
 
             if (isDebt) {
@@ -109,8 +106,7 @@ const generateDummyTransactions = () => {
             }
         });
 
-        // Weekly Expenses
-        if (date.getDay() === 1) { // Every Monday
+        if (date.getDay() === 1) { 
              pengeluarans.push({
                  id: `exp-dummy-bensin-${date.getTime()}`,
                  date: new Date(date),
@@ -119,7 +115,7 @@ const generateDummyTransactions = () => {
              });
         }
         
-        if (i > 0 && date.getDate() === 1) { // Every 1st of month
+        if (i > 0 && date.getDate() === 1) { 
              pengeluarans.push({
                  id: `exp-dummy-gaji-${date.getTime()}`,
                  date: new Date(date),
@@ -128,11 +124,9 @@ const generateDummyTransactions = () => {
              });
         }
     }
-    // Sort transactions by most recent
     transactions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 };
 
-// Execute dummy data generation on load
 generateDummyTransactions();
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -262,11 +256,11 @@ export const createTransaksi = async (txData: {wargaId: string, petugasId: strin
     const newTx: Transaksi = {
         ...txData,
         status,
+        category: 'IURAN', // Transaksi harian masuk kategori IURAN
         id: `tx${Date.now()}`,
         timestamp: new Date(),
     };
     
-    // Update Warga Debt
     const warga = wargas.find(w => w.id === txData.wargaId);
     if (warga) {
         if (status === 'HUTANG') {
@@ -293,7 +287,8 @@ export const payDebt = async (wargaId: string, petugasId: string, amountToPay: n
         wargaId,
         petugasId,
         amount: amountToPay,
-        status: 'LUNAS' // Payment for debt is recorded as LUNAS (Cash received)
+        status: 'LUNAS',
+        category: 'TUNGGAKAN' // Penanda bahwa ini adalah cicilan hutang, bukan iuran hari ini
     };
 
     warga.totalDebt -= amountToPay;
@@ -341,7 +336,7 @@ export const getAdminDashboardStats = async () => {
         totalWarga: wargas.length,
         totalPetugas: petugases.length,
         totalDebt,
-        monthlyRevenue: [] // simplified
+        monthlyRevenue: [] 
     };
 };
 
@@ -431,20 +426,20 @@ export const getScheduleForDate = async (d: Date) => {
 
 export const checkIfWargaPaidToday = async (id: string) => {
     const today = new Date().toDateString();
-    return transactions.some(tx => tx.wargaId === id && tx.timestamp.toDateString() === today);
+    // Penting: Hanya mengecek transaksi kategori IURAN. Cicilan tunggakan diabaikan.
+    return transactions.some(tx => tx.wargaId === id && tx.timestamp.toDateString() === today && tx.category === 'IURAN');
 };
 
 export const getUnpaidWargaForToday = async () => {
     const sched = await getScheduleForToday();
     if (sched.isHoliday) return [];
-    return wargas.filter(w => sched.dukuhIds.includes(w.dukuhId) && !transactions.some(tx => tx.wargaId === w.id && tx.timestamp.toDateString() === new Date().toDateString()));
+    return wargas.filter(w => sched.dukuhIds.includes(w.dukuhId) && !transactions.some(tx => tx.wargaId === w.id && tx.timestamp.toDateString() === new Date().toDateString() && tx.category === 'IURAN'));
 };
 
 export const getUnpaidWargaForDate = async (d: Date) => {
     const sched = await getScheduleForDate(d);
     if (sched.isHoliday) return [];
-    // simplified: just return all warga not in transactions for that date
-    return wargas.filter(w => !transactions.some(tx => tx.wargaId === w.id && tx.timestamp.toDateString() === d.toDateString()));
+    return wargas.filter(w => !transactions.some(tx => tx.wargaId === w.id && tx.timestamp.toDateString() === d.toDateString() && tx.category === 'IURAN'));
 };
 
 export const getPetugasDailySummary = async (id: string) => {

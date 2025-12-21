@@ -32,6 +32,7 @@ export interface Admin {
 }
 
 export type TransactionStatus = 'LUNAS' | 'HUTANG';
+export type TransactionCategory = 'IURAN' | 'TUNGGAKAN';
 
 export interface Transaksi {
     id: string;
@@ -40,6 +41,7 @@ export interface Transaksi {
     petugasId: string;
     amount: number;
     status: TransactionStatus;
+    category?: TransactionCategory;
 }
 
 export interface Pengeluaran {
