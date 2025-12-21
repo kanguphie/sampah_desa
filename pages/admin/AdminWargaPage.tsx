@@ -89,9 +89,7 @@ const AdminWargaPage: React.FC = () => {
     // Sorting Logic
     const handleSort = (key: keyof Warga | 'address') => {
         let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
+        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
         setSortConfig({ key, direction });
     };
 
@@ -103,7 +101,6 @@ const AdminWargaPage: React.FC = () => {
             return matchSearch && matchDukuh && matchRT;
         });
 
-        // Sorting
         return items.sort((a, b) => {
             let aVal: any, bVal: any;
             if (sortConfig.key === 'address') {
@@ -131,35 +128,29 @@ const AdminWargaPage: React.FC = () => {
 
     const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / itemsPerPage);
 
-    // Import/Export Handlers
+    // Import/Excel Handlers
     const handleDownloadTemplate = () => {
         const templateData = [
             { "Nama": "Budi Santoso", "Tarif": 2000, "Kode Dukuh": 1, "Kode RT": 1 },
-            { "Nama": "Siti Aminah", "Tarif": 2000, "Kode Dukuh": 1, "Kode RT": 2 },
+            { "Nama": "Siti Aminah", "Tarif": 2500, "Kode Dukuh": 1, "Kode RT": 2 },
         ];
-        exportToExcel(templateData, "Template_Import_Warga_Rowosari", "Warga");
+        exportToExcel(templateData, "Template_Warga_Rowosari", "DataWarga");
     };
 
     const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
         setImportLoading(true);
         try {
-            const importedData = await readWargaExcel(file);
-            // Basic validation
-            const validData = importedData.filter(d => d.name && d.dailyFee && d.dukuhId && d.rtId) as Omit<Warga, 'id' | 'totalDebt'>[];
-            
-            if (validData.length === 0) {
-                alert("Format file tidak sesuai atau data kosong. Pastikan kolom Nama, Tarif, Kode Dukuh, dan Kode RT terisi.");
-            } else {
+            const data = await readWargaExcel(file);
+            const validData = data.filter(d => d.name && d.dailyFee) as Omit<Warga, 'id' | 'totalDebt'>[];
+            if (validData.length > 0) {
                 await bulkCreateWarga(validData);
                 fetchData();
-                alert(`Berhasil mengimpor ${validData.length} data warga.`);
+                alert(`Berhasil mengimpor ${validData.length} warga.`);
             }
-        } catch (error) {
-            alert("Gagal membaca file Excel. Pastikan file valid.");
-        } finally {
+        } catch (err) { alert("Gagal memproses file Excel."); }
+        finally { 
             setImportLoading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
@@ -168,8 +159,8 @@ const AdminWargaPage: React.FC = () => {
     const SortIcon = ({ col }: { col: keyof Warga | 'address' }) => {
         if (sortConfig.key !== col) return <i className="fa-solid fa-sort opacity-20 ml-1"></i>;
         return sortConfig.direction === 'asc' 
-            ? <i className="fa-solid fa-sort-up text-primary ml-1"></i> 
-            : <i className="fa-solid fa-sort-down text-primary ml-1"></i>;
+            ? <i className="fa-solid fa-arrow-up-z-a text-primary ml-1"></i> 
+            : <i className="fa-solid fa-arrow-down-z-a text-primary ml-1"></i>;
     };
 
     return (
@@ -177,7 +168,7 @@ const AdminWargaPage: React.FC = () => {
             <div className="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 tracking-tight">Data Warga</h1>
-                    <p className="text-slate-500 text-sm font-medium">Manajemen profil warga dan tarif retribusi harian.</p>
+                    <p className="text-slate-500 text-sm font-medium">Manajemen profil warga desa Rowosari.</p>
                 </div>
                 <div className="flex flex-wrap gap-2 w-full md:w-auto">
                     <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
@@ -185,7 +176,7 @@ const AdminWargaPage: React.FC = () => {
                         <FileExcelIcon className="text-emerald-500" /> Template
                     </button>
                     <button onClick={() => fileInputRef.current?.click()} disabled={importLoading} className="flex-1 md:flex-none bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition-all flex items-center justify-center gap-2 text-xs">
-                        <UploadIcon /> {importLoading ? 'Importing...' : 'Import Excel'}
+                        <UploadIcon /> {importLoading ? 'Memproses...' : 'Import Excel'}
                     </button>
                     <button onClick={() => { setSelectedWarga(null); setIsFormModalOpen(true); }} className="flex-1 md:flex-none bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all text-sm">
                       + Tambah Warga
@@ -211,44 +202,34 @@ const AdminWargaPage: React.FC = () => {
                 
                 <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                     <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tampilkan</span>
-                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20">
-                            <option value={10}>10 Baris</option>
-                            <option value={25}>25 Baris</option>
-                            <option value="all">Semua</option>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Baris Per Halaman</span>
+                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none">
+                            <option value={10}>10</option><option value={25}>25</option><option value="all">Semua</option>
                         </select>
                     </div>
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Ditemukan {sortedAndFilteredWarga.length} Warga</p>
                 </div>
             </div>
 
-            <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100 font-bold text-slate-400 uppercase text-[10px] tracking-widest">
-                                <th onClick={() => handleSort('id')} className="p-5 cursor-pointer group hover:text-primary transition-colors">
-                                    ID <SortIcon col="id" />
-                                </th>
-                                <th onClick={() => handleSort('name')} className="p-5 cursor-pointer group hover:text-primary transition-colors">
-                                    Nama <SortIcon col="name" />
-                                </th>
-                                <th onClick={() => handleSort('address')} className="p-5 cursor-pointer group hover:text-primary transition-colors">
-                                    Wilayah <SortIcon col="address" />
-                                </th>
-                                <th onClick={() => handleSort('dailyFee')} className="p-5 text-right cursor-pointer group hover:text-primary transition-colors">
-                                    Tarif <SortIcon col="dailyFee" />
-                                </th>
+                                <th onClick={() => handleSort('id')} className="p-5 cursor-pointer hover:text-primary transition-colors whitespace-nowrap">ID <SortIcon col="id" /></th>
+                                <th onClick={() => handleSort('name')} className="p-5 cursor-pointer hover:text-primary transition-colors">Nama Lengkap <SortIcon col="name" /></th>
+                                <th onClick={() => handleSort('address')} className="p-5 cursor-pointer hover:text-primary transition-colors">Wilayah (RT/Dukuh) <SortIcon col="address" /></th>
+                                <th onClick={() => handleSort('dailyFee')} className="p-5 text-right cursor-pointer hover:text-primary transition-colors whitespace-nowrap">Tarif Iuran <SortIcon col="dailyFee" /></th>
                                 <th className="p-5 text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {paginatedWarga.map(w => (
                                 <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-5 text-xs font-bold text-slate-400 font-mono">{w.id}</td>
+                                    <td className="p-5 text-xs font-bold text-slate-400 font-mono tracking-tighter">{w.id}</td>
                                     <td className="p-5 font-bold text-slate-700">{w.name}</td>
-                                    <td className="p-5 text-slate-500 font-medium italic text-xs">RT {rtList.find(r => r.id === w.rtId)?.number || 'N/A'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A'}</td>
-                                    <td className="p-5 text-right font-bold text-slate-700 font-mono">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-slate-500 font-medium text-xs">RT {rtList.find(r => r.id === w.rtId)?.number}, {dukuhList.find(d => d.id === w.dukuhId)?.name}</td>
+                                    <td className="p-5 text-right font-bold text-slate-700 font-mono tracking-tighter">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
                                     <td className="p-5">
                                         <div className="flex justify-center items-center gap-1">
                                             <button onClick={() => setQrToShow(w)} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all" title="QR Code"><QrCodeIcon className="text-xl" /></button>
@@ -259,7 +240,7 @@ const AdminWargaPage: React.FC = () => {
                                 </tr>
                             ))}
                             {paginatedWarga.length === 0 && (
-                                <tr><td colSpan={5} className="p-20 text-center text-slate-300 font-bold italic">Tidak ada data warga ditemukan</td></tr>
+                                <tr><td colSpan={6} className="p-10 text-center text-slate-300 font-bold italic">Tidak ada data ditemukan</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -287,7 +268,6 @@ const AdminWargaPage: React.FC = () => {
                             <QRCodeSVG value={qrToShow.id} size={180} />
                             <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mt-6">{qrToShow.name}</h4>
                             <p className="text-sm font-bold text-slate-400 mt-1">ID: {qrToShow.id}</p>
-                            <p className="text-xs font-medium text-slate-400 mt-4 italic bg-slate-50 px-4 py-2 rounded-full border border-slate-100">RT {rtList.find(r => r.id === qrToShow.rtId)?.number}, {dukuhList.find(d => d.id === qrToShow.dukuhId)?.name}</p>
                         </div>
                         <button onClick={() => window.print()} className="w-full py-4 rounded-2xl bg-slate-800 text-white font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-slate-900 transition-all"><DownloadIcon /> Unduh / Cetak Slip</button>
                     </div>
