@@ -244,7 +244,7 @@ const UnpaidReport: React.FC = () => {
                         </button>
                         {selectedIds.size > 0 && (
                             <button onClick={handlePrintSelected} className="flex-1 bg-primary text-white hover:bg-primary-focus px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all text-xs">
-                                <DownloadIcon /> Cetak Slip (${selectedIds.size})
+                                <DownloadIcon /> Cetak Slip ({selectedIds.size})
                             </button>
                         )}
                     </div>

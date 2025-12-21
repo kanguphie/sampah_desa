@@ -192,7 +192,7 @@ const ParticipationReport: React.FC = () => {
 
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Daftar Warga Tidak Aktif (${inactiveList.length})</h3>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Daftar Warga Tidak Aktif ({inactiveList.length})</h3>
                     <div className="relative">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
                         <input type="text" placeholder="Cari nama..." className="pl-9 pr-4 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:ring-2 focus:ring-rose-500/20" value={search} onChange={e => setSearch(e.target.value)} />

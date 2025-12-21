@@ -23,8 +23,10 @@ const AdminDashboardPage: React.FC = () => {
     const { admin } = useAuth();
     const [stats, setStats] = useState<any>(null);
     const [chartData, setChartData] = useState<any[]>([]);
+    const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
+        setIsMounted(true);
         const loadDashboardData = async () => {
             const dashboardStats = await getAdminDashboardStats();
             setStats(dashboardStats);
@@ -40,7 +42,7 @@ const AdminDashboardPage: React.FC = () => {
                 const d = new Date(start);
                 d.setDate(d.getDate() + i);
                 const dateStr = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-                // Only sum Category IURAN for the chart to show real collection trend
+                // Filter IURAN saja agar tren penarikan harian terlihat jelas
                 const total = reports
                     .filter(r => new Date(r.timestamp).toDateString() === d.toDateString())
                     .reduce((sum, r) => sum + r.amount, 0);
@@ -52,7 +54,7 @@ const AdminDashboardPage: React.FC = () => {
         loadDashboardData();
     }, []);
 
-    if (!stats) return <div className="p-10 text-center font-bold text-slate-400 animate-pulse">Memuat Dashboard...</div>;
+    if (!stats || !isMounted) return <div className="p-10 text-center font-bold text-slate-400 animate-pulse">Memuat Dashboard SapaDesa...</div>;
 
     return (
         <div className="space-y-8">
@@ -95,19 +97,17 @@ const AdminDashboardPage: React.FC = () => {
             </div>
 
             <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200/60 shadow-sm">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Tren Pemasukan</h3>
-                        <p className="text-slate-400 text-sm font-medium uppercase tracking-widest mt-1">7 Hari Terakhir</p>
-                    </div>
+                <div className="mb-8">
+                    <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Tren Pemasukan</h3>
+                    <p className="text-slate-400 text-sm font-medium uppercase tracking-widest mt-1">Aktivitas 7 Hari Terakhir</p>
                 </div>
-                {/* Fixed height container for Recharts */}
-                <div className="h-[350px] w-full min-h-[300px]">
+                
+                <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <AreaChart data={chartData}>
                             <defs>
                                 <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
                                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                                 </linearGradient>
                             </defs>
@@ -117,7 +117,7 @@ const AdminDashboardPage: React.FC = () => {
                                 axisLine={false} 
                                 tickLine={false} 
                                 tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 700}} 
-                                dy={15}
+                                dy={10}
                             />
                             <YAxis 
                                 hide 
@@ -133,7 +133,7 @@ const AdminDashboardPage: React.FC = () => {
                                 strokeWidth={4} 
                                 fillOpacity={1} 
                                 fill="url(#colorTotal)" 
-                                animationDuration={1500}
+                                animationDuration={1000}
                             />
                         </AreaChart>
                     </ResponsiveContainer>
