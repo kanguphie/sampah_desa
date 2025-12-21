@@ -96,25 +96,55 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
         const rows = sortedAndFilteredTx.map(tx => `
             <tr>
                 <td>${new Date(tx.timestamp).toLocaleDateString('id-ID')}</td>
-                <td>${tx.wargaName}</td>
+                <td><div style="font-weight:700;">${tx.wargaName}</div><div style="font-size:7pt; color:#64748b;">ID: ${tx.id}</div></td>
                 <td>RT ${tx.rtNumber}, ${tx.dukuhName}</td>
                 <td>${tx.petugasName}</td>
-                <td style="text-align:right">Rp${tx.amount.toLocaleString('id-ID')}</td>
+                <td style="text-align:right; font-weight:700;">Rp${tx.amount.toLocaleString('id-ID')}</td>
             </tr>
         `).join('');
 
         printWindow.document.write(`
             <html>
-                <head><style>body{font-family:'Plus Jakarta Sans',sans-serif;padding:50px;color:#1e293b;} .kop{text-align:center;border-bottom:3px double #10b981;margin-bottom:30px;padding-bottom:15px;} h1{color:#10b981;margin:0;font-size:24pt;} .meta{display:flex;justify-content:space-between;margin-bottom:20px;font-size:10pt;font-weight:bold;color:#64748b;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #e2e8f0;padding:12px;text-align:left;font-size:10pt;} th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:9pt;letter-spacing:1px;}</style></head>
-                <body>
-                    <div class="kop"><h1>SAPADESA</h1><p>ROWOSARI • LIMPUNG • BATANG</p></div>
-                    <div class="meta"><span>RIWAYAT TRANSAKSI</span><span>PERIODE: ${filters.startDate} s/d ${filters.endDate}</span></div>
-                    <table><thead><tr><th>Tgl</th><th>Warga</th><th>Wilayah</th><th>Petugas</th><th style="text-align:right">Jumlah</th></tr></thead><tbody>${rows}</tbody></table>
-                </body>
+            <head>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+                    @page { size: A4; margin: 1cm; }
+                    body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 25px; }
+                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1; }
+                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 8px 0 0 0; text-transform: uppercase; }
+                    .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 3px 0 0 0; text-transform: uppercase; }
+                    .header-right { text-align: right; }
+                    .report-title { font-size: 12pt; font-weight: 800; text-transform: uppercase; }
+                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 5px; }
+                    
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+                    td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="header-left">
+                        <h1 class="logo">SAPADESA</h1>
+                        <p class="sub-1">PENGELOLAAN SAMPAH DESA ROWOSARI, LIMPUNG, BATANG</p>
+                        <p class="sub-2">SEKRETARIAT: KANTOR DESA ROWOSARI, JAWA TENGAH 51271</p>
+                    </div>
+                    <div class="header-right">
+                        <div class="report-title">Laporan Riwayat Transaksi</div>
+                        <div class="print-date">PERIODE: ${filters.startDate} - ${filters.endDate}</div>
+                        <div class="print-date">DICETAK: ${new Date().toLocaleString('id-ID')}</div>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>Tanggal</th><th>Warga</th><th>Wilayah</th><th>Petugas</th><th style="text-align:right">Jumlah</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <script>window.onload=()=>{window.print();window.close();}</script>
+            </body>
             </html>
         `);
         printWindow.document.close();
-        printWindow.print();
     };
 
     const SortIcon = ({ column }: { column: string }) => {
@@ -193,12 +223,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-4 text-xs font-medium text-slate-500">
                                         {new Date(tx.timestamp).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}
-                                        <div className="text-[10px] text-slate-400">{new Date(tx.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</div>
+                                        <div className="text-[10px] text-slate-400 font-mono">{new Date(tx.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</div>
                                     </td>
                                     <td className="p-4 font-bold text-slate-700 group-hover:text-primary transition-colors">{tx.wargaName}</td>
                                     <td className="p-4 text-xs text-slate-500 font-medium">RT {tx.rtNumber}, {tx.dukuhName}</td>
-                                    <td className="p-4 text-slate-600 font-medium text-xs uppercase tracking-tight">{tx.petugasName}</td>
-                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp{tx.amount.toLocaleString('id-ID')}</td>
+                                    <td className="p-4 text-slate-600 font-medium text-[10px] uppercase tracking-wider">{tx.petugasName}</td>
+                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp${tx.amount.toLocaleString('id-ID')}</td>
                                     <td className="p-4 text-center">
                                         <button onClick={() => setTransactionToDelete(tx)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg transition-all" title="Hapus"><TrashIcon /></button>
                                     </td>
@@ -211,9 +241,9 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                 {itemsPerPage !== 'all' && totalPages > 1 && (
                     <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex justify-center items-center">
                         <div className="flex items-center gap-1 font-bold text-sm">
-                            <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="p-2 disabled:opacity-20 text-slate-400 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-left"></i></button>
-                            <span className="bg-primary text-white w-8 h-8 flex items-center justify-center rounded-lg shadow-sm">{currentPage}</span>
-                            <span className="px-2 text-slate-400 font-medium">dari {totalPages}</span>
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 disabled:opacity-20 text-slate-400 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-left"></i></button>
+                            <span className="bg-primary text-white w-8 h-8 flex items-center justify-center rounded-lg shadow-sm text-xs">{currentPage}</span>
+                            <span className="px-2 text-slate-400 font-medium text-xs">/ {totalPages}</span>
                             <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 disabled:opacity-20 text-slate-400 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-right"></i></button>
                         </div>
                     </div>

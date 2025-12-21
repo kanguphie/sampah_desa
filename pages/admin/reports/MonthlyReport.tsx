@@ -24,16 +24,16 @@ const MonthlyReport: React.FC = () => {
         fetch();
     }, [month, year]);
 
-    // Group by Date for Table
     const dailyData = useMemo(() => {
         const daysInMonth = new Date(year, month, 0).getDate();
         const data = [];
         for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = new Date(year, month - 1, d).toDateString();
+            const dateObj = new Date(year, month - 1, d);
+            const dateStr = dateObj.toDateString();
             const income = reports.filter(r => new Date(r.timestamp).toDateString() === dateStr).reduce((s, i) => s + i.amount, 0);
             const expense = expenses.filter(e => new Date(e.date).toDateString() === dateStr).reduce((s, i) => s + i.amount, 0);
             if (income > 0 || expense > 0) {
-                data.push({ date: d, income, expense, net: income - expense });
+                data.push({ date: d, fullDate: dateObj, income, expense, net: income - expense });
             }
         }
         return data;
@@ -59,42 +59,52 @@ const MonthlyReport: React.FC = () => {
             <html>
             <head>
                 <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-                    @page { size: A4; margin: 20mm; }
-                    body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; }
-                    .header { border-bottom: 4px solid #10b981; padding-bottom: 15px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-                    .header-left h1 { color: #10b981; margin: 0; font-size: 28pt; font-weight: 800; }
-                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; }
-                    .report-date { color: #10b981; font-weight: 700; font-size: 12pt; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 9pt; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; }
-                    td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 10pt; }
+                    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+                    @page { size: A4; margin: 1cm; }
+                    body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 25px; }
+                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1; }
+                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 8px 0 0 0; text-transform: uppercase; }
+                    .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 3px 0 0 0; text-transform: uppercase; }
+                    .header-right { text-align: right; }
+                    .report-title { font-size: 12pt; font-weight: 800; text-transform: uppercase; }
+                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 5px; }
+                    
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+                    td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
                     .summary-box { display: flex; justify-content: flex-end; margin-top: 30px; }
-                    .total-card { background: #1e293b; color: white; padding: 20px 40px; border-radius: 16px; text-align: right; }
-                    .total-card .label { font-size: 9pt; font-weight: 700; text-transform: uppercase; opacity: 0.7; }
-                    .total-card .value { font-size: 20pt; font-weight: 800; }
+                    .total-line { display: flex; gap: 30px; font-weight: 800; font-size: 11pt; background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; }
                 </style>
             </head>
             <body>
                 <div class="header">
-                    <div class="header-left"><h1>SAPADESA</h1><p>REKAPITULASI BULANAN</p></div>
-                    <div class="report-date">${new Date(year, month-1).toLocaleString('id-ID', {month:'long', year:'numeric'})}</div>
+                    <div class="header-left">
+                        <h1 class="logo">SAPADESA</h1>
+                        <p class="sub-1">PENGELOLAAN SAMPAH DESA ROWOSARI, LIMPUNG, BATANG</p>
+                        <p class="sub-2">SEKRETARIAT: KANTOR DESA ROWOSARI, JAWA TENGAH 51271</p>
+                    </div>
+                    <div class="header-right">
+                        <div class="report-title">Rekapitulasi Bulanan</div>
+                        <div class="print-date">BULAN: ${new Date(year, month-1).toLocaleString('id-ID', {month:'long', year:'numeric'})}</div>
+                        <div class="print-date">DICETAK: ${new Date().toLocaleString('id-ID')}</div>
+                    </div>
                 </div>
                 <table>
-                    <thead><tr><th>Tanggal</th><th style="text-align:right">Pemasukan</th><th style="text-align:right">Pengeluaran</th><th style="text-align:right">Netto</th></tr></thead>
+                    <thead><tr><th>Tanggal</th><th style="text-align:right">Total Pemasukan</th><th style="text-align:right">Total Pengeluaran</th><th style="text-align:right">Netto Harian</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
                 <div class="summary-box">
-                    <div class="total-card">
-                        <div class="label">Total Saldo Bulan Ini</div>
-                        <div class="value">Rp${(totalInc - totalExp).toLocaleString('id-ID')}</div>
+                    <div class="total-line">
+                        <span>SALDO AKHIR BULAN</span>
+                        <span>Rp${(totalInc - totalExp).toLocaleString('id-ID')}</span>
                     </div>
                 </div>
+                <script>window.onload=()=>{window.print();window.close();}</script>
             </body>
             </html>
         `);
         printWindow.document.close();
-        printWindow.print();
     };
 
     return (
@@ -114,7 +124,7 @@ const MonthlyReport: React.FC = () => {
                       </select>
                     </div>
                 </div>
-                <button onClick={handlePrint} className="bg-emerald-500 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all"><DownloadIcon /> Cetak Bulanan</button>
+                <button onClick={handlePrint} className="bg-emerald-500 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all"><DownloadIcon /> Cetak Rekap</button>
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
