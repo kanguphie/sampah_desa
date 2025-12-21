@@ -37,7 +37,7 @@ const AdminLaporanPage: React.FC = () => {
                             {id:'bulanan', label:'Bulanan'},
                             {id:'tahunan', label:'Tahunan'},
                             {id:'wilayah', label:'Wilayah'},
-                            {id:'tunggakan', label:'Piutang'},
+                            {id:'tunggakan', label:'Tunggakan'},
                             {id:'partisipasi', label:'Keaktifan'}
                         ].map(tab => (
                             <button

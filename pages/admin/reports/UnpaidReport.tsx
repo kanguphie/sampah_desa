@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getAllWarga, getDukuhById, getRTById, getAllDukuh, getAllRT } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
-import { DownloadIcon, ClipboardListIcon, CheckCircleIcon, FileExcelIcon, SearchIcon } from '@/components/icons';
+import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon } from '@/components/icons';
 
 const UnpaidReport: React.FC = () => {
     const [list, setList] = useState<Warga[]>([]);
@@ -21,7 +21,7 @@ const UnpaidReport: React.FC = () => {
         const fetch = async () => {
             setLoading(true);
             const [all, d, r] = await Promise.all([getAllWarga(), getAllDukuh(), getAllRT()]);
-            // Filter only those with debt
+            // Filter hanya yang memiliki tunggakan
             const withDebt = all.filter(w => (w.totalDebt || 0) > 0).sort((a,b) => (b.totalDebt || 0) - (a.totalDebt || 0));
             setList(withDebt);
             setDukuhList(d);
@@ -59,7 +59,7 @@ const UnpaidReport: React.FC = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        const totalPiutang = filteredList.reduce((s, i) => s + (i.totalDebt || 0), 0);
+        const totalTunggakan = filteredList.reduce((s, i) => s + (i.totalDebt || 0), 0);
         const rows = filteredList.map((w, idx) => {
             const rtNum = getRTById(w.rtId)?.number || 'N/A';
             const dukuhName = getDukuhById(w.dukuhId)?.name || 'N/A';
@@ -115,8 +115,8 @@ const UnpaidReport: React.FC = () => {
                     <tbody>
                         ${rows || '<tr><td colspan="5" style="text-align:center">Tidak ada data sesuai filter</td></tr>'}
                         <tr class="summary-row">
-                            <td colspan="4" style="text-align:right">TOTAL SELURUH PIUTANG DESA:</td>
-                            <td style="text-align:right">Rp${totalPiutang.toLocaleString('id-ID')}</td>
+                            <td colspan="4" style="text-align:right">TOTAL SELURUH TUNGGAKAN DESA:</td>
+                            <td style="text-align:right">Rp${totalTunggakan.toLocaleString('id-ID')}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -234,7 +234,7 @@ const UnpaidReport: React.FC = () => {
                             <ClipboardListIcon className="text-2xl text-rose-500" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Piutang</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Tunggakan</p>
                             <p className="text-2xl font-black text-rose-600 tracking-tight">Rp{filteredList.reduce((s,i)=>s+(i.totalDebt || 0),0).toLocaleString('id-ID')}</p>
                         </div>
                     </div>
@@ -286,7 +286,7 @@ const UnpaidReport: React.FC = () => {
                                     <td className="p-5 text-center"><input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} className="w-4 h-4 rounded border-slate-300 text-primary cursor-pointer" /></td>
                                     <td className="p-5" onClick={() => toggleSelect(w.id)}>
                                         <p className="font-bold text-slate-800 text-sm group-hover:text-primary transition-colors cursor-pointer">{w.name}</p>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">RT ${getRTById(w.rtId)?.number}, ${getDukuhById(w.dukuhId)?.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">RT {getRTById(w.rtId)?.number}, {getDukuhById(w.dukuhId)?.name}</p>
                                     </td>
                                     <td className="p-5 text-right font-black text-rose-600 text-base">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
                                     <td className="p-5 text-center">
