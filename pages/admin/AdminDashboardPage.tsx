@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getAdminDashboardStats, getReports } from '@/services/api';
 import { UsersIcon, CurrencyDollarIcon, BanknotesIcon, ScaleBalancedIcon } from '@/components/icons';
 import { useAuth } from '@/context/AuthContext';
@@ -23,10 +23,8 @@ const AdminDashboardPage: React.FC = () => {
     const { admin } = useAuth();
     const [stats, setStats] = useState<any>(null);
     const [chartData, setChartData] = useState<any[]>([]);
-    const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
-        setIsMounted(true);
         const loadDashboardData = async () => {
             const dashboardStats = await getAdminDashboardStats();
             setStats(dashboardStats);
@@ -38,11 +36,10 @@ const AdminDashboardPage: React.FC = () => {
             const reports = await getReports({ startDate: start, endDate: end });
             
             const days = [];
-            for (let i = 0; i < 7; i++) {
+            for (let i = 0; i <= 6; i++) {
                 const d = new Date(start);
                 d.setDate(d.getDate() + i);
                 const dateStr = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-                // Filter IURAN saja agar tren penarikan harian terlihat jelas
                 const total = reports
                     .filter(r => new Date(r.timestamp).toDateString() === d.toDateString())
                     .reduce((sum, r) => sum + r.amount, 0);
@@ -54,7 +51,50 @@ const AdminDashboardPage: React.FC = () => {
         loadDashboardData();
     }, []);
 
-    if (!stats || !isMounted) return <div className="p-10 text-center font-bold text-slate-400 animate-pulse">Memuat Dashboard SapaDesa...</div>;
+    // Memoize the chart to prevent unnecessary flickers
+    const chartContent = useMemo(() => {
+        if (chartData.length === 0) return null;
+        return (
+            <div className="h-[350px] w-full mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                            <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 700}} 
+                            dy={15}
+                        />
+                        <YAxis 
+                            hide 
+                        />
+                        <Tooltip 
+                            contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '15px'}}
+                            formatter={(value: number) => [`Rp${value.toLocaleString('id-ID')}`, 'Pemasukan']}
+                        />
+                        <Area 
+                            type="monotone" 
+                            dataKey="total" 
+                            stroke="#10b981" 
+                            strokeWidth={4} 
+                            fillOpacity={1} 
+                            fill="url(#colorTotal)" 
+                            animationDuration={1500}
+                        />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
+        );
+    }, [chartData]);
+
+    if (!stats) return <div className="p-10 text-center font-bold text-slate-400 animate-pulse">Menghubungkan ke Server...</div>;
 
     return (
         <div className="space-y-8">
@@ -65,7 +105,7 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
                 <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Sistem Aktif</span>
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Sistem Rowosari Aktif</span>
                 </div>
             </div>
 
@@ -97,47 +137,13 @@ const AdminDashboardPage: React.FC = () => {
             </div>
 
             <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200/60 shadow-sm">
-                <div className="mb-8">
-                    <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Tren Pemasukan</h3>
-                    <p className="text-slate-400 text-sm font-medium uppercase tracking-widest mt-1">Aktivitas 7 Hari Terakhir</p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Tren Pemasukan</h3>
+                        <p className="text-slate-400 text-sm font-medium uppercase tracking-widest mt-1">Laporan 7 Hari Terakhir</p>
+                    </div>
                 </div>
-                
-                <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData}>
-                            <defs>
-                                <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis 
-                                dataKey="name" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 700}} 
-                                dy={10}
-                            />
-                            <YAxis 
-                                hide 
-                            />
-                            <Tooltip 
-                                contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '15px'}}
-                                formatter={(value: number) => [`Rp${value.toLocaleString('id-ID')}`, 'Pemasukan']}
-                            />
-                            <Area 
-                                type="monotone" 
-                                dataKey="total" 
-                                stroke="#10b981" 
-                                strokeWidth={4} 
-                                fillOpacity={1} 
-                                fill="url(#colorTotal)" 
-                                animationDuration={1000}
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
+                {chartContent || <div className="h-[350px] flex items-center justify-center text-slate-300 font-bold italic">Memuat grafik...</div>}
             </div>
         </div>
     );

@@ -34,7 +34,7 @@ dukuhs.forEach(dukuh => {
                 rtId: rt.id,
                 dukuhId: dukuh.id,
                 dailyFee: dailyFee,
-                totalDebt: 0 // Will be populated by dummy transactions
+                totalDebt: 0 
             });
         }
     });
@@ -151,6 +151,14 @@ export const createWarga = async (d: Omit<Warga, 'id' | 'totalDebt'>): Promise<W
     wargas.push(nw); return nw;
 };
 
+export const bulkCreateWarga = async (list: Omit<Warga, 'id' | 'totalDebt'>[]): Promise<void> => {
+    await delay(500);
+    list.forEach(d => {
+        const nw: Warga = { ...d, id: String(100000 + wargas.length), totalDebt: 0 };
+        wargas.push(nw);
+    });
+};
+
 export const deleteWarga = async (id: string) => { wargas = wargas.filter(w => w.id !== id); };
 
 // --- Petugas API ---
@@ -256,7 +264,7 @@ export const createTransaksi = async (txData: {wargaId: string, petugasId: strin
     const newTx: Transaksi = {
         ...txData,
         status,
-        category: 'IURAN', // Transaksi harian masuk kategori IURAN
+        category: 'IURAN', 
         id: `tx${Date.now()}`,
         timestamp: new Date(),
     };
@@ -288,7 +296,7 @@ export const payDebt = async (wargaId: string, petugasId: string, amountToPay: n
         petugasId,
         amount: amountToPay,
         status: 'LUNAS',
-        category: 'TUNGGAKAN' // Penanda bahwa ini adalah cicilan hutang, bukan iuran hari ini
+        category: 'TUNGGAKAN' 
     };
 
     warga.totalDebt -= amountToPay;
@@ -426,7 +434,6 @@ export const getScheduleForDate = async (d: Date) => {
 
 export const checkIfWargaPaidToday = async (id: string) => {
     const today = new Date().toDateString();
-    // Penting: Hanya mengecek transaksi kategori IURAN. Cicilan tunggakan diabaikan.
     return transactions.some(tx => tx.wargaId === id && tx.timestamp.toDateString() === today && tx.category === 'IURAN');
 };
 

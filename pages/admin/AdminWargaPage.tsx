@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Warga, Dukuh, RT } from '@/types';
-import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga } from '@/services/api';
+import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga, bulkCreateWarga } from '@/services/api';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, ChevronDownIcon, DownloadIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, DownloadIcon, UploadIcon, FileExcelIcon, ChevronDownIcon } from '@/components/icons';
 import { QRCodeSVG } from 'qrcode.react';
+import { exportToExcel, readWargaExcel } from '@/services/excel';
 
 const WargaForm: React.FC<{
   warga?: Warga | null;
@@ -60,8 +61,10 @@ const AdminWargaPage: React.FC = () => {
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
+    const [importLoading, setImportLoading] = useState(false);
+    
     const [filters, setFilters] = useState({ search: '', dukuhId: 'all', rtId: 'all' });
-    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Warga | 'address'; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -69,6 +72,8 @@ const AdminWargaPage: React.FC = () => {
     const [selectedWarga, setSelectedWarga] = useState<Warga | null>(null);
     const [qrToShow, setQrToShow] = useState<Warga | null>(null);
     const [wargaToDelete, setWargaToDelete] = useState<Warga | null>(null);
+    
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -81,6 +86,12 @@ const AdminWargaPage: React.FC = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const handleSort = (key: keyof Warga | 'address') => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+        setSortConfig({ key, direction });
+    };
+
     const sortedAndFilteredWarga = useMemo(() => {
         let items = wargaList.filter(w => {
             const matchSearch = w.name.toLowerCase().includes(filters.search.toLowerCase()) || w.id.includes(filters.search);
@@ -88,12 +99,25 @@ const AdminWargaPage: React.FC = () => {
             const matchRT = filters.rtId === 'all' || w.rtId === Number(filters.rtId);
             return matchSearch && matchDukuh && matchRT;
         });
+
         return items.sort((a, b) => {
-            const aVal = String(a[sortConfig.key as keyof Warga]);
-            const bVal = String(b[sortConfig.key as keyof Warga]);
-            return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            let aVal: any, bVal: any;
+            if (sortConfig.key === 'address') {
+                const dukuhA = dukuhList.find(d => d.id === a.dukuhId)?.name || '';
+                const dukuhB = dukuhList.find(d => d.id === b.dukuhId)?.name || '';
+                aVal = dukuhA + a.rtId;
+                bVal = dukuhB + b.rtId;
+            } else {
+                aVal = a[sortConfig.key as keyof Warga];
+                bVal = b[sortConfig.key as keyof Warga];
+            }
+
+            if (typeof aVal === 'string') {
+                return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            }
+            return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
         });
-    }, [wargaList, filters, sortConfig]);
+    }, [wargaList, filters, sortConfig, dukuhList]);
 
     const paginatedWarga = useMemo(() => {
         if (itemsPerPage === 'all') return sortedAndFilteredWarga;
@@ -103,46 +127,43 @@ const AdminWargaPage: React.FC = () => {
 
     const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / itemsPerPage);
 
-    const handlePrint = () => {
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) return;
-        const rows = sortedAndFilteredWarga.map(w => `<tr><td>${w.id}</td><td>${w.name}</td><td>RT ${rtList.find(r => r.id === w.rtId)?.number}, ${dukuhList.find(d => d.id === w.dukuhId)?.name}</td><td style="text-align:right">Rp${w.dailyFee.toLocaleString('id-ID')}</td></tr>`).join('');
-        printWindow.document.write(`
-            <html>
-            <head>
-                <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-                    @page { size: A4; margin: 1cm; }
-                    body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
-                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
-                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1.1; }
-                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 5px 0 0 0; text-transform: uppercase; }
-                    .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 2px 0 0 0; text-transform: uppercase; }
-                    .header-right { text-align: right; }
-                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
-                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1.5px solid #e2e8f0; color: #475569; }
-                    td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="header-left">
-                        <h1 class="logo">SAPADESA</h1>
-                        <p class="sub-1">PENGELOLAAN SAMPAH DESA ROWOSARI, LIMPUNG, BATANG</p>
-                        <p class="sub-2">SEKRETARIAT: KANTOR DESA ROWOSARI, JAWA TENGAH 51271</p>
-                    </div>
-                    <div class="header-right">
-                        <div class="report-title">Data Master Warga</div>
-                        <div class="print-date">DICETAK PADA: ${new Date().toLocaleString('id-ID')}</div>
-                    </div>
-                </div>
-                <table><thead><tr><th>ID</th><th>Nama Warga</th><th>Alamat Wilayah</th><th style="text-align:right">Tarif Iuran</th></tr></thead><tbody>${rows}</tbody></table>
-                <script>window.onload=()=>{window.print();window.close();}</script>
-            </body>
-            </html>`);
-        printWindow.document.close();
+    const handleDownloadTemplate = () => {
+        const templateData = [
+            { "Nama": "Budi Santoso", "Tarif": 2000, "Kode Dukuh": 1, "Kode RT": 1 },
+            { "Nama": "Siti Aminah", "Tarif": 2000, "Kode Dukuh": 1, "Kode RT": 2 },
+        ];
+        exportToExcel(templateData, "Template_Import_Warga_Rowosari", "Warga");
+    };
+
+    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImportLoading(true);
+        try {
+            const importedData = await readWargaExcel(file);
+            const validData = importedData.filter(d => d.name && d.dailyFee && d.dukuhId && d.rtId) as Omit<Warga, 'id' | 'totalDebt'>[];
+            
+            if (validData.length === 0) {
+                alert("Format file tidak sesuai atau data kosong.");
+            } else {
+                await bulkCreateWarga(validData);
+                fetchData();
+                alert(`Berhasil mengimpor ${validData.length} data warga.`);
+            }
+        } catch (error) {
+            alert("Gagal membaca file Excel.");
+        } finally {
+            setImportLoading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const SortIcon = ({ col }: { col: keyof Warga | 'address' }) => {
+        if (sortConfig.key !== col) return <i className="fa-solid fa-sort opacity-20 ml-1"></i>;
+        return sortConfig.direction === 'asc' 
+            ? <i className="fa-solid fa-sort-up text-primary ml-1"></i> 
+            : <i className="fa-solid fa-sort-down text-primary ml-1"></i>;
     };
 
     return (
@@ -152,11 +173,15 @@ const AdminWargaPage: React.FC = () => {
                     <h1 className="text-2xl font-black text-slate-800 tracking-tight">Data Warga</h1>
                     <p className="text-slate-500 text-sm font-medium">Manajemen profil warga dan tarif retribusi harian.</p>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={handlePrint} className="flex-1 md:flex-none bg-slate-100 text-slate-600 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
-                      <DownloadIcon /> Cetak Semua
+                <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                    <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
+                    <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2 border border-slate-200 text-xs">
+                        <FileExcelIcon className="text-emerald-500" /> Template
                     </button>
-                    <button onClick={() => { setSelectedWarga(null); setIsFormModalOpen(true); }} className="flex-1 md:flex-none bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all">
+                    <button onClick={() => fileInputRef.current?.click()} disabled={importLoading} className="flex-1 md:flex-none bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition-all flex items-center justify-center gap-2 text-xs">
+                        <UploadIcon /> {importLoading ? 'Importing...' : 'Import Excel'}
+                    </button>
+                    <button onClick={() => { setSelectedWarga(null); setIsFormModalOpen(true); }} className="flex-1 md:flex-none bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all text-sm">
                       + Tambah Warga
                     </button>
                 </div>
@@ -184,11 +209,10 @@ const AdminWargaPage: React.FC = () => {
                         <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20">
                             <option value={10}>10 Baris</option>
                             <option value={25}>25 Baris</option>
-                            <option value={50}>50 Baris</option>
                             <option value="all">Semua</option>
                         </select>
                     </div>
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Total {sortedAndFilteredWarga.length} Warga</p>
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Ditemukan {sortedAndFilteredWarga.length} Warga</p>
                 </div>
             </div>
 
@@ -197,10 +221,10 @@ const AdminWargaPage: React.FC = () => {
                     <table className="w-full text-sm text-left">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100 font-bold text-slate-400 uppercase text-[10px] tracking-widest">
-                                <th className="p-5">ID</th>
-                                <th className="p-5">Nama</th>
-                                <th className="p-5">Wilayah</th>
-                                <th className="p-5 text-right">Tarif</th>
+                                <th onClick={() => handleSort('id')} className="p-5 cursor-pointer hover:text-primary transition-colors">ID <SortIcon col="id"/></th>
+                                <th onClick={() => handleSort('name')} className="p-5 cursor-pointer hover:text-primary transition-colors">Nama <SortIcon col="name"/></th>
+                                <th onClick={() => handleSort('address')} className="p-5 cursor-pointer hover:text-primary transition-colors">Wilayah <SortIcon col="address"/></th>
+                                <th onClick={() => handleSort('dailyFee')} className="p-5 text-right cursor-pointer hover:text-primary transition-colors">Tarif <SortIcon col="dailyFee"/></th>
                                 <th className="p-5 text-center">Aksi</th>
                             </tr>
                         </thead>
@@ -209,7 +233,7 @@ const AdminWargaPage: React.FC = () => {
                                 <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
                                     <td className="p-5 text-xs font-bold text-slate-400 font-mono">{w.id}</td>
                                     <td className="p-5 font-bold text-slate-700">{w.name}</td>
-                                    <td className="p-5 text-slate-500 font-medium italic text-xs">RT {rtList.find(r => r.id === w.rtId)?.number}, {dukuhList.find(d => d.id === w.dukuhId)?.name}</td>
+                                    <td className="p-5 text-slate-500 font-medium italic text-xs">RT {rtList.find(r => r.id === w.rtId)?.number || 'N/A'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A'}</td>
                                     <td className="p-5 text-right font-bold text-slate-700 font-mono">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
                                     <td className="p-5">
                                         <div className="flex justify-center items-center gap-1">
