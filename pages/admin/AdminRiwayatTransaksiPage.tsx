@@ -136,27 +136,46 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* Filter Panel */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-5 gap-3">
-                <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Dari</label>
-                    <input type="date" value={filters.startDate} onChange={e => setFilters({...filters, startDate: e.target.value})} className="w-full bg-transparent font-bold text-sm outline-none" />
+            {/* Filter Panel with Row Selector */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                    <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Dari</label>
+                        <input type="date" value={filters.startDate} onChange={e => setFilters({...filters, startDate: e.target.value})} className="w-full bg-transparent font-bold text-sm outline-none" />
+                    </div>
+                    <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Sampai</label>
+                        <input type="date" value={filters.endDate} onChange={e => setFilters({...filters, endDate: e.target.value})} className="w-full bg-transparent font-bold text-sm outline-none" />
+                    </div>
+                    <select className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-sm bg-slate-50/50" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
+                        <option value="all">Semua Dukuh</option>
+                        {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                    <select className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-sm bg-slate-50/50" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
+                        <option value="all">Semua RT</option>
+                        {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
+                    </select>
+                    <div className="relative">
+                        <input type="text" placeholder="Cari warga/petugas..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50/50 outline-none" />
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
                 </div>
-                <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Sampai</label>
-                    <input type="date" value={filters.endDate} onChange={e => setFilters({...filters, endDate: e.target.value})} className="w-full bg-transparent font-bold text-sm outline-none" />
-                </div>
-                <select className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-sm bg-slate-50/50" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
-                    <option value="all">Semua Dukuh</option>
-                    {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-                <select className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-sm bg-slate-50/50" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
-                    <option value="all">Semua RT</option>
-                    {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
-                </select>
-                <div className="relative">
-                    <input type="text" placeholder="Cari warga/petugas..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50/50 outline-none" />
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                    <div className="flex items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <span className="mr-3">Tampilkan:</span>
+                        <select 
+                            value={itemsPerPage} 
+                            onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} 
+                            className="bg-white border border-slate-200 px-2 py-1 rounded-md text-slate-700 font-bold"
+                        >
+                            <option value={10}>10 Baris</option>
+                            <option value={25}>25 Baris</option>
+                            <option value={50}>50 Baris</option>
+                            <option value="all">Semua</option>
+                        </select>
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-400">Total {sortedAndFilteredTx.length} Transaksi</div>
                 </div>
             </div>
 
@@ -194,23 +213,17 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                     </table>
                 </div>
 
-                <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <span className="mr-3">Baris:</span>
-                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border p-1 rounded">
-                            <option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value="all">Semua</option>
-                        </select>
-                        <span className="ml-4">Total {sortedAndFilteredTx.length} Transaksi</span>
-                    </div>
-                    {itemsPerPage !== 'all' && totalPages > 1 && (
+                {/* Page Controls at Bottom */}
+                {itemsPerPage !== 'all' && totalPages > 1 && (
+                    <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex justify-center items-center">
                         <div className="flex items-center gap-1 font-bold text-sm">
                             <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="p-2 disabled:opacity-20"><i className="fa-solid fa-chevron-left"></i></button>
                             <span className="bg-primary text-white w-8 h-8 flex items-center justify-center rounded-lg">{currentPage}</span>
                             <span className="px-2 text-slate-400">/ {totalPages}</span>
                             <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 disabled:opacity-20"><i className="fa-solid fa-chevron-right"></i></button>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             <Modal isOpen={!!transactionToDelete} onClose={() => setTransactionToDelete(null)} title="Hapus Transaksi">

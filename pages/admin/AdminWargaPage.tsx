@@ -233,34 +233,58 @@ const AdminWargaPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Advanced Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="relative md:col-span-2">
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input 
-                        type="text" 
-                        placeholder="Cari nama atau ID..." 
-                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 font-medium"
-                        value={filters.search}
-                        onChange={(e) => setFilters({...filters, search: e.target.value})}
-                    />
+            {/* Advanced Filters & Row Selector at Top */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="relative md:col-span-2">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input 
+                            type="text" 
+                            placeholder="Cari nama atau ID..." 
+                            className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 font-medium"
+                            value={filters.search}
+                            onChange={(e) => setFilters({...filters, search: e.target.value})}
+                        />
+                    </div>
+                    <select 
+                        className="px-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 text-slate-600 font-bold"
+                        onChange={(e) => setFilters({...filters, dukuhId: e.target.value})}
+                        value={filters.dukuhId}
+                    >
+                        <option value="all">Semua Dukuh</option>
+                        {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                    <select 
+                        className="px-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 text-slate-600 font-bold"
+                        onChange={(e) => setFilters({...filters, rtId: e.target.value})}
+                        value={filters.rtId}
+                    >
+                        <option value="all">Semua RT</option>
+                        {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
+                    </select>
                 </div>
-                <select 
-                    className="px-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 text-slate-600 font-bold"
-                    onChange={(e) => setFilters({...filters, dukuhId: e.target.value})}
-                    value={filters.dukuhId}
-                >
-                    <option value="all">Semua Dukuh</option>
-                    {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-                <select 
-                    className="px-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 text-slate-600 font-bold"
-                    onChange={(e) => setFilters({...filters, rtId: e.target.value})}
-                    value={filters.rtId}
-                >
-                    <option value="all">Semua RT</option>
-                    {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
-                </select>
+                
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3 px-1">
+                    <div className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        <span className="mr-3">Tampilkan</span>
+                        <select 
+                            value={itemsPerPage} 
+                            onChange={(e) => { 
+                                setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value));
+                                setCurrentPage(1);
+                            }}
+                            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-primary/20 outline-none text-slate-700 font-bold"
+                        >
+                            <option value={10}>10 Baris</option>
+                            <option value={25}>25 Baris</option>
+                            <option value={50}>50 Baris</option>
+                            <option value="all">Semua Data</option>
+                        </select>
+                    </div>
+                    <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">
+                        Total {sortedAndFilteredWarga.length} Warga
+                    </div>
+                </div>
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
@@ -308,27 +332,9 @@ const AdminWargaPage: React.FC = () => {
                     </table>
                 </div>
 
-                {/* Pagination Size & Page Controls */}
-                <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-widest">
-                        <span className="mr-3">Tampilkan</span>
-                        <select 
-                            value={itemsPerPage} 
-                            onChange={(e) => { 
-                                setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value));
-                                setCurrentPage(1);
-                            }}
-                            className="bg-white border border-slate-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-primary outline-none"
-                        >
-                            <option value={10}>10</option>
-                            <option value={25}>25</option>
-                            <option value={50}>50</option>
-                            <option value="all">Semua</option>
-                        </select>
-                        <span className="ml-3">Total {sortedAndFilteredWarga.length} Data</span>
-                    </div>
-
-                    {itemsPerPage !== 'all' && totalPages > 1 && (
+                {/* Page Controls at Bottom Only */}
+                {itemsPerPage !== 'all' && totalPages > 1 && (
+                    <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex justify-center items-center">
                         <div className="flex items-center gap-1">
                             <button 
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -349,8 +355,8 @@ const AdminWargaPage: React.FC = () => {
                                 <i className="fa-solid fa-chevron-right"></i>
                             </button>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             <Modal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} title={selectedWarga ? 'Edit Warga' : 'Tambah Warga'} size="lg">
