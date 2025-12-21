@@ -19,8 +19,9 @@ const PetugasScanPage: FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('Berhasil');
     
+    // Debt partial payment states - Changed to allow empty string for better UX
     const [isPayingDebt, setIsPayingDebt] = useState(false);
-    const [debtInput, setDebtInput] = useState<number>(0);
+    const [debtInput, setDebtInput] = useState<number | ''>('');
     
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -37,7 +38,7 @@ const PetugasScanPage: FC = () => {
         setLoading(false);
         setHasPaidToday(false);
         setIsPayingDebt(false);
-        setDebtInput(0);
+        setDebtInput('');
         if (mode === 'scan') {
             setIsScanning(true);
             isScanningRef.current = true;
@@ -54,7 +55,8 @@ const PetugasScanPage: FC = () => {
             const data = await getWargaById(id);
             if (data) {
                 setWarga(data);
-                setDebtInput(data.totalDebt); 
+                // ANTISIPASI: Jangan otomatis isi nominal (setDebtInput ditetap kosong/nol)
+                setDebtInput(''); 
                 const paidToday = await checkIfWargaPaidToday(id);
                 setHasPaidToday(paidToday);
             } else {
@@ -167,7 +169,7 @@ const PetugasScanPage: FC = () => {
     };
 
     const handlePayDebt = async () => {
-        if (!warga || !petugas || debtInput <= 0) return;
+        if (!warga || !petugas || !debtInput || debtInput <= 0) return;
         if (debtInput > warga.totalDebt) {
             setError('Nominal melebihi total tunggakan!');
             return;
@@ -263,17 +265,22 @@ const PetugasScanPage: FC = () => {
                                     <input 
                                         type="number" 
                                         value={debtInput} 
+                                        placeholder="0"
                                         onChange={(e) => {
-                                            const val = Number(e.target.value);
-                                            setDebtInput(val > warga.totalDebt ? warga.totalDebt : val);
+                                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                                            if (val !== '' && val > warga.totalDebt) {
+                                                setDebtInput(warga.totalDebt);
+                                            } else {
+                                                setDebtInput(val);
+                                            }
                                         }}
-                                        max={warga.totalDebt}
                                         className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary"
+                                        autoFocus
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 mt-4">
                                     <button onClick={() => setIsPayingDebt(false)} className="py-3 px-4 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-white transition-all">Batal</button>
-                                    <button onClick={handlePayDebt} disabled={loading || debtInput <= 0} className="py-3 px-4 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20 transition-all disabled:opacity-50">Bayar Sekarang</button>
+                                    <button onClick={handlePayDebt} disabled={loading || !debtInput || debtInput <= 0} className="py-3 px-4 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20 transition-all disabled:opacity-50">Bayar Sekarang</button>
                                 </div>
                             </div>
                         </div>
