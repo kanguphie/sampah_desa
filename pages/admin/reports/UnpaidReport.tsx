@@ -1,25 +1,44 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { getAllWarga, getDukuhById, getRTById } from '@/services/api';
-import type { Warga } from '@/types';
-import { DownloadIcon, ClipboardListIcon, CheckCircleIcon } from '@/components/icons';
+import { getAllWarga, getDukuhById, getRTById, getAllDukuh, getAllRT } from '@/services/api';
+import type { Warga, Dukuh, RT } from '@/types';
+import { DownloadIcon, ClipboardListIcon, CheckCircleIcon, FileExcelIcon, SearchIcon } from '@/components/icons';
 
 const UnpaidReport: React.FC = () => {
     const [list, setList] = useState<Warga[]>([]);
+    const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
+    const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    
+    const [filters, setFilters] = useState({
+        search: '',
+        dukuhId: 'all',
+        rtId: 'all'
+    });
 
     useEffect(() => {
         const fetch = async () => {
             setLoading(true);
-            const all = await getAllWarga();
+            const [all, d, r] = await Promise.all([getAllWarga(), getAllDukuh(), getAllRT()]);
             // Filter only those with debt
             const withDebt = all.filter(w => (w.totalDebt || 0) > 0).sort((a,b) => (b.totalDebt || 0) - (a.totalDebt || 0));
             setList(withDebt);
+            setDukuhList(d);
+            setRtList(r);
             setLoading(false);
         };
         fetch();
     }, []);
+
+    const filteredList = useMemo(() => {
+        return list.filter(w => {
+            const matchSearch = w.name.toLowerCase().includes(filters.search.toLowerCase()) || w.id.includes(filters.search);
+            const matchDukuh = filters.dukuhId === 'all' || w.dukuhId === Number(filters.dukuhId);
+            const matchRT = filters.rtId === 'all' || w.rtId === Number(filters.rtId);
+            return matchSearch && matchDukuh && matchRT;
+        });
+    }, [list, filters]);
 
     const toggleSelect = (id: string) => {
         const newSelected = new Set(selectedIds);
@@ -29,17 +48,95 @@ const UnpaidReport: React.FC = () => {
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.size === list.length) {
+        if (selectedIds.size === filteredList.length) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(list.map(w => w.id)));
+            setSelectedIds(new Set(filteredList.map(w => w.id)));
         }
+    };
+
+    const handlePrintTable = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const totalPiutang = filteredList.reduce((s, i) => s + (i.totalDebt || 0), 0);
+        const rows = filteredList.map((w, idx) => {
+            const rtNum = getRTById(w.rtId)?.number || 'N/A';
+            const dukuhName = getDukuhById(w.dukuhId)?.name || 'N/A';
+            return `
+                <tr>
+                    <td style="text-align:center">${idx + 1}</td>
+                    <td style="font-family:monospace">${w.id}</td>
+                    <td style="font-weight:700">${w.name}</td>
+                    <td>RT ${rtNum}, ${dukuhName}</td>
+                    <td style="text-align:right; font-weight:800">Rp${w.totalDebt.toLocaleString('id-ID')}</td>
+                </tr>
+            `;
+        }).join('');
+
+        printWindow.document.write(`
+            <html>
+            <head>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+                    @page { size: A4; margin: 1.5cm; }
+                    body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; line-height: 1.5; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
+                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1.1; }
+                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 5px 0 0 0; text-transform: uppercase; }
+                    .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 2px 0 0 0; text-transform: uppercase; }
+                    .header-right { text-align: right; }
+                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
+                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border: 1px solid #cbd5e1; color: #475569; }
+                    td { padding: 10px 12px; border: 1px solid #cbd5e1; font-size: 9pt; }
+                    .footer { margin-top: 40px; display: flex; justify-content: flex-end; }
+                    .sign-box { text-align: center; width: 200px; }
+                    .sign-date { font-size: 9pt; margin-bottom: 60px; }
+                    .sign-name { font-weight: 800; text-decoration: underline; text-transform: uppercase; }
+                    .summary-row { background: #f1f5f9; font-weight: 800; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="header-left">
+                        <h1 class="logo">SAPADESA</h1>
+                        <p class="sub-1">PENGELOLAAN SAMPAH DESA ROWOSARI, BATANG</p>
+                        <p class="sub-2">SEKRETARIAT: KANTOR DESA ROWOSARI, JAWA TENGAH 51271</p>
+                    </div>
+                    <div class="header-right">
+                        <div class="report-title">Daftar Tunggakan Iuran</div>
+                        <div class="print-date">WAKTU CETAK: ${new Date().toLocaleString('id-ID')}</div>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>No</th><th>ID Warga</th><th>Nama Lengkap Warga</th><th>Wilayah (RT/Dukuh)</th><th style="text-align:right">Total Tunggakan</th></tr></thead>
+                    <tbody>
+                        ${rows || '<tr><td colspan="5" style="text-align:center">Tidak ada data sesuai filter</td></tr>'}
+                        <tr class="summary-row">
+                            <td colspan="4" style="text-align:right">TOTAL SELURUH PIUTANG DESA:</td>
+                            <td style="text-align:right">Rp${totalPiutang.toLocaleString('id-ID')}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="footer">
+                    <div class="sign-box">
+                        <div class="sign-date">Batang, ${new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</div>
+                        <div style="font-size:9pt; margin-bottom: 60px;">Admin Keuangan Desa</div>
+                        <div class="sign-name">( ............................ )</div>
+                    </div>
+                </div>
+                <script>window.onload=()=>{window.print();window.close();}</script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     const generateSlipHtml = (w: Warga) => {
         const rtNum = getRTById(w.rtId)?.number || 'N/A';
         const dukuhName = getDukuhById(w.dukuhId)?.name || 'N/A';
-        
         return `
             <div class="slip-wrapper">
                 <div class="header">
@@ -53,7 +150,6 @@ const UnpaidReport: React.FC = () => {
                         <div class="print-date">TGL CETAK: ${new Date().toLocaleDateString('id-ID')}</div>
                     </div>
                 </div>
-
                 <div class="content-grid">
                     <div class="info-section">
                         <div class="info-row"><span class="label">ID WARGA:</span><span class="value">${w.id}</span></div>
@@ -61,13 +157,11 @@ const UnpaidReport: React.FC = () => {
                         <div class="info-row"><span class="label">WILAYAH:</span><span class="value">RT ${rtNum}, ${dukuhName}</span></div>
                         <div class="info-row" style="margin-top:10px;"><span class="label">STATUS:</span><span class="value" style="color:#e11d48;">BELUM TERBAYAR</span></div>
                     </div>
-
                     <div class="debt-section">
                         <div class="debt-label">TOTAL TUNGGAKAN</div>
                         <div class="debt-amount">Rp${w.totalDebt.toLocaleString('id-ID')}</div>
                     </div>
                 </div>
-
                 <div class="footer">
                     <p class="footer-msg">PENTING: Harap segera melakukan pelunasan tunggakan iuran kebersihan melalui petugas penagih atau kantor desa Rowosari. Abaikan jika Anda telah melunasi.</p>
                     <div class="sign-box">
@@ -82,9 +176,7 @@ const UnpaidReport: React.FC = () => {
     const handlePrintSlips = (targetWargas: Warga[]) => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
-
         const allSlips = targetWargas.map(w => generateSlipHtml(w)).join('');
-
         printWindow.document.write(`
             <html>
             <head>
@@ -92,50 +184,29 @@ const UnpaidReport: React.FC = () => {
                     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
                     @page { size: A4 portrait; margin: 0; }
                     body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; background: white; }
-                    
-                    /* Slip Wrapper set to 1/3 of A4 Height (approx 99mm) */
-                    .slip-wrapper { 
-                        height: 98mm; 
-                        box-sizing: border-box; 
-                        padding: 10mm; 
-                        border-bottom: 1px dashed #cbd5e1;
-                        page-break-inside: avoid;
-                        position: relative;
-                        overflow: hidden;
-                    }
-                    
-                    /* Last slip on page doesn't need border but let's keep it for cutting guide */
+                    .slip-wrapper { height: 98mm; box-sizing: border-box; padding: 10mm; border-bottom: 1px dashed #cbd5e1; page-break-inside: avoid; position: relative; overflow: hidden; }
                     .slip-wrapper:nth-child(3n) { border-bottom: 1px dashed #94a3b8; }
-
                     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 10px; }
                     .header-left .logo { color: #10b981; font-size: 16pt; font-weight: 800; margin: 0; line-height: 1; }
                     .header-left .sub-1 { font-size: 7.5pt; font-weight: 700; color: #1e293b; margin: 4px 0 0 0; text-transform: uppercase; }
                     .header-left .sub-2 { font-size: 6pt; font-weight: 500; color: #64748b; margin: 2px 0 0 0; text-transform: uppercase; }
-                    
                     .header-right { text-align: right; }
                     .slip-title { font-size: 11pt; font-weight: 800; text-transform: uppercase; color: #1e293b; }
                     .print-date { font-size: 7pt; color: #94a3b8; font-weight: 600; margin-top: 3px; }
-                    
                     .content-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 15px; margin-top: 8px; }
-                    
                     .info-section { border-right: 1px dashed #e2e8f0; padding-right: 15px; }
                     .info-row { display: flex; margin-bottom: 5px; font-size: 8.5pt; }
                     .label { color: #64748b; font-weight: 700; width: 90px; text-transform: uppercase; font-size: 6.5pt; }
                     .value { font-weight: 800; color: #1e293b; flex: 1; }
-                    
                     .debt-section { background: #fff1f2; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #fecdd3; display: flex; flex-direction: column; justify-content: center; }
                     .debt-label { font-size: 7.5pt; font-weight: 800; color: #e11d48; text-transform: uppercase; margin-bottom: 2px; }
                     .debt-amount { font-size: 22pt; font-weight: 900; color: #e11d48; letter-spacing: -1px; }
-                    
                     .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 12px; }
                     .footer-msg { font-size: 6.5pt; color: #64748b; width: 65%; font-style: italic; margin: 0; line-height: 1.3; }
                     .sign-box { display: flex; gap: 30px; font-size: 7.5pt; }
                     .sign { width: 90px; text-align: center; }
                     .sign-line { margin-top: 25px; border-top: 1.5px solid #000; padding-top: 2px; font-weight: 800; text-transform: uppercase; font-size: 7pt; }
-                    
-                    @media print {
-                        .slip-wrapper:nth-child(3n) { page-break-after: always; }
-                    }
+                    @media print { .slip-wrapper:nth-child(3n) { page-break-after: always; } }
                 </style>
             </head>
             <body>
@@ -156,98 +227,75 @@ const UnpaidReport: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100 flex flex-col md:flex-row justify-between items-center shadow-inner gap-4">
-                <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-slate-100">
-                        <ClipboardListIcon className="text-3xl text-rose-500" />
+            <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 space-y-4">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
+                            <ClipboardListIcon className="text-2xl text-rose-500" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Piutang</p>
+                            <p className="text-2xl font-black text-rose-600 tracking-tight">Rp{filteredList.reduce((s,i)=>s+(i.totalDebt || 0),0).toLocaleString('id-ID')}</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Piutang Desa</p>
-                        <p className="text-4xl font-black text-rose-600 tracking-tight">Rp{list.reduce((s,i)=>s+(i.totalDebt || 0),0).toLocaleString('id-ID')}</p>
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <button onClick={handlePrintTable} className="flex-1 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all text-xs">
+                            <FileExcelIcon className="text-emerald-500" /> Cetak Daftar (Tabel)
+                        </button>
+                        {selectedIds.size > 0 && (
+                            <button onClick={handlePrintSelected} className="flex-1 bg-primary text-white hover:bg-primary-focus px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all text-xs">
+                                <DownloadIcon /> Cetak Slip (${selectedIds.size})
+                            </button>
+                        )}
                     </div>
                 </div>
                 
-                <div className="flex flex-col items-end gap-3 w-full md:w-auto">
-                    <div className="bg-rose-100 text-rose-600 px-4 py-1.5 rounded-full text-xs font-black uppercase">
-                        {list.length} Rumah Tunggakan
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="relative">
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input type="text" placeholder="Cari nama..." className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary outline-none font-semibold text-xs" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
                     </div>
-                    {selectedIds.size > 0 && (
-                        <button 
-                            onClick={handlePrintSelected}
-                            className="w-full md:w-auto bg-primary text-white hover:bg-primary-focus px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all animate-fade-in"
-                        >
-                            <DownloadIcon /> Cetak Pilihan (${selectedIds.size})
-                        </button>
-                    )}
+                    <select className="px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-xs" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
+                        <option value="all">Semua Dukuh</option>
+                        {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                    <select className="px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-xs" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
+                        <option value="all">Semua RT</option>
+                        {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
+                    </select>
                 </div>
             </div>
 
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                <th className="p-6 w-12">
-                                    <div className="flex items-center justify-center">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={list.length > 0 && selectedIds.size === list.length}
-                                            onChange={toggleSelectAll}
-                                            className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer transition-all"
-                                        />
-                                    </div>
+                                <th className="p-5 w-12 text-center">
+                                    <input type="checkbox" checked={filteredList.length > 0 && selectedIds.size === filteredList.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 text-primary cursor-pointer" />
                                 </th>
-                                <th className="p-6">Warga & Wilayah</th>
-                                <th className="p-6 text-right">Nilai Tunggakan</th>
-                                <th className="p-6 text-center">Tindakan</th>
+                                <th className="p-5">Warga & Wilayah</th>
+                                <th className="p-5 text-right">Nilai Tunggakan</th>
+                                <th className="p-5 text-center">Tindakan</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {loading ? (
-                                <tr><td colSpan={4} className="p-10 text-center animate-pulse">Memproses Data Tunggakan...</td></tr>
-                            ) : list.length > 0 ? (
-                                list.map(w => (
-                                    <tr key={w.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedIds.has(w.id) ? 'bg-emerald-50/30' : ''}`}>
-                                        <td className="p-6">
-                                            <div className="flex items-center justify-center">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={selectedIds.has(w.id)}
-                                                    onChange={() => toggleSelect(w.id)}
-                                                    className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer transition-all"
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="p-6" onClick={() => toggleSelect(w.id)}>
-                                            <div className="cursor-pointer">
-                                                <p className="font-bold text-slate-800 text-base group-hover:text-primary transition-colors">{w.name}</p>
-                                                <p className="text-xs text-slate-500 font-medium font-mono">ID: {w.id} • RT {getRTById(w.rtId)?.number}, {getDukuhById(w.dukuhId)?.name}</p>
-                                            </div>
-                                        </td>
-                                        <td className="p-6 text-right font-black text-rose-600 text-lg font-mono">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
-                                        <td className="p-6 text-center">
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handlePrintSlips([w]); }} 
-                                                className="bg-slate-900 text-white hover:bg-black px-5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mx-auto transition-all shadow-lg shadow-slate-900/10"
-                                            >
-                                                <ClipboardListIcon className="text-sm" /> Cetak Slip
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr><td colSpan={4} className="p-12 text-center text-slate-400 font-bold italic uppercase tracking-widest text-xs">Tidak ada warga yang memiliki tunggakan saat ini.</td></tr>
-                            )}
+                            {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse">Memproses Data...</td></tr> : 
+                            filteredList.length > 0 ? filteredList.map(w => (
+                                <tr key={w.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.has(w.id) ? 'bg-emerald-50/30' : ''}`}>
+                                    <td className="p-5 text-center"><input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} className="w-4 h-4 rounded border-slate-300 text-primary cursor-pointer" /></td>
+                                    <td className="p-5" onClick={() => toggleSelect(w.id)}>
+                                        <p className="font-bold text-slate-800 text-sm group-hover:text-primary transition-colors cursor-pointer">{w.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">RT ${getRTById(w.rtId)?.number}, ${getDukuhById(w.dukuhId)?.name}</p>
+                                    </td>
+                                    <td className="p-5 text-right font-black text-rose-600 text-base">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-center">
+                                        <button onClick={(e) => { e.stopPropagation(); handlePrintSlips([w]); }} className="bg-slate-900 text-white hover:bg-black px-4 py-2 rounded-lg text-[10px] font-bold transition-all shadow-md">Slip DL</button>
+                                    </td>
+                                </tr>
+                            )) : <tr><td colSpan={4} className="p-12 text-center text-slate-400 font-bold italic text-xs uppercase">Tidak ada data sesuai filter</td></tr>}
                         </tbody>
                     </table>
-                </div>
-            </div>
-            
-            <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 flex items-start gap-4">
-                <div className="bg-white p-2.5 rounded-xl shadow-sm"><CheckCircleIcon className="text-blue-500 text-xl" /></div>
-                <div>
-                    <p className="text-sm font-bold text-blue-800">Tips Penghematan Kertas</p>
-                    <p className="text-xs text-blue-600 mt-1">Sistem akan otomatis mengatur layout cetak. Gunakan fitur "Pilih Semua" dan "Cetak Pilihan" untuk mencetak maksimal 3 slip per halaman A4 agar penggunaan kertas lebih efisien.</p>
                 </div>
             </div>
         </div>

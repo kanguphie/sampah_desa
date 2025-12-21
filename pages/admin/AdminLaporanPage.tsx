@@ -5,9 +5,10 @@ import MonthlyReport from './reports/MonthlyReport';
 import YearlyReport from './reports/YearlyReport';
 import RegionReport from './reports/RegionReport';
 import UnpaidReport from './reports/UnpaidReport';
+import ParticipationReport from './reports/ParticipationReport';
 
 const AdminLaporanPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'tahunan' | 'wilayah' | 'tunggakan'>('harian');
+    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'tahunan' | 'wilayah' | 'tunggakan' | 'partisipasi'>('harian');
     
     const renderContent = () => {
         switch(activeTab) {
@@ -16,6 +17,7 @@ const AdminLaporanPage: React.FC = () => {
             case 'tahunan': return <YearlyReport />;
             case 'wilayah': return <RegionReport />;
             case 'tunggakan': return <UnpaidReport />;
+            case 'partisipasi': return <ParticipationReport />;
             default: return null;
         }
     };
@@ -35,12 +37,13 @@ const AdminLaporanPage: React.FC = () => {
                             {id:'bulanan', label:'Bulanan'},
                             {id:'tahunan', label:'Tahunan'},
                             {id:'wilayah', label:'Wilayah'},
-                            {id:'tunggakan', label:'Tunggakan'}
+                            {id:'tunggakan', label:'Piutang'},
+                            {id:'partisipasi', label:'Keaktifan'}
                         ].map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex-1 py-3 px-4 rounded-2xl font-bold text-xs transition-all uppercase tracking-widest ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                                className={`flex-1 py-3 px-4 rounded-2xl font-bold text-[10px] transition-all uppercase tracking-widest ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
                             >
                                 {tab.label}
                             </button>
