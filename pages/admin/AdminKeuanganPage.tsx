@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Pengeluaran } from '@/types';
 import { getAllPengeluaran, createPengeluaran, updatePengeluaran, deletePengeluaran } from '@/services/api';
 import Modal from '@/components/Modal';
+// Removed non-existent PlusIcon import as it is not exported from icons component and not used as a component here
 import { TrashIcon, PencilIcon, BanknotesIcon } from '@/components/icons';
 
 // Form Component for Add/Edit
@@ -28,36 +29,41 @@ const PengeluaranForm: React.FC<{
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal</label>
+        <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Tanggal Transaksi</label>
         <input 
           type="date" 
           value={formData.date} 
           onChange={e => setFormData({...formData, date: e.target.value})} 
-          className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary" required />
+          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" required />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Keterangan</label>
+        <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Keterangan / Deskripsi</label>
         <input 
           type="text" 
-          placeholder="Contoh: Gaji Petugas, Beli Bensin" 
+          placeholder="Contoh: Pembelian Bensin Motor Tossa" 
           value={formData.description} 
           onChange={e => setFormData({...formData, description: e.target.value})} 
-          className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary" required />
+          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" required />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah (Rp)</label>
-        <input 
-          type="number" 
-          placeholder="Jumlah Pengeluaran" 
-          value={formData.amount} 
-          onChange={e => setFormData({...formData, amount: Number(e.target.value)})} 
-          className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary" required />
+        <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Jumlah Nominal (Rp)</label>
+        <div className="relative">
+             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <span className="text-slate-400 font-bold">Rp</span>
+            </div>
+            <input 
+                type="number" 
+                placeholder="0" 
+                value={formData.amount} 
+                onChange={e => setFormData({...formData, amount: Number(e.target.value)})} 
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-mono font-bold" required />
+        </div>
       </div>
       <div className="flex justify-end gap-3 pt-4">
-        <button type="button" onClick={onCancel} className="bg-slate-200 text-slate-800 font-semibold px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors">Batal</button>
-        <button type="submit" className="bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg hover:bg-primary-focus transition-colors">Simpan</button>
+        <button type="button" onClick={onCancel} className="px-6 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">Batal</button>
+        <button type="submit" className="px-6 py-2.5 rounded-xl bg-primary text-white font-bold hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all">Simpan Catatan</button>
       </div>
     </form>
   );
@@ -92,7 +98,6 @@ const AdminKeuanganPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    // Pagination Logic
     const paginatedPengeluaran = useMemo(() => {
         if (itemsPerPage === 'all') return pengeluaranList;
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -100,7 +105,6 @@ const AdminKeuanganPage: React.FC = () => {
     }, [pengeluaranList, currentPage, itemsPerPage]);
 
     const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(pengeluaranList.length / itemsPerPage);
-
 
     const handleSave = async (pengeluaran: Omit<Pengeluaran, 'id'> | Pengeluaran) => {
         if ('id' in pengeluaran) {
@@ -137,60 +141,94 @@ const AdminKeuanganPage: React.FC = () => {
             .reduce((sum, p) => sum + p.amount, 0);
     }, [pengeluaranList]);
 
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('id-ID', { 
+            style: 'currency', 
+            currency: 'IDR', 
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2 
+        }).format(amount).replace(/\s/g, ' ');
+    };
+
     return (
-        <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold font-display text-slate-800">Manajemen Keuangan</h1>
-                        <p className="mt-1 text-slate-500">Kelola catatan pengeluaran operasional.</p>
-                    </div>
-                    <button onClick={() => openFormModal()} className="bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus transition-colors">
-                        + Tambah Pengeluaran
-                    </button>
+        <div className="space-y-6 max-w-7xl mx-auto">
+            {/* Header Section */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Manajemen Keuangan</h1>
+                    <p className="text-slate-500 text-sm mt-0.5 font-medium">Kelola catatan pengeluaran operasional.</p>
                 </div>
+                <button 
+                    onClick={() => openFormModal()} 
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+                >
+                    <i className="fa-solid fa-plus text-sm"></i>
+                    Tambah Pengeluaran
+                </button>
             </div>
             
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-5">
-                <div className="flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-lg bg-red-100">
-                  <BanknotesIcon className="text-3xl text-red-600"/>
+            {/* Summary Banner */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex items-center gap-6 animate-fade-in">
+                <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center rounded-2xl bg-rose-50 border border-rose-100 shadow-inner">
+                  <i className="fa-solid fa-money-bill-transfer text-3xl text-rose-500"></i>
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-slate-500">Total Pengeluaran Bulan Ini</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Pengeluaran Bulan Ini</p>
                     {loading ? 
-                        <div className="h-8 w-40 bg-slate-200 rounded animate-pulse mt-1"></div> :
-                        <p className="text-3xl font-bold font-display text-slate-800">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(totalPengeluaranBulanIni)}</p>
+                        <div className="h-10 w-48 bg-slate-100 rounded-lg animate-pulse"></div> :
+                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">
+                            {formatCurrency(totalPengeluaranBulanIni).split(',')[0]}
+                        </h2>
                     }
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+            {/* Content Table */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden animate-fade-in">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Tanggal</th>
-                                <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Keterangan</th>
-                                <th className="p-4 text-left uppercase text-xs font-semibold text-slate-500 tracking-wider">Jumlah</th>
-                                <th className="p-4 text-center uppercase text-xs font-semibold text-slate-500 tracking-wider">Aksi</th>
+                    <table className="w-full text-sm text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                <th className="p-5 uppercase text-[11px] font-black text-slate-400 tracking-widest">Tanggal</th>
+                                <th className="p-5 uppercase text-[11px] font-black text-slate-400 tracking-widest">Keterangan</th>
+                                <th className="p-5 uppercase text-[11px] font-black text-slate-400 tracking-widest">Jumlah</th>
+                                <th className="p-5 uppercase text-[11px] font-black text-slate-400 tracking-widest text-center">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-200">
+                        <tbody className="divide-y divide-slate-100">
                             {loading ? (
-                                Array.from({ length: 3 }).map((_, i) => (
+                                Array.from({ length: 5 }).map((_, i) => (
                                     <tr key={i}>
-                                        <td className="p-4" colSpan={4}><div className="h-6 bg-slate-200 rounded animate-pulse"></div></td>
+                                        <td className="p-5" colSpan={4}><div className="h-6 bg-slate-50 rounded animate-pulse w-full"></div></td>
                                     </tr>
                                 ))
                             ) : paginatedPengeluaran.map((pengeluaran) => (
-                                <tr key={pengeluaran.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-4 text-slate-600">{new Date(pengeluaran.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</td>
-                                    <td className="p-4 font-semibold text-slate-800">{pengeluaran.description}</td>
-                                    <td className="p-4 font-mono text-slate-600">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(pengeluaran.amount)}</td>
-                                    <td className="p-4">
-                                        <div className="flex justify-center items-center gap-3">
-                                            <button onClick={() => openFormModal(pengeluaran)} className="text-slate-500 hover:text-blue-600" title="Edit Pengeluaran"><PencilIcon className="text-xl" /></button>
-                                            <button onClick={() => setPengeluaranToDelete(pengeluaran)} className="text-slate-500 hover:text-red-600" title="Hapus Pengeluaran"><TrashIcon className="text-xl" /></button>
+                                <tr key={pengeluaran.id} className="hover:bg-slate-50/80 transition-colors group">
+                                    <td className="p-5 text-slate-500 font-medium">
+                                        {new Date(pengeluaran.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                    </td>
+                                    <td className="p-5">
+                                        <p className="font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{pengeluaran.description}</p>
+                                    </td>
+                                    <td className="p-5 font-mono text-slate-600 font-medium">
+                                        {formatCurrency(pengeluaran.amount)}
+                                    </td>
+                                    <td className="p-5">
+                                        <div className="flex justify-center items-center gap-4">
+                                            <button 
+                                                onClick={() => openFormModal(pengeluaran)} 
+                                                className="text-slate-400 hover:text-indigo-600 transition-colors" 
+                                                title="Edit Data"
+                                            >
+                                                <PencilIcon className="text-xl" />
+                                            </button>
+                                            <button 
+                                                onClick={() => setPengeluaranToDelete(pengeluaran)} 
+                                                className="text-slate-400 hover:text-rose-600 transition-colors" 
+                                                title="Hapus Data"
+                                            >
+                                                <TrashIcon className="text-xl" />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -198,49 +236,50 @@ const AdminKeuanganPage: React.FC = () => {
                         </tbody>
                     </table>
                      {!loading && pengeluaranList.length === 0 && (
-                        <div className="text-center p-8 text-slate-500">
-                            <h3 className="font-semibold text-lg">Belum Ada Data</h3>
-                            <p>Silakan tambahkan data pengeluaran pertama Anda.</p>
+                        <div className="text-center py-20 px-6">
+                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100 shadow-inner">
+                                <BanknotesIcon className="text-4xl text-slate-300"/>
+                            </div>
+                            <h3 className="font-bold text-slate-800 text-lg">Belum Ada Pengeluaran</h3>
+                            <p className="text-slate-500 max-w-xs mx-auto mt-2">Catatan pengeluaran operasional Anda akan muncul di sini setelah Anda menambahkannya.</p>
                         </div>
                     )}
                 </div>
+
                 {/* Pagination Controls */}
                 {!loading && pengeluaranList.length > 0 && (
-                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center text-sm text-slate-600">
-                            <span className="mr-2">Tampilkan</span>
+                    <div className="p-5 border-t border-slate-100 bg-slate-50/30 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            <span className="mr-3">Tampilkan</span>
                             <select
                                 value={itemsPerPage}
                                 onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                className="border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary bg-white"
+                                className="bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary text-slate-700"
                             >
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
-                                <option value={50}>50</option>
                                 <option value="all">Semua</option>
                             </select>
-                            <span className="ml-2">
-                                data per halaman. (Total: {pengeluaranList.length})
-                            </span>
+                            <span className="ml-3">Total: {pengeluaranList.length} Catatan</span>
                         </div>
                         {itemsPerPage !== 'all' && (
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                     disabled={currentPage === 1}
-                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="p-2 border border-slate-200 rounded-lg bg-white text-slate-400 hover:text-primary hover:border-primary disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:border-slate-200 transition-all"
                                 >
-                                    Prev
+                                    <i className="fa-solid fa-chevron-left"></i>
                                 </button>
-                                <span className="text-sm font-medium text-slate-600">
-                                    Halaman {currentPage} dari {totalPages}
-                                </span>
+                                <div className="px-4 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 text-xs">
+                                    Halaman {currentPage} / {totalPages}
+                                </div>
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                     disabled={currentPage === totalPages}
-                                    className="px-3 py-1 border border-slate-300 rounded bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="p-2 border border-slate-200 rounded-lg bg-white text-slate-400 hover:text-primary hover:border-primary disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:border-slate-200 transition-all"
                                 >
-                                    Next
+                                    <i className="fa-solid fa-chevron-right"></i>
                                 </button>
                             </div>
                         )}
@@ -248,31 +287,27 @@ const AdminKeuanganPage: React.FC = () => {
                 )}
             </div>
 
-            <Modal isOpen={isFormModalOpen} onClose={() => { setIsFormModalOpen(false); setPengeluaranToEdit(null); }} title={pengeluaranToEdit ? 'Edit Pengeluaran' : 'Tambah Pengeluaran Baru'}>
+            {/* Modals */}
+            <Modal isOpen={isFormModalOpen} onClose={() => { setIsFormModalOpen(false); setPengeluaranToEdit(null); }} title={pengeluaranToEdit ? 'Edit Pengeluaran' : 'Tambah Pengeluaran Baru'} size="lg">
                 <PengeluaranForm pengeluaran={pengeluaranToEdit} onSave={handleSave} onCancel={() => { setIsFormModalOpen(false); setPengeluaranToEdit(null); }} />
             </Modal>
             
-            <Modal isOpen={!!pengeluaranToDelete} onClose={() => setPengeluaranToDelete(null)} title="Konfirmasi Hapus Data" size="md">
+            <Modal isOpen={!!pengeluaranToDelete} onClose={() => setPengeluaranToDelete(null)} title="Hapus Data Pengeluaran" size="md">
                 {pengeluaranToDelete && (
-                    <div>
-                        <p className="text-slate-700 text-center">
-                            Apakah Anda yakin ingin menghapus data pengeluaran ini secara permanen?
-                        </p>
-                        <div className="my-4 p-3 bg-red-50 border border-red-200 rounded-lg text-center">
-                             <strong className="font-semibold text-red-800">{pengeluaranToDelete.description}</strong>
-                             <p className="text-red-700 font-mono text-sm">({new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(pengeluaranToDelete.amount)})</p>
+                    <div className="text-center">
+                        <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
+                             <TrashIcon className="text-3xl text-rose-500"/>
                         </div>
-                        <p className="text-sm text-center text-slate-500">Tindakan ini tidak dapat dibatalkan.</p>
-                        <div className="flex justify-center gap-3 mt-6">
-                            <button type="button" onClick={() => setPengeluaranToDelete(null)} className="bg-slate-200 text-slate-800 px-5 py-2 rounded-lg hover:bg-slate-300 font-semibold">
-                                Batal
-                            </button>
+                        <p className="text-slate-700 font-medium">
+                            Hapus catatan pengeluaran <span className="font-bold">"{pengeluaranToDelete.description}"</span>?
+                        </p>
+                        <div className="mt-6 flex justify-center gap-3">
+                            <button onClick={() => setPengeluaranToDelete(null)} className="px-6 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">Batal</button>
                             <button 
-                                type="button" 
                                 onClick={() => handleDeleteConfirm(pengeluaranToDelete.id)} 
-                                className="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700 font-semibold"
+                                className="px-6 py-2.5 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all"
                             >
-                                Ya, Hapus
+                                Ya, Hapus Permanen
                             </button>
                         </div>
                     </div>
