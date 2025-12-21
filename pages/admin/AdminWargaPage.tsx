@@ -26,58 +26,69 @@ const WargaForm: React.FC<{
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div>
-        <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Nama Lengkap Warga</label>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Nama Lengkap Warga</label>
         <input 
           type="text" 
           value={formData.name} 
           onChange={e => setFormData({...formData, name: e.target.value})} 
-          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" 
-          placeholder="Contoh: Budi Santoso"
+          className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-semibold" 
+          placeholder="Masukkan nama lengkap"
           required 
         />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Dukuh / Wilayah</label>
+        <div className="space-y-2">
+          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Dukuh / Wilayah</label>
           <select 
             value={formData.dukuhId} 
             onChange={e => setFormData({...formData, dukuhId: Number(e.target.value)})}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-semibold"
           >
             {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">RT</label>
+        <div className="space-y-2">
+          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">RT</label>
           <select 
             value={formData.rtId} 
             onChange={e => setFormData({...formData, rtId: Number(e.target.value)})}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-semibold"
           >
             {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
           </select>
         </div>
       </div>
-      <div>
-        <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Tarif Iuran Harian</label>
-        <div className="relative">
-             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <span className="text-slate-400 font-bold">Rp</span>
+      <div className="space-y-2">
+        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Tarif Iuran Harian</label>
+        <div className="relative group">
+             <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                <span className="text-slate-400 font-bold group-focus-within:text-primary transition-colors">Rp</span>
             </div>
             <input 
               type="number" 
               value={formData.dailyFee} 
               onChange={e => setFormData({...formData, dailyFee: Number(e.target.value)})} 
-              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-mono font-bold" 
+              className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-mono font-bold text-lg" 
               required 
             />
         </div>
       </div>
-      <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-        <button type="button" onClick={onCancel} className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all">Batal</button>
-        <button type="submit" className="px-6 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all">Simpan Perubahan</button>
+      <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-100">
+        <button 
+          type="button" 
+          onClick={onCancel} 
+          className="flex-1 py-4 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 transition-all border border-transparent"
+        >
+          Batal
+        </button>
+        <button 
+          type="submit" 
+          className="flex-1 py-4 rounded-2xl font-bold bg-primary text-white hover:bg-primary-focus shadow-xl shadow-primary/20 transition-all transform hover:-translate-y-0.5"
+        >
+          {warga ? 'Simpan Perubahan' : 'Tambah Warga'}
+        </button>
       </div>
     </form>
   );
@@ -173,12 +184,12 @@ const AdminWargaPage: React.FC = () => {
                     <input 
                         type="text" 
                         placeholder="Cari nama atau ID..." 
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50"
+                        className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50"
                         onChange={(e) => setFilters({...filters, search: e.target.value})}
                     />
                 </div>
                 <select 
-                    className="p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 text-slate-600 font-medium"
+                    className="px-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50/50 text-slate-600 font-bold"
                     onChange={(e) => setFilters({...filters, dukuhId: e.target.value})}
                     value={filters.dukuhId}
                 >
@@ -187,7 +198,7 @@ const AdminWargaPage: React.FC = () => {
                 </select>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden animate-fade-in">
+            <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden animate-fade-in">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left border-collapse">
                         <thead>
@@ -205,7 +216,7 @@ const AdminWargaPage: React.FC = () => {
                                     <tr key={i}><td colSpan={5} className="p-5"><div className="h-6 bg-slate-50 rounded animate-pulse w-full"></div></td></tr>
                                 ))
                             ) : filteredWarga.map(w => (
-                                <tr key={w.id} className="hover:bg-slate-50 transition-colors group">
+                                <tr key={w.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-5 font-mono text-slate-400 text-xs">{w.id}</td>
                                     <td className="p-5 font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{w.name}</td>
                                     <td className="p-5 text-slate-500 font-medium">RT {getRTNumber(w.rtId)}, {getDukuhName(w.dukuhId)}</td>
@@ -216,14 +227,14 @@ const AdminWargaPage: React.FC = () => {
                                         <div className="flex justify-center items-center gap-4">
                                             <button 
                                               onClick={(e) => { e.stopPropagation(); openEditModal(w); }}
-                                              className="text-slate-400 hover:text-indigo-600 transition-colors p-2 rounded-lg hover:bg-indigo-50"
+                                              className="text-slate-400 hover:text-indigo-600 transition-colors p-2.5 rounded-xl hover:bg-indigo-50"
                                               title="Edit Warga"
                                             >
                                                 <PencilIcon className="text-xl" />
                                             </button>
                                             <button 
                                               onClick={(e) => { e.stopPropagation(); setWargaToDelete(w); }}
-                                              className="text-slate-400 hover:text-rose-600 transition-colors p-2 rounded-lg hover:bg-rose-50"
+                                              className="text-slate-400 hover:text-rose-600 transition-colors p-2.5 rounded-xl hover:bg-rose-50"
                                               title="Hapus Warga"
                                             >
                                                 <TrashIcon className="text-xl" />
@@ -234,9 +245,9 @@ const AdminWargaPage: React.FC = () => {
                             ))}
                             {!loading && filteredWarga.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="p-12 text-center text-slate-400 italic">
-                                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                                            <UsersIcon className="text-3xl text-slate-200" />
+                                    <td colSpan={5} className="p-20 text-center text-slate-400 italic">
+                                        <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                            <UsersIcon className="text-4xl text-slate-200" />
                                         </div>
                                         Tidak ada data warga ditemukan.
                                     </td>
@@ -247,7 +258,7 @@ const AdminWargaPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Modals are now robust and correctly centered */}
+            {/* Modal kini menggunakan React Portals agar tidak terpengaruh hierarki layout induk */}
             <Modal 
               isOpen={isFormModalOpen} 
               onClose={() => { setIsFormModalOpen(false); setSelectedWarga(null); }} 
@@ -265,21 +276,21 @@ const AdminWargaPage: React.FC = () => {
 
             <Modal isOpen={!!wargaToDelete} onClose={() => setWargaToDelete(null)} title="Hapus Data Warga" size="md">
                 {wargaToDelete && (
-                    <div className="text-center">
-                        <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
-                             <TrashIcon className="text-3xl text-rose-500"/>
+                    <div className="text-center py-4">
+                        <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-rose-100 shadow-sm shadow-rose-100">
+                             <TrashIcon className="text-4xl text-rose-500"/>
                         </div>
-                        <p className="text-slate-700 font-medium px-4">
-                            Hapus data warga <span className="font-bold text-slate-900">"{wargaToDelete.name}"</span>?
+                        <p className="text-slate-700 font-bold px-4 text-lg">
+                            Hapus warga <span className="text-rose-600">"{wargaToDelete.name}"</span>?
                         </p>
-                        <p className="text-xs text-slate-400 mt-2 px-6 italic">Tindakan ini permanen. Warga tidak akan muncul lagi di daftar penagihan petugas.</p>
-                        <div className="mt-8 flex justify-center gap-3">
-                            <button onClick={() => setWargaToDelete(null)} className="flex-1 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors border border-slate-200">Batal</button>
+                        <p className="text-sm text-slate-400 mt-3 px-10 italic">Data yang dihapus tidak dapat dikembalikan dan akan hilang dari daftar penagihan petugas.</p>
+                        <div className="mt-10 flex flex-col sm:flex-row gap-3 px-2">
+                            <button onClick={() => setWargaToDelete(null)} className="flex-1 py-4 rounded-2xl text-slate-600 font-bold hover:bg-slate-100 transition-colors border border-slate-200">Batal</button>
                             <button 
                                 onClick={() => handleDeleteConfirm(wargaToDelete.id)} 
-                                className="flex-1 py-2.5 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all"
+                                className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-bold hover:bg-rose-600 shadow-xl shadow-rose-500/20 transition-all"
                             >
-                                Hapus
+                                Ya, Hapus
                             </button>
                         </div>
                     </div>

@@ -1,5 +1,6 @@
 
 import React, { ReactNode, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { XIcon } from './icons';
 
 interface ModalProps {
@@ -11,7 +12,7 @@ interface ModalProps {
 }
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
-  // Prevent scrolling on body when modal is open
+  // Mencegah body scrolling saat modal terbuka
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -30,42 +31,45 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
     lg: 'max-w-xl'
   }[size];
 
-  return (
-    <div className="fixed inset-0 z-[100] overflow-y-auto overflow-x-hidden">
-      {/* Overlay / Backdrop */}
+  // Menggunakan Portal agar modal berada di root DOM (di bawah body)
+  // Menghindari masalah 'transform' pada elemen induk yang merusak posisi fixed
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      {/* Backdrop dengan Blur */}
       <div 
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Modal Positioning Container */}
-      <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-        <div 
-          className={`relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full animate-slide-in-up ${sizeClass}`}
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-            <h3 className="text-lg font-bold text-slate-800 tracking-tight">
-              {title}
-            </h3>
-            <button 
-              onClick={onClose} 
-              className="group flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
-              aria-label="Tutup"
-            >
-              <XIcon className="text-xl group-hover:rotate-90 transition-transform duration-300" />
-            </button>
-          </div>
+      {/* Modal Card */}
+      <div 
+        className={`relative bg-white rounded-3xl shadow-2xl w-full ${sizeClass} max-h-full flex flex-col animate-slide-in-up transition-all overflow-hidden`}
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header - Tetap di Atas */}
+        <div className="flex-shrink-0 flex items-center justify-between border-b border-slate-100 px-6 py-5 bg-white/50 backdrop-blur-md">
+          <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">
+            {title}
+          </h3>
+          <button 
+            onClick={onClose} 
+            className="group flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all"
+            aria-label="Tutup"
+          >
+            <XIcon className="text-2xl group-hover:rotate-90 transition-transform duration-300" />
+          </button>
+        </div>
 
-          {/* Body with Internal Scroll if content is too tall */}
-          <div className="max-h-[80vh] overflow-y-auto p-6 custom-scrollbar">
-            {children}
-          </div>
+        {/* Body - Scrollable Secara Internal jika konten sangat panjang */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
+          {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
