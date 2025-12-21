@@ -50,15 +50,16 @@ let adminPassword = 'password';
 let transactions: Transaksi[] = [];
 let pengeluarans: Pengeluaran[] = [];
 
-// Store untuk Jadwal (Agar bisa diedit)
+// Store untuk Jadwal (Disesuaikan dengan tampilan UI)
+// 1: Rowosari, 2: Pencar, 3: Paten, 4: Adiloko
 let villageSchedule: Record<string, number[] | 'libur'> = { 
-    Senin: [1], 
-    Selasa: [2], 
-    Rabu: [3], 
-    Kamis: [4], 
+    Senin: [1, 2], 
+    Selasa: [3, 4], 
+    Rabu: [1, 2], 
+    Kamis: [3, 4], 
     Jumat: 'libur', 
-    Sabtu: [1], 
-    Minggu: [2] 
+    Sabtu: [1, 2], 
+    Minggu: [4, 3] 
 };
 
 // --- Dummy Data Generator ---
