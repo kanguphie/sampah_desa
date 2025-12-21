@@ -30,9 +30,11 @@ const AdminDashboardPage: React.FC = () => {
         const loadDashboardData = async () => {
             setLoading(true);
             try {
+                // 1. Ambil Statistik Utama
                 const dashboardStats = await getAdminDashboardStats();
                 setStats(dashboardStats);
 
+                // 2. Ambil Data 7 Hari Terakhir untuk Grafik
                 const end = new Date();
                 const start = new Date();
                 start.setDate(start.getDate() - 6);
@@ -42,20 +44,27 @@ const AdminDashboardPage: React.FC = () => {
                 const days = [];
                 for (let i = 0; i <= 6; i++) {
                     const d = new Date(start);
-                    d.setDate(d.getDate() + i);
+                    d.setDate(start.getDate() + i);
+                    
                     const dateStr = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-                    const total = reports
-                        .filter(r => new Date(r.timestamp).toDateString() === d.toDateString())
+                    
+                    // Bandingkan dengan format string toDateString untuk keamanan
+                    const dayTotal = reports
+                        .filter(r => {
+                            const rDate = new Date(r.timestamp);
+                            return rDate.toDateString() === d.toDateString();
+                        })
                         .reduce((sum, r) => sum + r.amount, 0);
-                    days.push({ name: dateStr, total });
+                        
+                    days.push({ name: dateStr, total: dayTotal });
                 }
                 setChartData(days);
 
-                // TRICK: Force a window resize event to trigger Recharts responsiveness
+                // 3. Trick: Recharts butuh waktu untuk kalkulasi layout
                 setTimeout(() => {
-                    window.dispatchEvent(new Event('resize'));
                     setIsChartReady(true);
-                }, 500);
+                    window.dispatchEvent(new Event('resize')); // Paksa hitung ulang dimensi
+                }, 800);
             } catch (err) {
                 console.error("Dashboard error:", err);
             } finally {
@@ -65,10 +74,11 @@ const AdminDashboardPage: React.FC = () => {
         loadDashboardData();
     }, []);
 
-    if (!stats && loading) return (
+    // Loader Utama Halaman
+    if (loading && !stats) return (
         <div className="h-96 flex flex-col items-center justify-center space-y-4">
             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <p className="font-bold text-slate-400 animate-pulse uppercase tracking-widest text-xs">Menyiapkan Dashboard...</p>
+            <p className="font-bold text-slate-400 animate-pulse uppercase tracking-widest text-xs">Menghubungkan ke Desa...</p>
         </div>
     );
 
@@ -77,11 +87,11 @@ const AdminDashboardPage: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight">Ringkasan Desa</h1>
-                    <p className="text-slate-500 font-medium">Layanan Sampah Pintar <span className="text-primary font-bold">Desa Rowosari</span></p>
+                    <p className="text-slate-500 font-medium">Layanan Digital <span className="text-primary font-bold">Desa Rowosari</span></p>
                 </div>
                 <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Sistem Online</span>
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">Sistem Aktif</span>
                 </div>
             </div>
 
@@ -112,7 +122,7 @@ const AdminDashboardPage: React.FC = () => {
                 />
             </div>
 
-            <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-200/60 shadow-sm relative min-h-[500px]">
+            <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-200/60 shadow-sm">
                 <div className="mb-10 flex flex-col sm:flex-row justify-between items-start gap-4">
                     <div>
                         <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
@@ -122,15 +132,19 @@ const AdminDashboardPage: React.FC = () => {
                         <p className="text-slate-400 text-sm font-medium uppercase tracking-widest mt-1">Laporan Aktivitas 7 Hari Terakhir</p>
                     </div>
                     <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#10b981]"></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
                         <span className="text-[10px] font-black text-slate-600 uppercase">Live Database</span>
                     </div>
                 </div>
                 
-                <div className="h-[400px] w-full flex items-center justify-center">
+                {/* 
+                    Kontainer harus memiliki tinggi tetap (height) secara eksplisit 
+                    agar ResponsiveContainer bisa menghitung lebarnya.
+                */}
+                <div className="w-full" style={{ height: '400px', minHeight: '400px' }}>
                     {isChartReady && chartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+                            <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis 
                                     dataKey="name" 
@@ -169,9 +183,9 @@ const AdminDashboardPage: React.FC = () => {
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-300 gap-4">
-                            <div className="w-10 h-10 border-4 border-slate-200 border-t-primary rounded-full animate-spin"></div>
-                            <p className="font-bold italic text-sm tracking-wide">Membangun Visualisasi Data...</p>
+                        <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
+                            <div className="w-12 h-12 border-4 border-slate-100 border-t-primary rounded-full animate-spin"></div>
+                            <p className="font-bold italic text-sm tracking-wide animate-pulse">Menyusun Visualisasi Grafik...</p>
                         </div>
                     )}
                 </div>

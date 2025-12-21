@@ -109,7 +109,8 @@ const AdminPengaturanPage: React.FC = () => {
         try {
             setLoading(true);
             const [scheduleData, dukuhData] = await Promise.all([getSchedule(), getAllDukuh()]);
-            setSchedule(scheduleData);
+            // Fix: Type casting to Schedule to avoid Record index signature mismatch
+            setSchedule(scheduleData as Schedule);
             setDukuhList(dukuhData);
         } catch (error) {
             console.error("Failed to fetch data", error);

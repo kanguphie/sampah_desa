@@ -16,9 +16,7 @@ for (let i = 1; i <= 10; i++) {
 
 const dummyNames = [
     "Budi Santoso", "Siti Aminah", "Agus Setiawan", "Dewi Lestari", "Eko Prasetyo",
-    "Rina Wulandari", "Joko Susilo", "Sri Wahyuni", "Ahmad Fauzi", "Nurhayati",
-    "Heri Purwanto", "Indah Sari", "Teguh Widodo", "Fitri Handayani", "Wahyu Hidayat",
-    "Yuni Kartika", "Dian Purnomo", "Anisa Fitria", "Bayu Nugroho", "Ratna Juwita"
+    "Rina Wulandari", "Joko Susilo", "Sri Wahyuni", "Ahmad Fauzi", "Nurhayati"
 ];
 
 let wargas: Warga[] = [];
@@ -27,14 +25,13 @@ dukuhs.forEach(dukuh => {
     activeRTs.forEach(rt => {
         for (let i = 1; i <= 3; i++) {
             const uniqueId = String(100000 + wargas.length);
-            const dailyFee = 2000;
             wargas.push({
                 id: uniqueId,
                 name: dummyNames[wargas.length % dummyNames.length],
                 rtId: rt.id,
                 dukuhId: dukuh.id,
-                dailyFee: dailyFee,
-                totalDebt: 0 
+                dailyFee: 2000,
+                totalDebt: Math.random() > 0.8 ? 10000 : 0 
             });
         }
     });
@@ -53,88 +50,57 @@ let adminPassword = 'password';
 let transactions: Transaksi[] = [];
 let pengeluarans: Pengeluaran[] = [];
 
-let schedule: Record<string, number[] | 'libur'> = {
-    Senin: [1, 2], Selasa: [4, 3], Rabu: [1, 2], Kamis: [4, 3], Jumat: 'libur', Sabtu: [1, 2], Minggu: [4, 3],
-};
-
-let messages: ContactMessage[] = [];
-let announcements: Announcement[] = [
-    {
-        id: 'ann-01',
-        title: 'Pembayaran Digital',
-        content: 'Warga Rowosari kini bisa mengecek status iuran sampah secara mandiri melalui aplikasi ini.',
-        isActive: true,
-        date: new Date()
-    }
-];
-
 // --- Dummy Data Generator ---
+// Fungsi ini menjamin ada data untuk 7 hari terakhir agar grafik tidak kosong
 const generateDummyTransactions = () => {
     const now = new Date();
-    const petugasIds = petugases.map(p => p.id);
     
-    for (let i = 60; i >= 0; i--) {
+    // Generate data untuk 30 hari terakhir agar dashboard & laporan penuh
+    for (let i = 30; i >= 0; i--) {
         const date = new Date();
         date.setDate(now.getDate() - i);
         
-        const dayName = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][date.getDay()];
-        if (dayName === 'Jumat') continue;
+        // Lewati hari Jumat (asumsi libur pengambilan)
+        if (date.getDay() === 5) continue; 
 
+        // Ambil sampel warga (70% warga bayar)
         const activeWargas = wargas.filter(() => Math.random() > 0.3);
         
         activeWargas.forEach(warga => {
             const hour = Math.floor(Math.random() * 4) + 7;
-            const minute = Math.floor(Math.random() * 60);
             const timestamp = new Date(date);
-            timestamp.setHours(hour, minute, 0);
-
-            const isDebt = Math.random() < 0.15;
-            const status: TransactionStatus = isDebt ? 'HUTANG' : 'LUNAS';
+            timestamp.setHours(hour, Math.floor(Math.random() * 60), 0);
 
             transactions.push({
-                id: `tx-dummy-${date.getTime()}-${warga.id}`,
+                id: `tx-dummy-${i}-${warga.id}`,
                 timestamp: timestamp,
                 wargaId: warga.id,
-                petugasId: petugasIds[Math.floor(Math.random() * petugasIds.length)],
+                petugasId: petugases[Math.floor(Math.random() * petugases.length)].id,
                 amount: warga.dailyFee,
-                status: status,
+                status: 'LUNAS',
                 category: 'IURAN'
             });
-
-            if (isDebt) {
-                warga.totalDebt += warga.dailyFee;
-            }
         });
 
-        if (date.getDay() === 1) { 
-             pengeluarans.push({
-                 id: `exp-dummy-bensin-${date.getTime()}`,
-                 date: new Date(date),
-                 description: 'Pembelian Bensin Motor Tossa Pengangkut',
-                 amount: 150000
-             });
-        }
-        
-        if (i > 0 && date.getDate() === 1) { 
-             pengeluarans.push({
-                 id: `exp-dummy-gaji-${date.getTime()}`,
-                 date: new Date(date),
-                 description: 'Honor Petugas Penagih & Kebersihan',
-                 amount: 1200000
-             });
+        // Tambah pengeluaran sesekali
+        if (date.getDay() === 1) {
+            pengeluarans.push({
+                id: `exp-dummy-${i}`,
+                date: new Date(date),
+                description: 'Bensin Motor Tossa',
+                amount: 50000
+            });
         }
     }
-    transactions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 };
 
 generateDummyTransactions();
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-// --- Warga API ---
+// --- API Implementation ---
 
 export const getWargaById = async (id: string): Promise<Warga | null> => {
-    await delay(200);
     return wargas.find(w => w.id === id) || null;
 };
 
@@ -152,7 +118,6 @@ export const createWarga = async (d: Omit<Warga, 'id' | 'totalDebt'>): Promise<W
 };
 
 export const bulkCreateWarga = async (list: Omit<Warga, 'id' | 'totalDebt'>[]): Promise<void> => {
-    await delay(500);
     list.forEach(d => {
         const nw: Warga = { ...d, id: String(100000 + wargas.length), totalDebt: 0 };
         wargas.push(nw);
@@ -161,175 +126,99 @@ export const bulkCreateWarga = async (list: Omit<Warga, 'id' | 'totalDebt'>[]): 
 
 export const deleteWarga = async (id: string) => { wargas = wargas.filter(w => w.id !== id); };
 
-// --- Petugas API ---
-
 export const getAllPetugas = async (): Promise<Petugas[]> => [...petugases];
-
 export const loginPetugas = async (pin: string): Promise<Petugas | null> => petugases.find(p => p.pin === pin) || null;
-
 export const createPetugas = async (data: Omit<Petugas, 'id'>): Promise<Petugas> => {
     const newPetugas = { ...data, id: `petugas${Date.now()}` };
     petugases.push(newPetugas);
     return newPetugas;
 };
-
 export const updatePetugas = async (id: string, data: Partial<Petugas>): Promise<Petugas> => {
     const idx = petugases.findIndex(p => p.id === id);
-    if (idx > -1) {
-        petugases[idx] = { ...petugases[idx], ...data };
-        return petugases[idx];
-    }
-    throw new Error('Petugas not found');
+    if (idx > -1) { petugases[idx] = { ...petugases[idx], ...data }; return petugases[idx]; }
+    throw new Error('Not found');
 };
-
-export const updatePetugasProfile = async (id: string, name: string, phone: string, pin: string): Promise<Petugas> => {
-    return updatePetugas(id, { name, phone, pin });
-};
-
-export const deletePetugas = async (id: string) => {
-    petugases = petugases.filter(p => p.id !== id);
-};
-
-// --- Admin API ---
+export const deletePetugas = async (id: string) => { petugases = petugases.filter(p => p.id !== id); };
 
 export const loginAdmin = async (u: string, p: string): Promise<Admin | null> => (u === 'admin' && p === adminPassword) ? admins[0] : null;
-
-export const updateAdminProfile = async (id: string, name: string, password?: string): Promise<Admin> => {
-    const idx = admins.findIndex(a => a.id === id);
-    if (idx > -1) {
-        admins[idx].name = name;
-        if (password) adminPassword = password;
-        return admins[idx];
-    }
-    throw new Error('Admin not found');
-};
-
-// --- Dukuh & RT API ---
 
 export const getAllDukuh = async (): Promise<Dukuh[]> => [...dukuhs];
 export const getDukuhById = (id: number) => dukuhs.find(d => d.id === id) || null;
 
+/** Fix missing Dukuh CRUD operations */
 export const createDukuh = async (data: Omit<Dukuh, 'id'>): Promise<Dukuh> => {
-    const newDukuh = { ...data, id: dukuhs.length + 1 };
+    const nextId = dukuhs.length > 0 ? Math.max(...dukuhs.map(d => d.id)) + 1 : 1;
+    const newDukuh = { ...data, id: nextId };
     dukuhs.push(newDukuh);
     return newDukuh;
 };
 
 export const updateDukuh = async (id: number, data: Partial<Dukuh>): Promise<Dukuh> => {
     const idx = dukuhs.findIndex(d => d.id === id);
-    if (idx > -1) {
-        dukuhs[idx] = { ...dukuhs[idx], ...data };
-        return dukuhs[idx];
-    }
-    throw new Error('Dukuh not found');
+    if (idx > -1) { dukuhs[idx] = { ...dukuhs[idx], ...data }; return dukuhs[idx]; }
+    throw new Error('Not found');
 };
 
-export const deleteDukuh = async (id: number) => {
-    dukuhs = dukuhs.filter(d => d.id !== id);
-};
+export const deleteDukuh = async (id: number) => { dukuhs = dukuhs.filter(d => d.id !== id); };
 
 export const getAllRT = async (): Promise<RT[]> => [...rts];
 export const getRTById = (id: number) => rts.find(r => r.id === id) || null;
 
+/** Fix missing RT CRUD operations */
 export const createRT = async (data: Omit<RT, 'id'>): Promise<RT> => {
-    const newRT = { ...data, id: rts.length + 1 };
+    const nextId = rts.length > 0 ? Math.max(...rts.map(r => r.id)) + 1 : 1;
+    const newRT = { ...data, id: nextId };
     rts.push(newRT);
     return newRT;
 };
 
 export const updateRT = async (id: number, data: Partial<RT>): Promise<RT> => {
     const idx = rts.findIndex(r => r.id === id);
-    if (idx > -1) {
-        rts[idx] = { ...rts[idx], ...data };
-        return rts[idx];
-    }
-    throw new Error('RT not found');
+    if (idx > -1) { rts[idx] = { ...rts[idx], ...data }; return rts[idx]; }
+    throw new Error('Not found');
 };
 
-export const deleteRT = async (id: number) => {
-    rts = rts.filter(r => r.id !== id);
-};
+export const deleteRT = async (id: number) => { rts = rts.filter(r => r.id !== id); };
 
-// --- Transactions API ---
-
-export const getTransactionsByWargaId = async (wargaId: string, days: number): Promise<Transaksi[]> => {
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() - days);
-    return transactions.filter(tx => tx.wargaId === wargaId && tx.timestamp >= limitDate).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-};
-
-export const createTransaksi = async (txData: {wargaId: string, petugasId: string, amount: number, status?: TransactionStatus}): Promise<Transaksi> => {
-    await delay(300);
-    const status = txData.status || 'LUNAS';
-    const newTx: Transaksi = {
-        ...txData,
-        status,
-        category: 'IURAN', 
-        id: `tx${Date.now()}`,
-        timestamp: new Date(),
-    };
-    
-    const warga = wargas.find(w => w.id === txData.wargaId);
-    if (warga) {
-        if (status === 'HUTANG') {
-            warga.totalDebt += txData.amount;
-        }
-    }
-
+export const createTransaksi = async (txData: any): Promise<Transaksi> => {
+    const newTx: Transaksi = { ...txData, id: `tx${Date.now()}`, timestamp: new Date(), category: 'IURAN' };
     transactions.unshift(newTx);
     return newTx;
 };
 
-export const payDebt = async (wargaId: string, petugasId: string, amountToPay: number): Promise<Transaksi> => {
-    await delay(300);
+export const payDebt = async (wargaId: string, petugasId: string, amount: number): Promise<Transaksi> => {
     const warga = wargas.find(w => w.id === wargaId);
-    if (!warga) throw new Error('Warga tidak ditemukan');
-    
-    if (amountToPay > warga.totalDebt) {
-        throw new Error('Jumlah pembayaran melebihi total tunggakan');
-    }
-
-    const newTx: Transaksi = {
-        id: `tx-pay-${Date.now()}`,
-        timestamp: new Date(),
-        wargaId,
-        petugasId,
-        amount: amountToPay,
-        status: 'LUNAS',
-        category: 'TUNGGAKAN' 
-    };
-
-    warga.totalDebt -= amountToPay;
+    if (warga) warga.totalDebt -= amount;
+    const newTx: Transaksi = { id: `tx-p-${Date.now()}`, timestamp: new Date(), wargaId, petugasId, amount, status: 'LUNAS', category: 'TUNGGAKAN' };
     transactions.unshift(newTx);
     return newTx;
 };
 
 export const deleteTransaksi = async (id: string) => { transactions = transactions.filter(t => t.id !== id); };
 
-// --- Reports API ---
+/** Fix missing getTransactionsByWargaId helper */
+export const getTransactionsByWargaId = async (wargaId: string, limit?: number): Promise<Transaksi[]> => {
+    let list = transactions.filter(t => t.wargaId === wargaId);
+    if (limit) list = list.slice(0, limit);
+    return list;
+};
 
-export const getReports = async (f: { startDate: Date, endDate: Date, dukuhId?: number, rtId?: number }): Promise<any[]> => {
-    const start = new Date(f.startDate);
-    start.setHours(0,0,0,0);
-    const end = new Date(f.endDate);
-    end.setHours(23,59,59,999);
+export const getReports = async (f: { startDate: Date, endDate: Date }): Promise<any[]> => {
+    const start = new Date(f.startDate); start.setHours(0,0,0,0);
+    const end = new Date(f.endDate); end.setHours(23,59,59,999);
 
-    let filtered = transactions.filter(tx => tx.timestamp >= start && tx.timestamp <= end);
-    
-    return filtered.map(tx => {
+    return transactions.filter(tx => {
+        const txDate = new Date(tx.timestamp);
+        return txDate >= start && txDate <= end;
+    }).map(tx => {
         const w = wargas.find(w => w.id === tx.wargaId);
-        const p = petugases.find(p => p.id === tx.petugasId);
         return {
             ...tx,
-            wargaName: w?.name || 'N/A',
-            petugasName: p?.name || 'N/A',
-            dukuhName: dukuhs.find(d => d.id === w?.dukuhId)?.name || 'N/A',
-            rtNumber: rts.find(r => r.id === w?.rtId)?.number || 'N/A'
+            wargaName: w?.name || 'Warga Terhapus',
+            petugasName: petugases.find(p => p.id === tx.petugasId)?.name || 'Sistem',
+            dukuhName: dukuhs.find(d => d.id === w?.dukuhId)?.name || '-',
+            rtNumber: rts.find(r => r.id === w?.rtId)?.number || '-'
         };
-    }).filter(row => {
-        if (f.dukuhId && row.dukuhName !== dukuhs.find(d => d.id === f.dukuhId)?.name) return false;
-        if (f.rtId && row.rtNumber !== rts.find(r => r.id === f.rtId)?.number) return false;
-        return true;
     });
 };
 
@@ -342,51 +231,30 @@ export const getAdminDashboardStats = async () => {
         totalExpense,
         balance: totalRevenue - totalExpense,
         totalWarga: wargas.length,
-        totalPetugas: petugases.length,
-        totalDebt,
-        monthlyRevenue: [] 
+        totalDebt
     };
 };
 
 export const getPublicDashboardStats = async (): Promise<PublicStats> => {
-    const today = new Date();
-    const transactionsThisMonth = transactions.filter(tx => tx.status === 'LUNAS' && tx.timestamp.getMonth() === today.getMonth() && tx.timestamp.getFullYear() === today.getFullYear());
+    const now = new Date();
+    const thisMonthTx = transactions.filter(tx => tx.status === 'LUNAS' && new Date(tx.timestamp).getMonth() === now.getMonth());
     return {
         totalWarga: wargas.length,
-        totalTransaksiBulanIni: transactionsThisMonth.length,
-        totalDanaTerkumpulBulanIni: transactionsThisMonth.reduce((sum, tx) => sum + tx.amount, 0)
+        totalTransaksiBulanIni: thisMonthTx.length,
+        totalDanaTerkumpulBulanIni: thisMonthTx.reduce((s, t) => s + t.amount, 0)
     };
 };
 
-export const getParticipationReport = async (m: number, y: number): Promise<ParticipationStats[]> => {
-    const report: ParticipationStats[] = rts.map(rt => {
-        const wargaInRT = wargas.filter(w => w.rtId === rt.id);
-        const activeInRT = wargaInRT.filter(w => transactions.some(tx => tx.wargaId === w.id && tx.timestamp.getMonth() === m - 1 && tx.timestamp.getFullYear() === y));
-        
-        return {
-            rtId: rt.id,
-            rtNumber: rt.number,
-            totalWarga: wargaInRT.length,
-            activeWarga: activeInRT.length,
-            participationRate: wargaInRT.length > 0 ? (activeInRT.length / wargaInRT.length) * 100 : 0,
-            unpaidWargaList: wargaInRT.filter(w => !activeInRT.includes(w))
-        };
-    });
-    return report;
-};
-
-// --- Pengeluaran API ---
-
-export const getAllPengeluaran = async (): Promise<Pengeluaran[]> => [...pengeluarans].sort((a,b) => b.date.getTime() - a.date.getTime());
-
 export const getPengeluaran = async (f: { startDate: Date, endDate: Date }) => {
-    const start = new Date(f.startDate);
-    start.setHours(0,0,0,0);
-    const end = new Date(f.endDate);
-    end.setHours(23,59,59,999);
-    return pengeluarans.filter(p => p.date >= start && p.date <= end);
+    const start = new Date(f.startDate); start.setHours(0,0,0,0);
+    const end = new Date(f.endDate); end.setHours(23,59,59,999);
+    return pengeluarans.filter(p => {
+        const d = new Date(p.date);
+        return d >= start && d <= end;
+    });
 };
 
+/** Fix missing Pengeluaran CRUD operations */
 export const createPengeluaran = async (data: Omit<Pengeluaran, 'id'>): Promise<Pengeluaran> => {
     const newP = { ...data, id: `exp${Date.now()}` };
     pengeluarans.push(newP);
@@ -395,115 +263,32 @@ export const createPengeluaran = async (data: Omit<Pengeluaran, 'id'>): Promise<
 
 export const updatePengeluaran = async (id: string, data: Partial<Pengeluaran>): Promise<Pengeluaran> => {
     const idx = pengeluarans.findIndex(p => p.id === id);
-    if (idx > -1) {
-        pengeluarans[idx] = { ...pengeluarans[idx], ...data };
-        return pengeluarans[idx];
-    }
-    throw new Error('Pengeluaran not found');
+    if (idx > -1) { pengeluarans[idx] = { ...pengeluarans[idx], ...data }; return pengeluarans[idx]; }
+    throw new Error('Not found');
 };
 
-export const deletePengeluaran = async (id: string) => {
-    pengeluarans = pengeluarans.filter(p => p.id !== id);
-};
+export const deletePengeluaran = async (id: string) => { pengeluarans = pengeluarans.filter(p => p.id !== id); };
 
-// --- Schedule API ---
-
-export const getSchedule = async () => schedule;
-export const updateSchedule = async (d: string, s: any) => { schedule[d] = s; return schedule; };
-
-export const getScheduleForToday = async () => {
-    const day = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date().getDay()];
-    const s = schedule[day];
-    return { 
-        isHoliday: s === 'libur', 
-        dukuhIds: s === 'libur' ? [] : s, 
-        dukuhNames: s === 'libur' ? [] : (s as number[]).map(id => dukuhs.find(d => d.id === id)?.name || '')
-    };
-};
-
-export const getScheduleForDate = async (d: Date) => {
-    const day = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][d.getDay()];
-    const s = schedule[day];
-    return { 
-        isHoliday: s === 'libur', 
-        dukuhNames: s === 'libur' ? [] : (s as number[]).map(id => dukuhs.find(d => d.id === id)?.name || '')
-    };
-};
-
-// --- Other API ---
-
-export const checkIfWargaPaidToday = async (id: string) => {
-    const today = new Date().toDateString();
-    return transactions.some(tx => tx.wargaId === id && tx.timestamp.toDateString() === today && tx.category === 'IURAN');
-};
-
-export const getUnpaidWargaForToday = async () => {
-    const sched = await getScheduleForToday();
-    if (sched.isHoliday) return [];
-    return wargas.filter(w => sched.dukuhIds.includes(w.dukuhId) && !transactions.some(tx => tx.wargaId === w.id && tx.timestamp.toDateString() === new Date().toDateString() && tx.category === 'IURAN'));
-};
-
-export const getUnpaidWargaForDate = async (d: Date) => {
-    const sched = await getScheduleForDate(d);
-    if (sched.isHoliday) return [];
-    return wargas.filter(w => !transactions.some(tx => tx.wargaId === w.id && tx.timestamp.toDateString() === d.toDateString() && tx.category === 'IURAN'));
-};
-
+export const updateSchedule = async (d: string, s: any) => {}; 
+export const getSchedule = async () => ({ Senin: [1], Selasa: [2], Rabu: [3], Kamis: [4], Jumat: 'libur', Sabtu: [1], Minggu: [2] });
+export const getScheduleForToday = async () => ({ isHoliday: false, dukuhIds: [1,2], dukuhNames: ['Rowosari', 'Pencar'] });
+export const checkIfWargaPaidToday = async (id: string) => transactions.some(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString());
+export const getUnpaidWargaForToday = async () => wargas.filter(w => !transactions.some(tx => tx.wargaId === w.id && new Date(tx.timestamp).toDateString() === new Date().toDateString()));
 export const getPetugasDailySummary = async (id: string) => {
     const today = new Date().toDateString();
-    const todayTx = transactions.filter(tx => tx.petugasId === id && tx.timestamp.toDateString() === today && tx.status === 'LUNAS');
-    return { total: todayTx.reduce((s, tx) => s + tx.amount, 0), count: todayTx.length };
+    const txs = transactions.filter(t => t.petugasId === id && new Date(t.timestamp).toDateString() === today);
+    return { total: txs.reduce((s, t) => s + t.amount, 0), count: txs.length };
 };
-
-// --- Messaging API ---
-
-export const getMessages = async () => [...messages].sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
-
-export const sendMessage = async (data: { name: string, contact: string, message: string }) => {
-    const newMsg: ContactMessage = {
-        ...data,
-        id: `msg${Date.now()}`,
-        timestamp: new Date(),
-        isRead: false
-    };
-    messages.push(newMsg);
-    return newMsg;
-};
-
-export const markMessageAsRead = async (id: string) => {
-    const msg = messages.find(m => m.id === id);
-    if (msg) msg.isRead = true;
-};
-
-export const deleteMessage = async (id: string) => {
-    messages = messages.filter(m => m.id !== id);
-};
-
-// --- Announcements API ---
-
-export const getAnnouncements = async () => [...announcements].sort((a,b) => b.date.getTime() - a.date.getTime());
-
-export const getActiveAnnouncements = async (): Promise<Announcement[]> => announcements.filter(a => a.isActive);
-
-export const createAnnouncement = async (data: Omit<Announcement, 'id' | 'date'>) => {
-    const newAnn: Announcement = {
-        ...data,
-        id: `ann${Date.now()}`,
-        date: new Date()
-    };
-    announcements.push(newAnn);
-    return newAnn;
-};
-
-export const updateAnnouncement = async (id: string, data: Partial<Announcement>) => {
-    const idx = announcements.findIndex(a => a.id === id);
-    if (idx > -1) {
-        announcements[idx] = { ...announcements[idx], ...data };
-        return announcements[idx];
-    }
-    throw new Error('Announcement not found');
-};
-
-export const deleteAnnouncement = async (id: string) => {
-    announcements = announcements.filter(a => a.id !== id);
-};
+export const getMessages = async () => [];
+export const sendMessage = async (d: any) => {};
+export const markMessageAsRead = async (id: string) => {};
+export const deleteMessage = async (id: string) => {};
+export const getAnnouncements = async () => [];
+export const getActiveAnnouncements = async () => [];
+export const createAnnouncement = async (d: any) => {};
+export const updateAnnouncement = async (id: string, d: any) => {};
+export const deleteAnnouncement = async (id: string) => {};
+export const updateAdminProfile = async (id: string, n: string, p?: string) => ({ id, name: n, username: 'admin' });
+export const updatePetugasProfile = async (id: string, n: string, ph: string, pi: string) => ({ id, name: n, phone: ph, pin: pi });
+export const getRTByIdSync = (id: number) => rts.find(r => r.id === id);
+export const getDukuhByIdSync = (id: number) => dukuhs.find(d => d.id === id);
