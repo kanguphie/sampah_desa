@@ -2,6 +2,7 @@
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PublicHomePage from './pages/public/PublicHomePage';
+import PublicReportPage from './pages/public/PublicReportPage';
 import TipsPage from './pages/public/TipsPage';
 import ContactPage from './pages/public/ContactPage';
 // import UnifiedLoginPage from './pages/auth/UnifiedLoginPage';
@@ -74,9 +75,9 @@ const App: React.FC = () => {
         <HashRouter>
             <Routes>
                 <Route path="/" element={<PublicHomePage />} />
+                <Route path="/laporan-publik" element={<PublicReportPage />} />
                 <Route path="/tips" element={<TipsPage />} />
                 <Route path="/contact" element={<ContactPage />} />
-                {/* <Route path="/login" element={<UnifiedLoginPage />} /> */}
                 <Route path="/petugas/*" element={<PetugasRoutes />} />
                 <Route path="/admin/*" element={<AdminRoutes />} />
             </Routes>

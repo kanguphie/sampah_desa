@@ -158,3 +158,8 @@ export const WifiOffIcon: React.FC<IconProps> = ({ className }) => (
 export const UserIcon: React.FC<IconProps> = ({ className }) => (
     <i className={`fa-solid fa-user ${className || ''}`}></i>
 );
+
+// Added ArrowLeftIcon to fix import error in PublicReportPage.tsx
+export const ArrowLeftIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-arrow-left ${className || ''}`}></i>
+);
