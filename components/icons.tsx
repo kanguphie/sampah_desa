@@ -20,7 +20,7 @@ export const CollectionIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 export const ChartBarIcon: React.FC<IconProps> = ({ className }) => (
-    <i className={`fa-solid fa-chart-bar ${className || ''}`}></i>
+    <i className={`fa-solid fa-chart-line ${className || ''}`}></i>
 );
 
 export const LogoutIcon: React.FC<IconProps> = ({ className }) => (
@@ -36,11 +36,11 @@ export const CheckCircleIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 export const TrashIcon: React.FC<IconProps> = ({ className }) => (
-    <i className={`fa-solid fa-trash ${className || ''}`}></i>
+    <i className={`fa-solid fa-trash-can ${className || ''}`}></i>
 );
 
 export const PencilIcon: React.FC<IconProps> = ({ className }) => (
-    <i className={`fa-solid fa-pencil ${className || ''}`}></i>
+    <i className={`fa-solid fa-pen-to-square ${className || ''}`}></i>
 );
 
 export const DatabaseIcon: React.FC<IconProps> = ({ className }) => (
@@ -64,11 +64,11 @@ export const SearchIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 export const UserCircleIcon: React.FC<IconProps> = ({ className }) => (
-  <i className={`fa-solid fa-user-circle ${className || ''}`}></i>
+  <i className={`fa-solid fa-circle-user ${className || ''}`}></i>
 );
 
 export const CurrencyDollarIcon: React.FC<IconProps> = ({ className }) => (
-    <i className={`fa-solid fa-dollar-sign ${className || ''}`}></i>
+    <i className={`fa-solid fa-money-bill-1-wave ${className || ''}`}></i>
 );
 
 export const ClipboardListIcon: React.FC<IconProps> = ({ className }) => (
@@ -84,7 +84,7 @@ export const LeafIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 export const SparklesIcon: React.FC<IconProps> = ({ className }) => (
-    <i className={`fa-solid fa-sparkles ${className || ''}`}></i>
+    <i className={`fa-solid fa-wand-magic-sparkles ${className || ''}`}></i>
 );
 
 export const ShoppingBagIcon: React.FC<IconProps> = ({ className }) => (
@@ -92,7 +92,7 @@ export const ShoppingBagIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 export const BanknotesIcon: React.FC<IconProps> = ({ className }) => (
-     <i className={`fa-solid fa-money-bill-wave ${className || ''}`}></i>
+     <i className={`fa-solid fa-money-bills ${className || ''}`}></i>
 );
 
 export const MenuIcon: React.FC<IconProps> = ({ className }) => (

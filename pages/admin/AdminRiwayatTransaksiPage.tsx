@@ -110,16 +110,16 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
                     @page { size: A4; margin: 1cm; }
                     body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
-                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 25px; }
-                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1; }
-                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 8px 0 0 0; text-transform: uppercase; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
+                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1.1; }
+                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 5px 0 0 0; text-transform: uppercase; }
                     .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 3px 0 0 0; text-transform: uppercase; }
                     .header-right { text-align: right; }
-                    .report-title { font-size: 12pt; font-weight: 800; text-transform: uppercase; }
-                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 5px; }
+                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
+                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
                     
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1.5px solid #e2e8f0; color: #475569; }
                     td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
                 </style>
             </head>
@@ -133,12 +133,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                     <div class="header-right">
                         <div class="report-title">Laporan Riwayat Transaksi</div>
                         <div class="print-date">PERIODE: ${filters.startDate} - ${filters.endDate}</div>
-                        <div class="print-date">DICETAK: ${new Date().toLocaleString('id-ID')}</div>
+                        <div class="print-date">WAKTU CETAK: ${new Date().toLocaleString('id-ID')}</div>
                     </div>
                 </div>
                 <table>
                     <thead><tr><th>Tanggal</th><th>Warga</th><th>Wilayah</th><th>Petugas</th><th style="text-align:right">Jumlah</th></tr></thead>
-                    <tbody>${rows}</tbody>
+                    <tbody>${rows || '<tr><td colspan="5" style="text-align:center; padding: 20px;">Tidak ditemukan data transaksi sesuai filter</td></tr>'}</tbody>
                 </table>
                 <script>window.onload=()=>{window.print();window.close();}</script>
             </body>
@@ -228,7 +228,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                     <td className="p-4 font-bold text-slate-700 group-hover:text-primary transition-colors">{tx.wargaName}</td>
                                     <td className="p-4 text-xs text-slate-500 font-medium">RT {tx.rtNumber}, {tx.dukuhName}</td>
                                     <td className="p-4 text-slate-600 font-medium text-[10px] uppercase tracking-wider">{tx.petugasName}</td>
-                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp${tx.amount.toLocaleString('id-ID')}</td>
+                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp{tx.amount.toLocaleString('id-ID')}</td>
                                     <td className="p-4 text-center">
                                         <button onClick={() => setTransactionToDelete(tx)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg transition-all" title="Hapus"><TrashIcon /></button>
                                     </td>

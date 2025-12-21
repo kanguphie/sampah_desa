@@ -30,64 +30,63 @@ const UnpaidReport: React.FC = () => {
             <head>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-                    @page { size: 100mm 210mm; margin: 1cm; }
+                    @page { size: 99mm 210mm; margin: 0.5cm; }
                     body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; background: white; }
                     
-                    .slip-container { border: 1px dashed #cbd5e1; padding: 15px; border-radius: 8px; }
+                    .slip-wrapper { border: 1.5px solid #0f172a; padding: 15px; border-radius: 4px; height: auto; }
                     
-                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1.5px solid #0f172a; padding-bottom: 10px; margin-bottom: 15px; }
-                    .header-left .logo { color: #10b981; font-size: 16pt; font-weight: 800; margin: 0; line-height: 1; }
-                    .header-left .sub-1 { font-size: 6.5pt; font-weight: 700; color: #1e293b; margin: 4px 0 0 0; text-transform: uppercase; }
-                    .header-left .sub-2 { font-size: 5.5pt; font-weight: 500; color: #64748b; margin: 2px 0 0 0; text-transform: uppercase; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
+                    .header-left .logo { color: #10b981; font-size: 14pt; font-weight: 800; margin: 0; line-height: 1; }
+                    .header-left .sub-1 { font-size: 6pt; font-weight: 700; color: #1e293b; margin: 3px 0 0 0; text-transform: uppercase; }
                     
                     .header-right { text-align: right; }
-                    .slip-title { font-size: 9pt; font-weight: 800; text-transform: uppercase; }
-                    .print-date { font-size: 6pt; color: #94a3b8; font-weight: 600; }
+                    .slip-title { font-size: 8pt; font-weight: 800; text-transform: uppercase; color: #1e293b; }
+                    .print-date { font-size: 5.5pt; color: #64748b; font-weight: 600; margin-top: 2px; }
                     
-                    .info-grid { margin: 15px 0; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 10px 0; }
-                    .info-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 8.5pt; }
-                    .label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 7pt; }
-                    .value { font-weight: 700; text-align: right; }
+                    .info-box { margin: 12px 0; border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0; padding: 8px 0; }
+                    .info-row { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 8.5pt; }
+                    .label { color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 6.5pt; }
+                    .value { font-weight: 800; text-align: right; color: #1e293b; }
                     
-                    .debt-section { background: #fff1f2; padding: 15px; border-radius: 8px; text-align: center; margin-top: 10px; }
-                    .debt-label { font-size: 7.5pt; font-weight: 800; color: #e11d48; text-transform: uppercase; margin-bottom: 4px; }
-                    .debt-amount { font-size: 20pt; font-weight: 900; color: #e11d48; }
+                    .debt-card { background: #fff1f2; padding: 12px; border-radius: 6px; text-align: center; margin-top: 10px; border: 1px solid #fecdd3; }
+                    .debt-label { font-size: 7pt; font-weight: 800; color: #e11d48; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px; }
+                    .debt-amount { font-size: 18pt; font-weight: 900; color: #e11d48; letter-spacing: -0.5px; }
                     
-                    .footer-text { font-size: 7.5pt; text-align: center; color: #64748b; margin-top: 15px; line-height: 1.4; font-style: italic; }
-                    .signature-box { display: flex; justify-content: space-between; margin-top: 25px; font-size: 8pt; }
-                    .sign { width: 40%; text-align: center; }
-                    .sign-line { margin-top: 35px; border-top: 1px solid #000; padding-top: 3px; font-weight: 800; }
+                    .footer-msg { font-size: 7pt; text-align: center; color: #475569; margin-top: 15px; line-height: 1.3; padding: 0 10px; }
+                    .sign-grid { display: flex; justify-content: space-between; margin-top: 30px; font-size: 7.5pt; padding: 0 10px; }
+                    .sign-item { width: 45%; text-align: center; }
+                    .sign-space { margin-top: 30px; border-top: 1px solid #000; padding-top: 2px; font-weight: 800; }
                 </style>
             </head>
             <body>
-                <div class="slip-container">
+                <div class="slip-wrapper">
                     <div class="header">
                         <div class="header-left">
                             <h1 class="logo">SAPADESA</h1>
-                            <p class="sub-1">PEMDES ROWOSARI, LIMPUNG, BATANG</p>
+                            <p class="sub-1">PEMDES ROWOSARI, BATANG</p>
                         </div>
                         <div class="header-right">
                             <div class="slip-title">SLIP TUNGGAKAN</div>
-                            <div class="print-date">DICETAK: ${new Date().toLocaleDateString('id-ID')}</div>
+                            <div class="print-date">${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</div>
                         </div>
                     </div>
 
-                    <div class="info-grid">
-                        <div class="info-row"><span class="label">ID WARGA:</span><span class="value">${w.id}</span></div>
-                        <div class="info-row"><span class="label">NAMA LENGKAP:</span><span class="value">${w.name}</span></div>
-                        <div class="info-row"><span class="label">WILAYAH:</span><span class="value">RT ${rtNum}, ${dukuhName}</span></div>
+                    <div class="info-box">
+                        <div class="info-row"><span class="label">ID WARGA</span><span class="value">${w.id}</span></div>
+                        <div class="info-row"><span class="label">NAMA LENGKAP</span><span class="value">${w.name}</span></div>
+                        <div class="info-row"><span class="label">WILAYAH</span><span class="value">RT ${rtNum}, ${dukuhName}</span></div>
                     </div>
 
-                    <div class="debt-section">
+                    <div class="debt-card">
                         <div class="debt-label">TOTAL TUNGGAKAN IURAN</div>
                         <div class="debt-amount">Rp${w.totalDebt.toLocaleString('id-ID')}</div>
                     </div>
 
-                    <p class="footer-text">Harap segera melakukan pelunasan tunggakan iuran kebersihan melalui petugas lapangan atau kantor desa Rowosari.</p>
+                    <p class="footer-msg">Slip ini merupakan catatan resmi tunggakan iuran kebersihan. Harap segera melunasi melalui petugas atau kantor desa.</p>
                     
-                    <div class="signature-box">
-                        <div class="sign"><p>Warga</p><div class="sign-line">${w.name}</div></div>
-                        <div class="sign"><p>Petugas</p><div class="sign-line">( .................... )</div></div>
+                    <div class="sign-grid">
+                        <div class="sign-item"><p>Warga</p><div class="sign-space">${w.name}</div></div>
+                        <div class="sign-item"><p>Petugas</p><div class="sign-space">( .................... )</div></div>
                     </div>
                 </div>
                 <script>window.onload=()=>{window.print();window.close();}</script>
@@ -113,9 +112,9 @@ const UnpaidReport: React.FC = () => {
                             <tr key={w.id} className="hover:bg-slate-50/50 transition-colors group">
                                 <td className="p-6">
                                     <p className="font-bold text-slate-800 text-base">{w.name}</p>
-                                    <p className="text-xs text-slate-500 font-medium font-mono">ID: ${w.id} • RT ${getRTById(w.rtId)?.number}, ${getDukuhById(w.dukuhId)?.name}</p>
+                                    <p className="text-xs text-slate-500 font-medium font-mono">ID: {w.id} • RT {getRTById(w.rtId)?.number}, {getDukuhById(w.dukuhId)?.name}</p>
                                 </td>
-                                <td className="p-6 text-right font-black text-rose-600 text-lg font-mono">Rp${w.totalDebt.toLocaleString('id-ID')}</td>
+                                <td className="p-6 text-right font-black text-rose-600 text-lg font-mono">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
                                 <td className="p-6 text-center">
                                     <button onClick={() => handlePrintSlip(w)} className="bg-slate-900 text-white hover:bg-black px-6 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mx-auto transition-all shadow-lg shadow-slate-900/10"><ClipboardListIcon className="text-sm" /> Cetak Slip Tunggakan</button>
                                 </td>

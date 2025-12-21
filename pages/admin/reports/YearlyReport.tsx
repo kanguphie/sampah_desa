@@ -58,19 +58,19 @@ const YearlyReport: React.FC = () => {
                     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
                     @page { size: A4; margin: 1cm; }
                     body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
-                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 25px; }
-                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1; }
-                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 8px 0 0 0; text-transform: uppercase; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
+                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1.1; }
+                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 5px 0 0 0; text-transform: uppercase; }
                     .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 3px 0 0 0; text-transform: uppercase; }
                     .header-right { text-align: right; }
-                    .report-title { font-size: 12pt; font-weight: 800; text-transform: uppercase; }
-                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 5px; }
+                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
+                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
                     
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1.5px solid #e2e8f0; color: #475569; }
                     td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
                     .total-box { display: flex; justify-content: flex-end; margin-top: 30px; }
-                    .total-line { display: flex; gap: 30px; font-weight: 800; font-size: 13pt; background: #10b981; color: white; padding: 15px 40px; border-radius: 8px; }
+                    .total-line { display: flex; gap: 40px; font-weight: 800; font-size: 13pt; background: #10b981; color: white; padding: 18px 45px; border-radius: 8px; }
                 </style>
             </head>
             <body>
@@ -83,7 +83,7 @@ const YearlyReport: React.FC = () => {
                     <div class="header-right">
                         <div class="report-title">Rekapitulasi Tahunan</div>
                         <div class="print-date">TAHUN ANGGARAN: ${year}</div>
-                        <div class="print-date">DICETAK: ${new Date().toLocaleString('id-ID')}</div>
+                        <div class="print-date">WAKTU CETAK: ${new Date().toLocaleString('id-ID')}</div>
                     </div>
                 </div>
                 <table>

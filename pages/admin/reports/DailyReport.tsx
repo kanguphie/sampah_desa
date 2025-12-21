@@ -49,20 +49,20 @@ const DailyReport: React.FC = () => {
                     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
                     @page { size: A4; margin: 1cm; }
                     body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
-                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 25px; }
-                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1; }
-                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 8px 0 0 0; text-transform: uppercase; letter-spacing: 0.5px; }
-                    .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 3px 0 0 0; text-transform: uppercase; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
+                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1.1; }
+                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 5px 0 0 0; text-transform: uppercase; letter-spacing: 0.2px; }
+                    .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 2px 0 0 0; text-transform: uppercase; }
                     .header-right { text-align: right; }
-                    .report-title { font-size: 12pt; font-weight: 800; text-transform: uppercase; color: #1e293b; }
-                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 5px; }
+                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
+                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
                     
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                    th { background: #f8fafc; text-align: left; padding: 10px; font-size: 8.5pt; text-transform: uppercase; color: #475569; border-bottom: 1px solid #e2e8f0; }
+                    th { background: #f8fafc; text-align: left; padding: 10px; font-size: 8.5pt; text-transform: uppercase; color: #475569; border-bottom: 1.5px solid #e2e8f0; }
                     td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
-                    .section-title { font-size: 11pt; font-weight: 800; margin-top: 25px; border-left: 4px solid #10b981; padding-left: 10px; color: #1e293b; }
-                    .summary-box { display: flex; justify-content: flex-end; margin-top: 20px; }
-                    .total-line { display: flex; gap: 30px; font-weight: 800; font-size: 11pt; background: #f8fafc; padding: 15px; border-radius: 8px; }
+                    .section-title { font-size: 11pt; font-weight: 800; margin-top: 25px; border-left: 5px solid #10b981; padding-left: 10px; color: #1e293b; text-transform: uppercase; }
+                    .summary-box { display: flex; justify-content: flex-end; margin-top: 25px; }
+                    .total-line { display: flex; gap: 40px; font-weight: 800; font-size: 12pt; background: #f8fafc; padding: 15px 25px; border-radius: 8px; border: 1px solid #e2e8f0; }
                 </style>
             </head>
             <body>
@@ -74,26 +74,26 @@ const DailyReport: React.FC = () => {
                     </div>
                     <div class="header-right">
                         <div class="report-title">Laporan Harian</div>
-                        <div class="print-date">TANGGAL: ${new Date(date).toLocaleDateString('id-ID', {dateStyle:'long'})}</div>
-                        <div class="print-date">DICETAK: ${new Date().toLocaleString('id-ID')}</div>
+                        <div class="print-date">TGL LAPORAN: ${new Date(date).toLocaleDateString('id-ID', {dateStyle:'long'})}</div>
+                        <div class="print-date">WAKTU CETAK: ${new Date().toLocaleString('id-ID')}</div>
                     </div>
                 </div>
 
-                <div class="section-title">RINCIAN PEMASUKAN</div>
+                <div class="section-title">RINCIAN PEMASUKAN IURAN</div>
                 <table>
-                    <thead><tr><th width="15%">Waktu</th><th>Warga / Wilayah</th><th style="text-align:right">Nominal</th></tr></thead>
-                    <tbody>${incomeRows || '<tr><td colspan="3" style="text-align:center">Tidak ada transaksi</td></tr>'}</tbody>
+                    <thead><tr><th width="15%">Waktu</th><th>Nama Warga / Wilayah</th><th style="text-align:right">Nominal</th></tr></thead>
+                    <tbody>${incomeRows || '<tr><td colspan="3" style="text-align:center; padding: 20px;">Tidak ada transaksi hari ini</td></tr>'}</tbody>
                 </table>
 
-                <div class="section-title">RINCIAN PENGELUARAN</div>
+                <div class="section-title">RINCIAN PENGELUARAN KAS</div>
                 <table>
-                    <thead><tr><th width="15%">Waktu</th><th>Keperluan</th><th style="text-align:right">Nominal</th></tr></thead>
-                    <tbody>${expenseRows || '<tr><td colspan="3" style="text-align:center">Tidak ada pengeluaran</td></tr>'}</tbody>
+                    <thead><tr><th width="15%">Waktu</th><th>Deskripsi Keperluan</th><th style="text-align:right">Nominal</th></tr></thead>
+                    <tbody>${expenseRows || '<tr><td colspan="3" style="text-align:center; padding: 20px;">Tidak ada catatan pengeluaran</td></tr>'}</tbody>
                 </table>
 
                 <div class="summary-box">
                     <div class="total-line">
-                        <span>SALDO NETTO HARI INI</span>
+                        <span>TOTAL SALDO NETTO</span>
                         <span style="color: #10b981;">Rp${(reports.reduce((s,i)=>s+i.amount,0) - expenses.reduce((s,i)=>s+i.amount,0)).toLocaleString('id-ID')}</span>
                     </div>
                 </div>
@@ -130,10 +130,10 @@ const DailyReport: React.FC = () => {
                                 <td className="p-5 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
                                 <td className="p-5">
                                     <p className="font-bold text-slate-700">{r.wargaName}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT ${r.rtNumber}, ${r.dukuhName}</p>
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT {r.rtNumber}, {r.dukuhName}</p>
                                 </td>
                                 <td className="p-5 text-slate-500 font-medium">{r.petugasName}</td>
-                                <td className="p-5 text-right font-bold text-emerald-600">Rp${r.amount.toLocaleString('id-ID')}</td>
+                                <td className="p-5 text-right font-bold text-emerald-600">Rp{r.amount.toLocaleString('id-ID')}</td>
                             </tr>
                         ))}
                     </tbody>

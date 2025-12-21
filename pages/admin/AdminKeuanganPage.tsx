@@ -79,9 +79,42 @@ const AdminKeuanganPage: React.FC = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         const rows = filtered.map(p => `<tr><td>${new Date(p.date).toLocaleDateString('id-ID')}</td><td>${p.description}</td><td style="text-align:right">Rp${p.amount.toLocaleString('id-ID')}</td></tr>`).join('');
-        printWindow.document.write(`<html><head><style>body{font-family:'Plus Jakarta Sans',sans-serif;padding:50px;color:#1e293b;} .kop{text-align:center;border-bottom:3px double #10b981;margin-bottom:30px;padding-bottom:15px;} h1{color:#10b981;margin:0;font-size:24pt;} .meta{display:flex;justify-content:space-between;margin-bottom:20px;font-size:10pt;font-weight:bold;color:#64748b;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #e2e8f0;padding:12px;text-align:left;font-size:10pt;} th{background:#f8fafc;color:#475569;text-transform:uppercase;font-size:9pt;letter-spacing:1px;}</style></head><body><div class="kop"><h1>SAPADESA</h1><p>ROWOSARI • LIMPUNG • BATANG</p></div><div class="meta"><span>LAPORAN PENGELUARAN KAS</span><span>DICETAK: ${new Date().toLocaleString('id-ID')}</span></div><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Nominal</th></tr></thead><tbody>${rows || '<tr><td colspan="3" style="text-align:center">Tidak ada catatan pengeluaran</td></tr>'}</tbody></table></body></html>`);
+        printWindow.document.write(`
+            <html>
+            <head>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+                    @page { size: A4; margin: 1cm; }
+                    body { font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; margin: 0; padding: 0; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 25px; }
+                    .header-left .logo { color: #10b981; font-size: 24pt; font-weight: 800; margin: 0; line-height: 1.1; }
+                    .header-left .sub-1 { font-size: 9pt; font-weight: 700; color: #1e293b; margin: 5px 0 0 0; text-transform: uppercase; }
+                    .header-left .sub-2 { font-size: 7.5pt; font-weight: 500; color: #64748b; margin: 3px 0 0 0; text-transform: uppercase; }
+                    .header-right { text-align: right; }
+                    .report-title { font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
+                    .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1.5px solid #e2e8f0; color: #475569; }
+                    td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="header-left">
+                        <h1 class="logo">SAPADESA</h1>
+                        <p class="sub-1">PENGELOLAAN SAMPAH DESA ROWOSARI, BATANG</p>
+                        <p class="sub-2">SEKRETARIAT: KANTOR DESA ROWOSARI, JAWA TENGAH 51271</p>
+                    </div>
+                    <div class="header-right">
+                        <div class="report-title">Laporan Pengeluaran Kas</div>
+                        <div class="print-date">DICETAK PADA: ${new Date().toLocaleString('id-ID')}</div>
+                    </div>
+                </div>
+                <table><thead><tr><th>Tanggal</th><th>Keterangan Keperluan</th><th style="text-align:right">Nominal</th></tr></thead><tbody>${rows || '<tr><td colspan="3" style="text-align:center">Tidak ada catatan pengeluaran</td></tr>'}</tbody></table>
+                <script>window.onload=()=>{window.print();window.close();}</script>
+            </body>
+            </html>`);
         printWindow.document.close();
-        printWindow.print();
     };
 
     return (
