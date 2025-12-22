@@ -14,54 +14,62 @@ const loadFromStorage = () => {
 };
 
 // --- INITIAL STATE / MOCK DATA ---
-const initialState = {
-    dukuhs: [
-        { id: 1, name: 'Rowosari' },
-        { id: 2, name: 'Pencar' },
-        { id: 3, name: 'Paten' },
-        { id: 4, name: 'Adiloko' },
-    ],
-    rts: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, number: (i + 1).toString().padStart(2, '0') })),
-    wargas: [] as Warga[],
-    petugases: [
-        { id: 'petugas01', name: 'Agus', phone: '081234567890', pin: '1234' },
-        { id: 'petugas02', name: 'Bambang', phone: '081234567891', pin: '5678' },
-    ],
-    admins: [{ id: 'admin01', username: 'admin', name: 'Admin Desa' }],
-    transactions: [] as Transaksi[],
-    pengeluarans: [] as Pengeluaran[],
-    schedule: { 
-        Senin: [1, 2], 
-        Selasa: [3, 4], 
-        Rabu: [1, 2], 
-        Kamis: [3, 4], 
-        Jumat: 'libur', 
-        Sabtu: [1, 2], 
-        Minggu: [4, 3] 
-    }
-};
+const createInitialData = () => {
+    const data = {
+        dukuhs: [
+            { id: 1, name: 'Rowosari' },
+            { id: 2, name: 'Pencar' },
+            { id: 3, name: 'Paten' },
+            { id: 4, name: 'Adiloko' },
+        ],
+        rts: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, number: (i + 1).toString().padStart(2, '0') })),
+        wargas: [] as Warga[],
+        petugases: [
+            { id: 'petugas01', name: 'Agus', phone: '081234567890', pin: '1234' },
+            { id: 'petugas02', name: 'Bambang', phone: '081234567891', pin: '5678' },
+        ],
+        admins: [{ id: 'admin01', username: 'admin', name: 'Admin Desa' }],
+        transactions: [] as Transaksi[],
+        pengeluarans: [] as Pengeluaran[],
+        schedule: { 
+            Senin: [1, 2], Selasa: [3, 4], Rabu: [1, 2], Kamis: [3, 4], Jumat: 'libur', Sabtu: [1, 2], Minggu: [4, 3] 
+        }
+    };
 
-// Initialize Wargas if not exists
-if (initialState.wargas.length === 0) {
     const dummyNames = ["Budi Santoso", "Siti Aminah", "Agus Setiawan", "Dewi Lestari", "Eko Prasetyo", "Rina Wulandari", "Joko Susilo"];
-    initialState.dukuhs.forEach(dukuh => {
-        initialState.rts.slice(0, 3).forEach(rt => {
+    
+    data.dukuhs.forEach(dukuh => {
+        data.rts.slice(0, 3).forEach(rt => {
             for (let i = 0; i < 2; i++) {
-                initialState.wargas.push({
-                    id: String(100000 + initialState.wargas.length),
-                    name: dummyNames[initialState.wargas.length % dummyNames.length],
+                const id = String(100000 + data.wargas.length);
+                const name = dummyNames[data.wargas.length % dummyNames.length];
+                
+                // BERIKAN TUNGGAKAN PADA ID TERTENTU UNTUK TESTING
+                let debt = 0;
+                if (id === '100001') debt = 2000;  // Siti Aminah
+                if (id === '100003') debt = 6000;  // Dewi Lestari
+                if (id === '100005') debt = 10000; // Rina Wulandari
+                
+                data.wargas.push({
+                    id: id,
+                    name: name,
                     rtId: rt.id,
                     dukuhId: dukuh.id,
                     dailyFee: 2000,
-                    totalDebt: 0
+                    totalDebt: debt
                 });
             }
         });
     });
-}
+    return data;
+};
 
 // Load data or set default
-let db = loadFromStorage() || initialState;
+let db = loadFromStorage();
+if (!db || db.wargas.length === 0) {
+    db = createInitialData();
+    saveToStorage(db);
+}
 
 // --- API Implementation ---
 
@@ -80,32 +88,23 @@ export const getAllWarga = async (): Promise<Warga[]> => [...db.wargas];
 
 export const createTransaksi = async (txData: any): Promise<Transaksi> => {
     const newTx: Transaksi = { ...txData, id: `tx${Date.now()}`, timestamp: new Date(), category: 'IURAN' };
-    
-    // Update total debt if status is HUTANG
     if (txData.status === 'HUTANG') {
         const warga = db.wargas.find(w => w.id === txData.wargaId);
-        if (warga) {
-            warga.totalDebt += txData.amount;
-        }
+        if (warga) warga.totalDebt += txData.amount;
     }
-    
     db.transactions.unshift(newTx);
     saveToStorage(db);
     return newTx;
 };
 
-// Fungsi baru untuk memperbarui status transaksi (Hutang ke Lunas)
 export const convertDebtToPaidToday = async (wargaId: string) => {
     const today = new Date().toDateString();
     const tx = db.transactions.find(t => t.wargaId === wargaId && new Date(t.timestamp).toDateString() === today && t.status === 'HUTANG');
-    
     if (tx) {
         const warga = db.wargas.find(w => w.id === wargaId);
-        if (warga) {
-            warga.totalDebt = Math.max(0, warga.totalDebt - tx.amount); // Kurangi tunggakan yang tadi ditambah
-        }
+        if (warga) warga.totalDebt = Math.max(0, warga.totalDebt - tx.amount);
         tx.status = 'LUNAS';
-        tx.timestamp = new Date(); // Update waktu bayar
+        tx.timestamp = new Date();
         saveToStorage(db);
         return tx;
     }
@@ -151,13 +150,7 @@ export const getAdminDashboardStats = async () => {
     const totalRevenue = db.transactions.filter(tx => tx.status === 'LUNAS').reduce((sum, tx) => sum + tx.amount, 0);
     const totalDebt = db.wargas.reduce((sum, w) => sum + (w.totalDebt || 0), 0);
     const totalExpense = db.pengeluarans.reduce((sum, p) => sum + p.amount, 0);
-    return {
-        totalRevenue,
-        totalExpense,
-        balance: totalRevenue - totalExpense,
-        totalWarga: db.wargas.length,
-        totalDebt
-    };
+    return { totalRevenue, totalExpense, balance: totalRevenue - totalExpense, totalWarga: db.wargas.length, totalDebt };
 };
 
 export const getSchedule = async () => ({ ...db.schedule });
@@ -176,11 +169,9 @@ export const getScheduleForToday = async () => {
     return { isHoliday: false, dukuhIds: todaySched, dukuhNames };
 };
 
-// Cek hanya jika sudah lunas
 export const checkIfWargaPaidToday = async (id: string) => 
     db.transactions.some(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString() && tx.status === 'LUNAS');
 
-// Ambil transaksi hari ini untuk melihat statusnya (LUNAS/HUTANG)
 export const getWargaTodayTransaction = async (id: string) => 
     db.transactions.find(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString());
 
@@ -188,9 +179,7 @@ export const getUnpaidWargaForToday = async () => db.wargas.filter(w => !db.tran
 
 export const getActiveAnnouncements = async () => [];
 export const getPublicDashboardStats = async (): Promise<PublicStats> => ({
-    totalWarga: db.wargas.length,
-    totalTransaksiBulanIni: db.transactions.length,
-    totalDanaTerkumpulBulanIni: db.transactions.reduce((s, t) => s + t.amount, 0)
+    totalWarga: db.wargas.length, totalTransaksiBulanIni: db.transactions.length, totalDanaTerkumpulBulanIni: db.transactions.reduce((s, t) => s + t.amount, 0)
 });
 export const getTransactionsByWargaId = async (id: string, limit?: number) => db.transactions.filter(t => t.wargaId === id).slice(0, limit);
 export const getPengeluaran = async (f: any) => db.pengeluarans;
@@ -200,10 +189,7 @@ export const getPetugasDailySummary = async (id: string) => {
 };
 export const getDetailedPublicTransparency = async (year: number) => ({
     dukuhStats: db.dukuhs.map(d => ({ name: d.name, total: 0 })),
-    monthlyStats: [],
-    totalRevenue: 0,
-    totalExpense: 0,
-    balance: 0
+    monthlyStats: [], totalRevenue: 0, totalExpense: 0, balance: 0
 });
 export const updateAdminProfile = async (id: any, n: any, p: any) => db.admins[0];
 export const updatePetugasProfile = async (id: any, n: any, ph: any, pi: any) => db.petugases[0];

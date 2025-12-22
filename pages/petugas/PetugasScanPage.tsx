@@ -195,8 +195,9 @@ const PetugasScanPage: FC = () => {
     // LOGIKA TAMPILAN KEUANGAN
     const isTodayDebt = todayTx?.status === 'HUTANG';
     const isTodayPaid = todayTx?.status === 'LUNAS';
+    const hasDebt = warga ? warga.totalDebt > 0 : false;
     
-    // Iuran rutin tampil 0 jika sudah tercatat (baik lunas maupun hutang hari ini)
+    // Iuran rutin tampil 0 jika hari ini sudah tercatat (baik lunas maupun hutang hari ini)
     const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
     
     // Total Bayar Semua (Hari ini + Hutang lama)
@@ -254,9 +255,9 @@ const PetugasScanPage: FC = () => {
                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Iuran Rutin</p>
                             <p className="text-xl font-black text-slate-800">Rp{displayedDailyFee.toLocaleString('id-ID')}</p>
                         </div>
-                        <div className={`p-4 rounded-2xl border text-center transition-all ${warga.totalDebt > 0 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                        <div className={`p-4 rounded-2xl border text-center transition-all ${hasDebt ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
                             <p className="text-[8px] font-black uppercase tracking-widest mb-1">Tunggakan</p>
-                            <p className="text-xl font-black">Rp{warga.totalDebt.toLocaleString('id-ID')}</p>
+                            <p className="text-xl font-black">Rp{(warga.totalDebt || 0).toLocaleString('id-ID')}</p>
                         </div>
                     </div>
 
@@ -291,22 +292,22 @@ const PetugasScanPage: FC = () => {
                                 </button>
                             )}
 
-                            {/* 2. AKSI ALTERNATIF: JADIKAN TUNGGAKAN (Hanya jika belum tercatat apa-apa hari ini) */}
-                            {!todayTx && (
+                            {/* 2. AKSI ALTERNATIF: JADIKAN TUNGGAKAN (Prioritas Kedua) */}
+                            {!isTodayPaid && !isTodayDebt && (
                                 <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <ClockIcon /> Jadikan Tunggakan (Nanti)
                                 </button>
                             )}
 
-                            {/* 3. AKSI PRIORITAS TUNGGAKAN: CICIL (Hanya muncul jika ada hutang) */}
-                            {warga.totalDebt > 0 && (
+                            {/* 3. AKSI PRIORITAS TUNGGAKAN: CICIL (Hanya jika ada tunggakan) */}
+                            {hasDebt && (
                                 <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <BanknotesIcon /> Cicil Tunggakan
                                 </button>
                             )}
 
-                            {/* 4. OPSI TERAKHIR: BAYAR BORONGAN (Hanya jika ada hutang & belum lunas hari ini) */}
-                            {warga.totalDebt > 0 && !isTodayPaid && (
+                            {/* 4. OPSI TERAKHIR: BAYAR BORONGAN (Hanya jika ada tunggakan & iuran hari ini belum lunas) */}
+                            {hasDebt && !isTodayPaid && (
                                 <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-white border-2 border-slate-800 text-slate-800 font-black py-4 rounded-2xl hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5">
                                     <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
                                         <CheckCircleIcon className="text-slate-400" /> Bayar Borongan
@@ -315,14 +316,14 @@ const PetugasScanPage: FC = () => {
                                 </button>
                             )}
 
-                            {/* INFO STATUS HARI INI (Jika sudah dicatat hutang) */}
+                            {/* INFO STATUS HARI INI */}
                             {isTodayDebt && (
                                 <div className="mt-4 p-3 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-center gap-3">
                                      <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
                                         <i className="fa-solid fa-triangle-exclamation text-amber-600 text-xs"></i>
                                      </div>
                                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest text-left leading-tight">
-                                        Iuran Hari Ini Menjadi Hutang<br/><span className="text-amber-500 opacity-70">Gunakan tombol borongan untuk lunas</span>
+                                        Iuran Hari Ini Menjadi Tunggakan<br/><span className="text-amber-500 opacity-70">Gunakan tombol borongan untuk lunas</span>
                                      </p>
                                 </div>
                             )}
