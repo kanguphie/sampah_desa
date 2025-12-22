@@ -171,19 +171,14 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            // Logika baru untuk mencegah iuran ganda:
             if (todayTx?.status === 'HUTANG') {
-                // Jika sudah tercatat hutang hari ini, lunasinya lewat fungsi konversi (agar mengurangi tunggakan)
                 await convertDebtToPaidToday(warga.id);
-                // Jika masih ada sisa tunggakan lama (totalDebt - dailyFee), lunasi sisanya
                 const oldDebt = warga.totalDebt - warga.dailyFee;
                 if (oldDebt > 0) {
                     await payDebt(warga.id, petugas.id, oldDebt);
                 }
             } else {
-                // Jika belum tercatat transaksi hari ini
                 await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS' });
-                // Jika ada tunggakan lama, lunasi semuanya
                 if (warga.totalDebt > 0) {
                     await payDebt(warga.id, petugas.id, warga.totalDebt);
                 }
@@ -197,8 +192,15 @@ const PetugasScanPage: FC = () => {
         finally { setLoading(false); }
     }
 
-    // Perbaikan perhitungan nominal borongan agar tidak double count
-    const bulkAmount = warga ? (todayTx?.status === 'HUTANG' ? warga.totalDebt : warga.dailyFee + warga.totalDebt) : 0;
+    // LOGIKA TAMPILAN KEUANGAN
+    const isTodayDebt = todayTx?.status === 'HUTANG';
+    const isTodayPaid = todayTx?.status === 'LUNAS';
+    
+    // Iuran rutin tampil 0 jika sudah tercatat (baik lunas maupun hutang hari ini)
+    const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
+    
+    // Total Bayar Semua (Hari ini + Hutang lama)
+    const bulkAmount = warga ? (isTodayDebt ? warga.totalDebt : warga.dailyFee + warga.totalDebt) : 0;
 
     return (
         <div className="flex-grow p-4 max-w-md mx-auto w-full">
@@ -248,11 +250,11 @@ const PetugasScanPage: FC = () => {
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                        <div className={`p-4 rounded-2xl border text-center transition-all ${displayedDailyFee > 0 ? 'bg-slate-50 border-slate-100' : 'bg-slate-100/50 border-slate-200 opacity-60'}`}>
                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Iuran Rutin</p>
-                            <p className="text-xl font-black text-slate-800">Rp{warga.dailyFee.toLocaleString('id-ID')}</p>
+                            <p className="text-xl font-black text-slate-800">Rp{displayedDailyFee.toLocaleString('id-ID')}</p>
                         </div>
-                        <div className={`p-4 rounded-2xl border text-center ${warga.totalDebt > 0 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                        <div className={`p-4 rounded-2xl border text-center transition-all ${warga.totalDebt > 0 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
                             <p className="text-[8px] font-black uppercase tracking-widest mb-1">Tunggakan</p>
                             <p className="text-xl font-black">Rp{warga.totalDebt.toLocaleString('id-ID')}</p>
                         </div>
@@ -261,65 +263,71 @@ const PetugasScanPage: FC = () => {
                     {isPayingDebt ? (
                         <div className="space-y-4 animate-fade-in">
                             <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Bayar</label>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Cicilan</label>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
-                                    <input type="text" inputMode="numeric" value={debtInput.toLocaleString('id-ID')} onChange={(e) => setDebtInput(Number(e.target.value.replace(/\D/g, '')))} placeholder="0" className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary" autoFocus />
+                                    <input type="text" inputMode="numeric" value={debtInput === '' ? '' : debtInput.toLocaleString('id-ID')} onChange={(e) => setDebtInput(Number(e.target.value.replace(/\D/g, '')))} placeholder="0" className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary" autoFocus />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 mt-4">
                                     <button onClick={() => setIsPayingDebt(false)} className="py-3 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 text-xs">Batal</button>
-                                    <button onClick={() => handlePayDebt(Number(debtInput))} disabled={loading || !debtInput} className="py-3 rounded-xl font-bold bg-primary text-white text-xs">Bayar Hutang</button>
+                                    <button onClick={() => handlePayDebt(Number(debtInput))} disabled={loading || !debtInput} className="py-3 rounded-xl font-bold bg-primary text-white text-xs">Simpan Cicilan</button>
                                 </div>
                             </div>
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {bulkAmount > 0 && todayTx?.status !== 'LUNAS' && (
-                                <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-1">
-                                    <div className="flex items-center gap-2 text-sm uppercase tracking-widest">
-                                        <BanknotesIcon className="text-emerald-400" /> Bayar Borongan
-                                    </div>
-                                    <span className="text-[10px] font-bold text-slate-400">Total: Rp{bulkAmount.toLocaleString('id-ID')}</span>
-                                </button>
-                            )}
-
-                            {/* Tombol Lunas Harian */}
-                            {todayTx?.status === 'LUNAS' ? (
+                            {/* 1. AKSI UTAMA: BAYAR / LUNASI HARI INI */}
+                            {isTodayPaid ? (
                                 <div className="w-full bg-emerald-100 text-emerald-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-sm uppercase tracking-widest border border-emerald-200">
-                                    <CheckCircleIcon /> Sudah Tercatat Lunas
+                                    <CheckCircleIcon /> Sudah Lunas Hari Ini
                                 </div>
-                            ) : todayTx?.status === 'HUTANG' ? (
-                                <button onClick={handleSettleTodayDebt} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest animate-pulse">
+                            ) : isTodayDebt ? (
+                                <button onClick={handleSettleTodayDebt} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <CheckCircleIcon /> Lunasi Iuran Hari Ini
                                 </button>
                             ) : (
-                                <button onClick={() => handleSavePayment('LUNAS')} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                    <CheckCircleIcon /> Bayar Iuran Rutin
-                                </button>
-                            )}
-                            
-                            {/* Tombol Catat Hutang (Hanya jika belum ada transaksi hari ini) */}
-                            {!todayTx && (
-                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all text-xs uppercase tracking-widest">
-                                    Bayar Nanti / Catat Hutang
+                                <button onClick={() => handleSavePayment('LUNAS')} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                    <CheckCircleIcon /> Bayar Iuran Hari Ini
                                 </button>
                             )}
 
-                            {/* Label jika sudah dicatat hutang */}
-                            {todayTx?.status === 'HUTANG' && (
-                                <div className="text-center p-2 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-center gap-2">
-                                     <i className="fa-solid fa-triangle-exclamation text-amber-600 text-[10px]"></i>
-                                     <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Tercatat Sebagai Hutang Hari Ini</p>
+                            {/* 2. AKSI ALTERNATIF: JADIKAN TUNGGAKAN (Hanya jika belum tercatat apa-apa hari ini) */}
+                            {!todayTx && (
+                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                    <ClockIcon /> Jadikan Tunggakan (Nanti)
+                                </button>
+                            )}
+
+                            {/* 3. AKSI PRIORITAS TUNGGAKAN: CICIL (Hanya muncul jika ada hutang) */}
+                            {warga.totalDebt > 0 && (
+                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                    <BanknotesIcon /> Cicil Tunggakan
+                                </button>
+                            )}
+
+                            {/* 4. OPSI TERAKHIR: BAYAR BORONGAN (Hanya jika ada hutang & belum lunas hari ini) */}
+                            {warga.totalDebt > 0 && !isTodayPaid && (
+                                <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-white border-2 border-slate-800 text-slate-800 font-black py-4 rounded-2xl hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5">
+                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
+                                        <CheckCircleIcon className="text-slate-400" /> Bayar Borongan
+                                    </div>
+                                    <span className="text-[11px] font-black">Lunas Semua: Rp{bulkAmount.toLocaleString('id-ID')}</span>
+                                </button>
+                            )}
+
+                            {/* INFO STATUS HARI INI (Jika sudah dicatat hutang) */}
+                            {isTodayDebt && (
+                                <div className="mt-4 p-3 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-center gap-3">
+                                     <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                                        <i className="fa-solid fa-triangle-exclamation text-amber-600 text-xs"></i>
+                                     </div>
+                                     <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest text-left leading-tight">
+                                        Iuran Hari Ini Menjadi Hutang<br/><span className="text-amber-500 opacity-70">Gunakan tombol borongan untuk lunas</span>
+                                     </p>
                                 </div>
                             )}
 
-                            {warga.totalDebt > 0 && (
-                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full text-slate-600 font-bold py-3 hover:text-primary text-xs uppercase tracking-widest flex items-center justify-center gap-2">
-                                    <ClockIcon /> Cicil Tunggakan
-                                </button>
-                            )}
-                            
-                            <button onClick={resetState} className="w-full text-slate-300 font-bold py-2 hover:text-slate-500 text-[10px] uppercase tracking-widest mt-4">Batal / Kembali</button>
+                            <button onClick={resetState} className="w-full text-slate-300 font-bold py-2 hover:text-slate-500 text-[10px] uppercase tracking-widest mt-2 transition-colors">Batal / Kembali</button>
                         </div>
                     )}
                 </div>
