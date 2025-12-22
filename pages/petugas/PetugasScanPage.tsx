@@ -19,7 +19,6 @@ const PetugasScanPage: FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('Berhasil');
     
-    // Debt partial payment states
     const [isPayingDebt, setIsPayingDebt] = useState(false);
     const [debtInput, setDebtInput] = useState<number | ''>('');
     
@@ -61,20 +60,11 @@ const PetugasScanPage: FC = () => {
             } else {
                 setError(`ID Warga "${id}" tidak ditemukan.`);
                 if (mode === 'scan') {
-                    setTimeout(() => {
-                        setIsScanning(true);
-                        isScanningRef.current = true;
-                    }, 3000);
+                    setTimeout(() => { setIsScanning(true); isScanningRef.current = true; }, 3000);
                 }
             }
         } catch (err) {
             setError('Gagal memuat data warga.');
-            if (mode === 'scan') {
-                setTimeout(() => {
-                    setIsScanning(true);
-                    isScanningRef.current = true;
-                }, 3000);
-            }
         } finally {
             setLoading(false);
         }
@@ -89,7 +79,6 @@ const PetugasScanPage: FC = () => {
                 animationFrameId = requestAnimationFrame(tick);
                 return;
             }
-
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
                 const canvas = canvasRef.current;
                 const video = videoRef.current;
@@ -99,15 +88,13 @@ const PetugasScanPage: FC = () => {
                 if (ctx) {
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    try {
-                        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-                        if (code && code.data) {
-                            isScanningRef.current = false;
-                            setIsScanning(false);
-                            fetchWarga(code.data);
-                            return; 
-                        }
-                    } catch (err) { console.error("jsQR error:", err); }
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                    if (code && code.data) {
+                        isScanningRef.current = false;
+                        setIsScanning(false);
+                        fetchWarga(code.data);
+                        return; 
+                    }
                 }
             }
             animationFrameId = requestAnimationFrame(tick);
@@ -122,14 +109,13 @@ const PetugasScanPage: FC = () => {
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     videoRef.current.onloadedmetadata = () => {
-                        videoRef.current?.play().catch(e => console.error("Play error:", e));
+                        videoRef.current?.play();
                         setIsScanning(true);
                         isScanningRef.current = true;
                         tick();
                     };
                 }
             } catch (err) {
-                console.error("Camera error:", err);
                 setError('Akses kamera ditolak.');
                 setMode('manual');
             }
@@ -143,40 +129,29 @@ const PetugasScanPage: FC = () => {
         };
     }, [mode, warga, success, fetchWarga]);
 
-    const handleManualSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (wargaId.length === 6) fetchWarga(wargaId);
-        else setError('ID Warga harus 6 digit.');
-    };
-
     const handleSavePayment = async (status: TransactionStatus) => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            await createTransaksi({
-                wargaId: warga.id,
-                petugasId: petugas.id,
-                amount: warga.dailyFee,
-                status: status
-            });
+            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: status });
             setModalTitle(status === 'LUNAS' ? 'Pembayaran Berhasil' : 'Tunggakan Dicatat');
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
-        } catch (err: any) { setError(err.message || 'Gagal menyimpan.'); }
+        } catch (err) { setError('Gagal menyimpan.'); }
         finally { setLoading(false); }
     };
 
-    const handlePayDebt = async (amountToPay: number) => {
-        if (!warga || !petugas || amountToPay <= 0) return;
+    const handlePayDebt = async (amount: number) => {
+        if (!warga || !petugas || amount <= 0) return;
         setLoading(true);
         try {
-            await payDebt(warga.id, petugas.id, amountToPay);
+            await payDebt(warga.id, petugas.id, amount);
             setModalTitle('Tunggakan Dilunasi');
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
-        } catch (err: any) { setError(err.message || 'Gagal menyimpan.'); }
+        } catch (err) { setError('Gagal menyimpan.'); }
         finally { setLoading(false); }
     };
 
@@ -184,37 +159,15 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            // 1. Bayar Iuran Hari Ini
-            await createTransaksi({
-                wargaId: warga.id,
-                petugasId: petugas.id,
-                amount: warga.dailyFee,
-                status: 'LUNAS'
-            });
-            // 2. Bayar Semua Tunggakan
+            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS' });
             await payDebt(warga.id, petugas.id, warga.totalDebt);
-            
             setModalTitle('Borongan Lunas!');
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
-        } catch (err: any) { setError(err.message || 'Gagal menyimpan.'); }
+        } catch (err) { setError('Gagal menyimpan.'); }
         finally { setLoading(false); }
     }
-
-    const getDukuhName = (id: number) => getDukuhById(id)?.name || 'N/A';
-    const getRTNumber = (id: number) => getRTById(id)?.number || 'N/A';
-
-    const formatInputDisplay = (val: number | '') => {
-        if (val === '') return '';
-        return val.toLocaleString('id-ID');
-    };
-
-    const handleDebtInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const rawValue = e.target.value.replace(/\D/g, ''); 
-        const val = rawValue === '' ? '' : Number(rawValue);
-        if (warga && val !== '' && val > warga.totalDebt) { setDebtInput(warga.totalDebt); } else { setDebtInput(val); }
-    };
 
     return (
         <div className="flex-grow p-4 max-w-md mx-auto w-full">
@@ -246,19 +199,11 @@ const PetugasScanPage: FC = () => {
             )}
 
             {!warga && mode === 'manual' && (
-                <div className="animate-fade-in space-y-4">
-                    <form onSubmit={handleManualSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">ID Warga (6 Digit)</label>
-                        <input type="tel" value={wargaId} onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))} maxLength={6} placeholder="100001" className="w-full text-2xl font-bold px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all" autoFocus />
-                        <button type="submit" disabled={loading} className="w-full mt-6 bg-slate-800 text-white font-bold py-4 rounded-2xl hover:bg-slate-900 shadow-xl shadow-slate-900/10 transition-all">Cari Warga</button>
-                    </form>
-                </div>
-            )}
-
-            {error && !warga && (
-                <div className="mt-4 p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl text-xs font-bold flex items-center gap-3 animate-shake uppercase tracking-tight">
-                    <XIcon /> <p>{error}</p>
-                </div>
+                <form onSubmit={(e) => { e.preventDefault(); fetchWarga(wargaId); }} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">ID Warga (6 Digit)</label>
+                    <input type="tel" value={wargaId} onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))} maxLength={6} placeholder="100001" className="w-full text-2xl font-bold px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all" autoFocus />
+                    <button type="submit" disabled={loading} className="w-full mt-6 bg-slate-800 text-white font-bold py-4 rounded-2xl hover:bg-slate-900 shadow-xl shadow-slate-900/10 transition-all">Cari Warga</button>
+                </form>
             )}
 
             {warga && !success && (
@@ -268,12 +213,12 @@ const PetugasScanPage: FC = () => {
                             <QrCodeIcon className="text-3xl text-emerald-500" />
                         </div>
                         <h2 className="text-2xl font-black text-slate-800 tracking-tight">{warga.name}</h2>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {warga.id} • RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {warga.id} • {getDukuhById(warga.dukuhId)?.name}</p>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">
                         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Iuran Hari Ini</p>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Iuran Rutin</p>
                             <p className="text-xl font-black text-slate-800">Rp{warga.dailyFee.toLocaleString('id-ID')}</p>
                         </div>
                         <div className={`p-4 rounded-2xl border text-center ${warga.totalDebt > 0 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
@@ -288,26 +233,18 @@ const PetugasScanPage: FC = () => {
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Bayar</label>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
-                                    <input 
-                                        type="text" 
-                                        inputMode="numeric"
-                                        value={formatInputDisplay(debtInput)} 
-                                        placeholder="0"
-                                        onChange={handleDebtInputChange}
-                                        className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary"
-                                        autoFocus
-                                    />
+                                    <input type="text" inputMode="numeric" value={debtInput.toLocaleString('id-ID')} onChange={(e) => setDebtInput(Number(e.target.value.replace(/\D/g, '')))} placeholder="0" className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary" autoFocus />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 mt-4">
-                                    <button onClick={() => setIsPayingDebt(false)} className="py-3 px-4 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-white transition-all text-xs">Batal</button>
-                                    <button onClick={() => handlePayDebt(Number(debtInput))} disabled={loading || !debtInput || debtInput <= 0} className="py-3 px-4 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20 transition-all disabled:opacity-50 text-xs">Bayar Tunggakan</button>
+                                    <button onClick={() => setIsPayingDebt(false)} className="py-3 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 text-xs">Batal</button>
+                                    <button onClick={() => handlePayDebt(Number(debtInput))} disabled={loading || !debtInput} className="py-3 rounded-xl font-bold bg-primary text-white text-xs">Bayar Hutang</button>
                                 </div>
                             </div>
                         </div>
                     ) : (
                         <div className="space-y-3">
                             {warga.totalDebt > 0 && !hasPaidToday && (
-                                <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-1 group">
+                                <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-1">
                                     <div className="flex items-center gap-2 text-sm uppercase tracking-widest">
                                         <BanknotesIcon className="text-emerald-400" /> Bayar Borongan
                                     </div>
@@ -315,12 +252,12 @@ const PetugasScanPage: FC = () => {
                                 </button>
                             )}
 
-                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest ${hasPaidToday ? 'bg-emerald-100 text-emerald-500 cursor-not-allowed' : 'bg-emerald-500 text-white shadow-emerald-500/20 hover:bg-emerald-600'}`}>
-                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat Hari Ini' : 'Bayar Iuran Rutin'}
+                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest ${hasPaidToday ? 'bg-emerald-100 text-emerald-500 cursor-not-allowed' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}>
+                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat' : 'Bayar Iuran Rutin'}
                             </button>
                             
                             {!hasPaidToday && (
-                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all disabled:opacity-50 text-xs uppercase tracking-widest">
+                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all text-xs uppercase tracking-widest">
                                     Nanti / Catat Hutang
                                 </button>
                             )}
@@ -343,14 +280,11 @@ const PetugasScanPage: FC = () => {
                         <CheckCircleIcon className="text-5xl" />
                     </div>
                     <p className="text-2xl font-black text-slate-800 tracking-tight">{modalTitle}!</p>
-                    <p className="text-slate-500 mt-1 font-medium text-sm px-6">Data warga telah berhasil diperbarui ke dalam sistem desa.</p>
                 </div>
             </Modal>
             
             <style>{`
                 @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
-                .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
-                @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
             `}</style>
         </div>
     );
