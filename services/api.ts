@@ -80,10 +80,37 @@ export const getAllWarga = async (): Promise<Warga[]> => [...db.wargas];
 
 export const createTransaksi = async (txData: any): Promise<Transaksi> => {
     const newTx: Transaksi = { ...txData, id: `tx${Date.now()}`, timestamp: new Date(), category: 'IURAN' };
+    
+    // Update total debt if status is HUTANG
+    if (txData.status === 'HUTANG') {
+        const warga = db.wargas.find(w => w.id === txData.wargaId);
+        if (warga) {
+            warga.totalDebt += txData.amount;
+        }
+    }
+    
     db.transactions.unshift(newTx);
     saveToStorage(db);
     return newTx;
 };
+
+// Fungsi baru untuk memperbarui status transaksi (Hutang ke Lunas)
+export const convertDebtToPaidToday = async (wargaId: string) => {
+    const today = new Date().toDateString();
+    const tx = db.transactions.find(t => t.wargaId === wargaId && new Date(t.timestamp).toDateString() === today && t.status === 'HUTANG');
+    
+    if (tx) {
+        const warga = db.wargas.find(w => w.id === wargaId);
+        if (warga) {
+            warga.totalDebt = Math.max(0, warga.totalDebt - tx.amount); // Kurangi tunggakan yang tadi ditambah
+        }
+        tx.status = 'LUNAS';
+        tx.timestamp = new Date(); // Update waktu bayar
+        saveToStorage(db);
+        return tx;
+    }
+    return null;
+}
 
 export const payDebt = async (wargaId: string, petugasId: string, amount: number): Promise<Transaksi> => {
     const warga = db.wargas.find(w => w.id === wargaId);
@@ -149,8 +176,15 @@ export const getScheduleForToday = async () => {
     return { isHoliday: false, dukuhIds: todaySched, dukuhNames };
 };
 
-export const checkIfWargaPaidToday = async (id: string) => db.transactions.some(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString());
-export const getUnpaidWargaForToday = async () => db.wargas.filter(w => !db.transactions.some(tx => tx.wargaId === w.id && new Date(tx.timestamp).toDateString() === new Date().toDateString()));
+// Cek hanya jika sudah lunas
+export const checkIfWargaPaidToday = async (id: string) => 
+    db.transactions.some(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString() && tx.status === 'LUNAS');
+
+// Ambil transaksi hari ini untuk melihat statusnya (LUNAS/HUTANG)
+export const getWargaTodayTransaction = async (id: string) => 
+    db.transactions.find(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString());
+
+export const getUnpaidWargaForToday = async () => db.wargas.filter(w => !db.transactions.some(tx => tx.wargaId === w.id && new Date(tx.timestamp).toDateString() === new Date().toDateString() && tx.status === 'LUNAS'));
 
 export const getActiveAnnouncements = async () => [];
 export const getPublicDashboardStats = async (): Promise<PublicStats> => ({
@@ -161,7 +195,7 @@ export const getPublicDashboardStats = async (): Promise<PublicStats> => ({
 export const getTransactionsByWargaId = async (id: string, limit?: number) => db.transactions.filter(t => t.wargaId === id).slice(0, limit);
 export const getPengeluaran = async (f: any) => db.pengeluarans;
 export const getPetugasDailySummary = async (id: string) => {
-    const txs = db.transactions.filter(t => t.petugasId === id && new Date(t.timestamp).toDateString() === new Date().toDateString());
+    const txs = db.transactions.filter(t => t.petugasId === id && new Date(t.timestamp).toDateString() === new Date().toDateString() && t.status === 'LUNAS');
     return { total: txs.reduce((s, t) => s + t.amount, 0), count: txs.length };
 };
 export const getDetailedPublicTransparency = async (year: number) => ({
@@ -175,7 +209,6 @@ export const updateAdminProfile = async (id: any, n: any, p: any) => db.admins[0
 export const updatePetugasProfile = async (id: any, n: any, ph: any, pi: any) => db.petugases[0];
 export const updateWarga = async (id: string, data: Warga) => { const i = db.wargas.findIndex(w => w.id === id); if(i>-1) db.wargas[i] = data; saveToStorage(db); return data; };
 export const createWarga = async (data: any) => { const nw = { ...data, id: String(100000 + db.wargas.length), totalDebt: 0 }; db.wargas.push(nw); saveToStorage(db); return nw; };
-// Added bulkCreateWarga to handle Excel imports
 export const bulkCreateWarga = async (data: any[]) => { data.forEach(d => { const nw = { ...d, id: String(100000 + db.wargas.length), totalDebt: 0 }; db.wargas.push(nw); }); saveToStorage(db); };
 export const deleteWarga = async (id: string) => { db.wargas = db.wargas.filter(w => w.id !== id); saveToStorage(db); };
 export const getAllPetugas = async () => db.petugases;

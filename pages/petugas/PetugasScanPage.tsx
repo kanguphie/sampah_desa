@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { FC } from 'react';
-import type { Warga, TransactionStatus } from '@/types';
-import { getWargaById, createTransaksi, payDebt, getDukuhById, getRTById, checkIfWargaPaidToday } from '@/services/api';
+import type { Warga, TransactionStatus, Transaksi } from '@/types';
+import { getWargaById, createTransaksi, payDebt, getDukuhById, getRTById, getWargaTodayTransaction, convertDebtToPaidToday } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
@@ -12,7 +11,7 @@ const PetugasScanPage: FC = () => {
     const [mode, setMode] = useState<'scan' | 'manual'>('scan');
     const [wargaId, setWargaId] = useState('');
     const [warga, setWarga] = useState<Warga | null>(null);
-    const [hasPaidToday, setHasPaidToday] = useState(false);
+    const [todayTx, setTodayTx] = useState<Transaksi | null>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -31,11 +30,11 @@ const PetugasScanPage: FC = () => {
     
     const resetState = useCallback(() => {
         setWarga(null);
+        setTodayTx(null);
         setWargaId('');
         setError('');
         setSuccess(false);
         setLoading(false);
-        setHasPaidToday(false);
         setIsPayingDebt(false);
         setDebtInput('');
         if (mode === 'scan') {
@@ -55,8 +54,8 @@ const PetugasScanPage: FC = () => {
             if (data) {
                 setWarga(data);
                 setDebtInput(''); 
-                const paidToday = await checkIfWargaPaidToday(id);
-                setHasPaidToday(paidToday);
+                const tx = await getWargaTodayTransaction(id);
+                setTodayTx(tx || null);
             } else {
                 setError(`ID Warga "${id}" tidak ditemukan.`);
                 if (mode === 'scan') {
@@ -142,6 +141,19 @@ const PetugasScanPage: FC = () => {
         finally { setLoading(false); }
     };
 
+    const handleSettleTodayDebt = async () => {
+        if (!warga) return;
+        setLoading(true);
+        try {
+            await convertDebtToPaidToday(warga.id);
+            setModalTitle('Iuran Dilunasi');
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err) { setError('Gagal memperbarui.'); }
+        finally { setLoading(false); }
+    };
+
     const handlePayDebt = async (amount: number) => {
         if (!warga || !petugas || amount <= 0) return;
         setLoading(true);
@@ -159,7 +171,13 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS' });
+            // Jika sudah ada transaksi hutang hari ini, lunasinya lewat fungsi khusus agar tidak double tunggakan
+            if (todayTx?.status === 'HUTANG') {
+                await convertDebtToPaidToday(warga.id);
+            } else {
+                await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS' });
+            }
+            // Bayar semua hutang lama
             await payDebt(warga.id, petugas.id, warga.totalDebt);
             setModalTitle('Borongan Lunas!');
             setSuccess(true);
@@ -243,7 +261,7 @@ const PetugasScanPage: FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {warga.totalDebt > 0 && !hasPaidToday && (
+                            {warga.totalDebt > 0 && todayTx?.status !== 'LUNAS' && (
                                 <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-1">
                                     <div className="flex items-center gap-2 text-sm uppercase tracking-widest">
                                         <BanknotesIcon className="text-emerald-400" /> Bayar Borongan
@@ -252,14 +270,33 @@ const PetugasScanPage: FC = () => {
                                 </button>
                             )}
 
-                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest ${hasPaidToday ? 'bg-emerald-100 text-emerald-500 cursor-not-allowed' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}>
-                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat' : 'Bayar Iuran Rutin'}
-                            </button>
-                            
-                            {!hasPaidToday && (
-                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all text-xs uppercase tracking-widest">
-                                    Nanti / Catat Hutang
+                            {/* Tombol Lunas Harian */}
+                            {todayTx?.status === 'LUNAS' ? (
+                                <div className="w-full bg-emerald-100 text-emerald-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-sm uppercase tracking-widest border border-emerald-200">
+                                    <CheckCircleIcon /> Sudah Tercatat Lunas
+                                </div>
+                            ) : todayTx?.status === 'HUTANG' ? (
+                                <button onClick={handleSettleTodayDebt} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest animate-pulse">
+                                    <CheckCircleIcon /> Lunasi Iuran Hari Ini
                                 </button>
+                            ) : (
+                                <button onClick={() => handleSavePayment('LUNAS')} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                    <CheckCircleIcon /> Bayar Iuran Rutin
+                                </button>
+                            )}
+                            
+                            {/* Tombol Catat Hutang (Hanya jika belum ada transaksi hari ini) */}
+                            {!todayTx && (
+                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all text-xs uppercase tracking-widest">
+                                    Bayar Nanti / Catat Hutang
+                                </button>
+                            )}
+
+                            {/* Label jika sudah dicatat hutang */}
+                            {todayTx?.status === 'HUTANG' && (
+                                <div className="text-center p-2 bg-amber-50 rounded-xl border border-amber-100">
+                                     <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">⚠️ Tercatat Sebagai Hutang Hari Ini</p>
+                                </div>
                             )}
 
                             {warga.totalDebt > 0 && (
