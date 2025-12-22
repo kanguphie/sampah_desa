@@ -1,5 +1,4 @@
-
-import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, ContactMessage, Announcement, PublicStats, ParticipationStats, TransactionStatus } from '@/types';
+import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, PublicStats, Announcement } from '@/types';
 
 // --- Mock Database ---
 let dukuhs: Dukuh[] = [
@@ -31,7 +30,7 @@ dukuhs.forEach(dukuh => {
                 rtId: rt.id,
                 dukuhId: dukuh.id,
                 dailyFee: 2000,
-                totalDebt: Math.random() > 0.8 ? 10000 : 0 
+                totalDebt: Math.random() > 0.9 ? 10000 : 0 
             });
         }
     });
@@ -50,7 +49,7 @@ let adminPassword = 'password';
 let transactions: Transaksi[] = [];
 let pengeluarans: Pengeluaran[] = [];
 
-// Store untuk Jadwal (Disesuaikan dengan tampilan UI)
+// Jadwal Default Sesuai Screenshot UI
 // 1: Rowosari, 2: Pencar, 3: Paten, 4: Adiloko
 let villageSchedule: Record<string, number[] | 'libur'> = { 
     Senin: [1, 2], 
@@ -62,42 +61,16 @@ let villageSchedule: Record<string, number[] | 'libur'> = {
     Minggu: [4, 3] 
 };
 
-// --- Dummy Data Generator ---
-const generateDummyTransactions = () => {
-    const now = new Date();
-    for (let i = 180; i >= 0; i--) { // 6 bulan data
-        const date = new Date();
-        date.setDate(now.getDate() - i);
-        if (date.getDay() === 5) continue; 
-        const activeWargas = wargas.filter(() => Math.random() > 0.3);
-        activeWargas.forEach(warga => {
-            const hour = Math.floor(Math.random() * 4) + 7;
-            const timestamp = new Date(date);
-            timestamp.setHours(hour, Math.floor(Math.random() * 60), 0);
-            transactions.push({
-                id: `tx-dummy-${i}-${warga.id}`,
-                timestamp: timestamp,
-                wargaId: warga.id,
-                petugasId: petugases[Math.floor(Math.random() * petugases.length)].id,
-                amount: warga.dailyFee,
-                status: 'LUNAS',
-                category: 'IURAN'
-            });
-        });
-        if (date.getDay() === 1) {
-            pengeluarans.push({
-                id: `exp-dummy-${i}`,
-                date: new Date(date),
-                description: i % 2 === 0 ? 'Bensin Motor Tossa' : 'Servis Rutin Kendaraan',
-                amount: i % 2 === 0 ? 45000 : 150000
-            });
-        }
-    }
-};
-
-generateDummyTransactions();
-
 // --- API Implementation ---
+
+export const markDayAsSkipped = async (dukuhIds: number[]) => {
+    wargas.forEach(w => {
+        if (dukuhIds.includes(w.dukuhId)) {
+            w.totalDebt += w.dailyFee;
+        }
+    });
+    return true;
+};
 
 export const getWargaById = async (id: string): Promise<Warga | null> => wargas.find(w => w.id === id) || null;
 export const getAllWarga = async (): Promise<Warga[]> => [...wargas];
@@ -271,7 +244,6 @@ export const updatePengeluaran = async (id: string, data: Partial<Pengeluaran>):
 };
 export const deletePengeluaran = async (id: string) => { pengeluarans = pengeluarans.filter(p => p.id !== id); };
 
-// IMPLEMENTASI UPDATE JADWAL
 export const updateSchedule = async (day: string, s: any) => {
     villageSchedule[day] = s;
     return villageSchedule;

@@ -4,7 +4,7 @@ import type { FC } from 'react';
 import type { Warga, TransactionStatus } from '@/types';
 import { getWargaById, createTransaksi, payDebt, getDukuhById, getRTById, checkIfWargaPaidToday } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon } from '@/components/icons';
+import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 import jsQR from 'jsqr';
 
@@ -167,17 +167,12 @@ const PetugasScanPage: FC = () => {
         finally { setLoading(false); }
     };
 
-    const handlePayDebt = async () => {
-        if (!warga || !petugas || !debtInput || debtInput <= 0) return;
-        if (debtInput > warga.totalDebt) {
-            setError('Nominal melebihi total tunggakan!');
-            return;
-        }
-        
+    const handlePayDebt = async (amountToPay: number) => {
+        if (!warga || !petugas || amountToPay <= 0) return;
         setLoading(true);
         try {
-            await payDebt(warga.id, petugas.id, debtInput);
-            setModalTitle('Pembayaran Tunggakan Berhasil');
+            await payDebt(warga.id, petugas.id, amountToPay);
+            setModalTitle('Tunggakan Dilunasi');
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
@@ -185,25 +180,40 @@ const PetugasScanPage: FC = () => {
         finally { setLoading(false); }
     };
 
+    const handleBulkPayment = async () => {
+        if (!warga || !petugas) return;
+        setLoading(true);
+        try {
+            // 1. Bayar Iuran Hari Ini
+            await createTransaksi({
+                wargaId: warga.id,
+                petugasId: petugas.id,
+                amount: warga.dailyFee,
+                status: 'LUNAS'
+            });
+            // 2. Bayar Semua Tunggakan
+            await payDebt(warga.id, petugas.id, warga.totalDebt);
+            
+            setModalTitle('Borongan Lunas!');
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err: any) { setError(err.message || 'Gagal menyimpan.'); }
+        finally { setLoading(false); }
+    }
+
     const getDukuhName = (id: number) => getDukuhById(id)?.name || 'N/A';
     const getRTNumber = (id: number) => getRTById(id)?.number || 'N/A';
 
-    // Helper to format currency display for input
     const formatInputDisplay = (val: number | '') => {
         if (val === '') return '';
         return val.toLocaleString('id-ID');
     };
 
-    // Helper to handle numeric input with thousand separator
     const handleDebtInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const rawValue = e.target.value.replace(/\D/g, ''); // Strip non-digits
+        const rawValue = e.target.value.replace(/\D/g, ''); 
         const val = rawValue === '' ? '' : Number(rawValue);
-        
-        if (warga && val !== '' && val > warga.totalDebt) {
-            setDebtInput(warga.totalDebt);
-        } else {
-            setDebtInput(val);
-        }
+        if (warga && val !== '' && val > warga.totalDebt) { setDebtInput(warga.totalDebt); } else { setDebtInput(val); }
     };
 
     return (
@@ -261,22 +271,21 @@ const PetugasScanPage: FC = () => {
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {warga.id} • RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}</p>
                     </div>
                     
-                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 mb-6 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tarif Iuran Hari Ini</p>
-                        <p className="text-4xl font-black text-slate-800">Rp{warga.dailyFee.toLocaleString('id-ID')}</p>
-                        
-                        {warga.totalDebt > 0 && (
-                            <div className="mt-5 pt-5 border-t border-slate-200/60">
-                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Total Tunggakan</p>
-                                <p className="text-2xl font-black text-rose-600">Rp{warga.totalDebt.toLocaleString('id-ID')}</p>
-                            </div>
-                        )}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Iuran Hari Ini</p>
+                            <p className="text-xl font-black text-slate-800">Rp{warga.dailyFee.toLocaleString('id-ID')}</p>
+                        </div>
+                        <div className={`p-4 rounded-2xl border text-center ${warga.totalDebt > 0 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                            <p className="text-[8px] font-black uppercase tracking-widest mb-1">Tunggakan</p>
+                            <p className="text-xl font-black">Rp{warga.totalDebt.toLocaleString('id-ID')}</p>
+                        </div>
                     </div>
 
                     {isPayingDebt ? (
                         <div className="space-y-4 animate-fade-in">
                             <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Bayar Tunggakan</label>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Bayar</label>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
                                     <input 
@@ -290,30 +299,39 @@ const PetugasScanPage: FC = () => {
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 mt-4">
-                                    <button onClick={() => setIsPayingDebt(false)} className="py-3 px-4 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-white transition-all">Batal</button>
-                                    <button onClick={handlePayDebt} disabled={loading || !debtInput || debtInput <= 0} className="py-3 px-4 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20 transition-all disabled:opacity-50">Bayar Sekarang</button>
+                                    <button onClick={() => setIsPayingDebt(false)} className="py-3 px-4 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-white transition-all text-xs">Batal</button>
+                                    <button onClick={() => handlePayDebt(Number(debtInput))} disabled={loading || !debtInput || debtInput <= 0} className="py-3 px-4 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20 transition-all disabled:opacity-50 text-xs">Bayar Tunggakan</button>
                                 </div>
                             </div>
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 ${hasPaidToday ? 'bg-emerald-100 text-emerald-500 cursor-not-allowed' : 'bg-emerald-500 text-white shadow-emerald-500/20 hover:bg-emerald-600'}`}>
-                                <CheckCircleIcon /> {hasPaidToday ? 'Iuran Sudah Tercatat Hari Ini' : 'Bayar Tunai (Iuran Hari Ini)'}
+                            {warga.totalDebt > 0 && !hasPaidToday && (
+                                <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-1 group">
+                                    <div className="flex items-center gap-2 text-sm uppercase tracking-widest">
+                                        <BanknotesIcon className="text-emerald-400" /> Bayar Borongan
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-400">Total: Rp{(warga.dailyFee + warga.totalDebt).toLocaleString('id-ID')}</span>
+                                </button>
+                            )}
+
+                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading || hasPaidToday} className={`w-full font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest ${hasPaidToday ? 'bg-emerald-100 text-emerald-500 cursor-not-allowed' : 'bg-emerald-500 text-white shadow-emerald-500/20 hover:bg-emerald-600'}`}>
+                                <CheckCircleIcon /> {hasPaidToday ? 'Sudah Tercatat Hari Ini' : 'Bayar Iuran Rutin'}
                             </button>
                             
                             {!hasPaidToday && (
-                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all disabled:opacity-50">
-                                    Catat Tunggakan (Iuran Hari Ini)
+                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all disabled:opacity-50 text-xs uppercase tracking-widest">
+                                    Nanti / Catat Hutang
                                 </button>
                             )}
 
                             {warga.totalDebt > 0 && (
-                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg shadow-slate-900/20 hover:bg-slate-900 transition-all flex items-center justify-center gap-2">
-                                    <BanknotesIcon /> Bayar Tunggakan
+                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full text-slate-600 font-bold py-3 hover:text-primary text-xs uppercase tracking-widest flex items-center justify-center gap-2">
+                                    <ClockIcon /> Cicil Tunggakan
                                 </button>
                             )}
                             
-                            <button onClick={resetState} className="w-full text-slate-400 font-bold py-2 hover:text-slate-600 text-sm">Batal / Kembali</button>
+                            <button onClick={resetState} className="w-full text-slate-300 font-bold py-2 hover:text-slate-500 text-[10px] uppercase tracking-widest mt-4">Batal / Kembali</button>
                         </div>
                     )}
                 </div>
@@ -325,7 +343,7 @@ const PetugasScanPage: FC = () => {
                         <CheckCircleIcon className="text-5xl" />
                     </div>
                     <p className="text-2xl font-black text-slate-800 tracking-tight">{modalTitle}!</p>
-                    <p className="text-slate-500 mt-1 font-medium">Data transaksi warga telah diperbarui.</p>
+                    <p className="text-slate-500 mt-1 font-medium text-sm px-6">Data warga telah berhasil diperbarui ke dalam sistem desa.</p>
                 </div>
             </Modal>
             
