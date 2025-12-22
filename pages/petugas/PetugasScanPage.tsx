@@ -171,14 +171,24 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            // Jika sudah ada transaksi hutang hari ini, lunasinya lewat fungsi khusus agar tidak double tunggakan
+            // Logika baru untuk mencegah iuran ganda:
             if (todayTx?.status === 'HUTANG') {
+                // Jika sudah tercatat hutang hari ini, lunasinya lewat fungsi konversi (agar mengurangi tunggakan)
                 await convertDebtToPaidToday(warga.id);
+                // Jika masih ada sisa tunggakan lama (totalDebt - dailyFee), lunasi sisanya
+                const oldDebt = warga.totalDebt - warga.dailyFee;
+                if (oldDebt > 0) {
+                    await payDebt(warga.id, petugas.id, oldDebt);
+                }
             } else {
+                // Jika belum tercatat transaksi hari ini
                 await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS' });
+                // Jika ada tunggakan lama, lunasi semuanya
+                if (warga.totalDebt > 0) {
+                    await payDebt(warga.id, petugas.id, warga.totalDebt);
+                }
             }
-            // Bayar semua hutang lama
-            await payDebt(warga.id, petugas.id, warga.totalDebt);
+            
             setModalTitle('Borongan Lunas!');
             setSuccess(true);
             setIsModalOpen(true);
@@ -186,6 +196,9 @@ const PetugasScanPage: FC = () => {
         } catch (err) { setError('Gagal menyimpan.'); }
         finally { setLoading(false); }
     }
+
+    // Perbaikan perhitungan nominal borongan agar tidak double count
+    const bulkAmount = warga ? (todayTx?.status === 'HUTANG' ? warga.totalDebt : warga.dailyFee + warga.totalDebt) : 0;
 
     return (
         <div className="flex-grow p-4 max-w-md mx-auto w-full">
@@ -261,12 +274,12 @@ const PetugasScanPage: FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {warga.totalDebt > 0 && todayTx?.status !== 'LUNAS' && (
+                            {bulkAmount > 0 && todayTx?.status !== 'LUNAS' && (
                                 <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 hover:scale-[1.02] transition-all flex flex-col items-center justify-center gap-1">
                                     <div className="flex items-center gap-2 text-sm uppercase tracking-widest">
                                         <BanknotesIcon className="text-emerald-400" /> Bayar Borongan
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-400">Total: Rp{(warga.dailyFee + warga.totalDebt).toLocaleString('id-ID')}</span>
+                                    <span className="text-[10px] font-bold text-slate-400">Total: Rp{bulkAmount.toLocaleString('id-ID')}</span>
                                 </button>
                             )}
 
@@ -294,8 +307,9 @@ const PetugasScanPage: FC = () => {
 
                             {/* Label jika sudah dicatat hutang */}
                             {todayTx?.status === 'HUTANG' && (
-                                <div className="text-center p-2 bg-amber-50 rounded-xl border border-amber-100">
-                                     <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">⚠️ Tercatat Sebagai Hutang Hari Ini</p>
+                                <div className="text-center p-2 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-center gap-2">
+                                     <i className="fa-solid fa-triangle-exclamation text-amber-600 text-[10px]"></i>
+                                     <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Tercatat Sebagai Hutang Hari Ini</p>
                                 </div>
                             )}
 
