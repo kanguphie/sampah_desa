@@ -1,3 +1,4 @@
+
 # Panduan Integrasi Supabase - SapaDesa
 
 Dokumen ini berisi langkah-langkah detail untuk menghubungkan aplikasi **SapaDesa** ke database cloud menggunakan **Supabase**.
@@ -101,11 +102,24 @@ CREATE TABLE schedules (
     "dukuhIds" JSONB -- Menyimpan array ID dukuh [1, 2, 3] atau 'libur'
 );
 
+-- 8. Tabel Profil Desa (Konfigurasi Global)
+CREATE TABLE village_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    name TEXT NOT NULL DEFAULT 'Rowosari',
+    district TEXT DEFAULT 'Limpung',
+    regency TEXT DEFAULT 'Batang',
+    address TEXT,
+    phone TEXT,
+    email TEXT,
+    "lastUpdated" TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ISI DATA AWAL (Contoh)
 INSERT INTO admins (id, username, name, pin) VALUES ('adm01', 'admin', 'Admin Utama', '123456');
 INSERT INTO petugases (id, name, phone, pin) VALUES ('pt01', 'Budi Petugas', '08123', '1111');
 INSERT INTO dukuhs (name) VALUES ('Rowosari'), ('Pencar');
 INSERT INTO rts (number) VALUES ('01'), ('02'), ('03');
+INSERT INTO village_config (id, name, district, regency) VALUES (1, 'Rowosari', 'Limpung', 'Batang');
 ```
 4. Klik tombol **"Run"**. Jika berhasil, Anda akan melihat pesan "Success".
 
@@ -127,6 +141,6 @@ const supabaseAnonKey = 'eyJhbG...';
 ---
 
 ## Langkah 4: Keamanan (Opsional tapi Penting)
-Secara default, database Supabase dapat dibaca/ditulis oleh siapa saja yang punya API Key. Untuk tahap awal pengembangan, kita membiarkan ini. Namun, di menu **"Database" -> "Policies"**, Anda dapat mengaktifkan **Row Level Security (RLS)** untuk membatasi akses hanya bagi user tertentu di masa depan.
+Secara default, database Supabase dapat dibaca/ditulis oleh siapa saja yang punya API Key. Secara default, database Supabase dapat dibaca/ditulis oleh siapa saja yang punya API Key. Untuk tahap awal pengembangan, kita membiarkan ini. Namun, di menu **"Database" -> "Policies"**, Anda dapat mengaktifkan **Row Level Security (RLS)** untuk membatasi akses hanya bagi user tertentu di masa depan.
 
 Selesai! Sekarang aplikasi Anda sudah menggunakan database cloud real-time.

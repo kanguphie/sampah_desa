@@ -83,3 +83,14 @@ export interface ParticipationStats {
     participationRate: number; 
     unpaidWargaList: Warga[]; 
 }
+
+export interface VillageProfile {
+    id: number;
+    name: string;
+    district: string;
+    regency: string;
+    address: string;
+    phone: string;
+    email: string;
+    lastUpdated?: string;
+}

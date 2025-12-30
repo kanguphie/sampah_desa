@@ -1,6 +1,6 @@
 
 import { supabase } from '@/lib/supabase';
-import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, PublicStats, Announcement, ContactMessage } from '@/types';
+import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, PublicStats, Announcement, ContactMessage, VillageProfile } from '@/types';
 
 // --- AUTHENTICATION ---
 
@@ -22,6 +22,28 @@ export const loginAdmin = async (pin: string): Promise<Admin | null> => {
         .single();
     if (error) return null;
     return data as Admin;
+};
+
+// --- VILLAGE PROFILE ---
+
+export const getVillageProfile = async (): Promise<VillageProfile | null> => {
+    const { data, error } = await supabase
+        .from('village_config')
+        .select('*')
+        .eq('id', 1)
+        .single();
+    if (error) return null;
+    return data as VillageProfile;
+};
+
+export const updateVillageProfile = async (profile: Omit<VillageProfile, 'id' | 'lastUpdated'>) => {
+    const { data, error } = await supabase
+        .from('village_config')
+        .upsert({ id: 1, ...profile, lastUpdated: new Date().toISOString() })
+        .select()
+        .single();
+    if (error) throw new Error(error.message);
+    return data;
 };
 
 // --- DATA MASTER: WARGA ---
@@ -237,8 +259,7 @@ export const getReports = async (f: { startDate: Date, endDate: Date }): Promise
         .from('transactions')
         .select(`
             *,
-            wargas (name, "dukuhId", "rtId"),
-            petugases (name)
+            wargas (name, "dukuhId", "rtId")
         `)
         .gte('timestamp', start.toISOString())
         .lte('timestamp', end.toISOString());
@@ -248,20 +269,21 @@ export const getReports = async (f: { startDate: Date, endDate: Date }): Promise
         throw new Error(error.message);
     }
 
-    const dukuhs = await getAllDukuh();
-    const rts = await getAllRT();
+    const [dukuhs, rts, petugases] = await Promise.all([
+        getAllDukuh(),
+        getAllRT(),
+        getAllPetugas()
+    ]);
 
     return (data || []).map(tx => {
-        // PostgREST Join handling (kadang mengembalikan array, kadang objek)
         const wargaObj = Array.isArray(tx.wargas) ? tx.wargas[0] : tx.wargas;
-        const petugasObj = Array.isArray(tx.petugases) ? tx.petugases[0] : tx.petugases;
+        const petugasObj = petugases.find(p => p.id === tx.petugasId);
         
         return {
             ...tx,
             timestamp: new Date(tx.timestamp),
             wargaName: wargaObj?.name || 'Warga Terhapus',
             petugasName: petugasObj?.name || (tx.petugasId === 'SYSTEM' ? 'Sistem Otomatis' : 'Petugas Terhapus'),
-            // Flatten wilayah agar filter client-side berfungsi 100%
             wargaDukuhId: wargaObj?.dukuhId,
             wargaRtId: wargaObj?.rtId,
             dukuhName: dukuhs.find(d => d.id === wargaObj?.dukuhId)?.name || 'N/A',
