@@ -1,100 +1,176 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { loginAdmin, loginPetugas } from '@/services/api';
-import { EyeIcon, EyeOffIcon } from '@/components/icons';
 
 const UnifiedLoginPage: React.FC = () => {
-    const [credential, setCredential] = useState('');
-    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const [pin, setPin] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
     const { loginAdmin: authLoginAdmin, loginPetugas: authLoginPetugas } = useAuth();
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!credential) {
-            setError('PIN atau Password tidak boleh kosong.');
-            return;
-        }
+    const processLogin = useCallback(async (currentPin: string) => {
         setLoading(true);
         setError('');
 
         try {
-            // Try to login as Petugas first
-            const petugas = await loginPetugas(credential);
-            if (petugas) {
-                authLoginPetugas(petugas);
-                navigate('/petugas/dashboard');
-                return;
-            }
-
-            // If not Petugas, try to login as Admin
-            const admin = await loginAdmin('admin', credential);
+            // Check Admin (6 digits typically)
+            const admin = await loginAdmin(currentPin);
             if (admin) {
                 authLoginAdmin(admin);
                 navigate('/admin/dashboard');
                 return;
             }
 
-            // If both fail
-            setError('PIN atau Password salah.');
-            setCredential('');
+            // Check Petugas (4-6 digits)
+            const petugas = await loginPetugas(currentPin);
+            if (petugas) {
+                authLoginPetugas(petugas);
+                navigate('/petugas/dashboard');
+                return;
+            }
 
+            // If we reached exactly 6 digits and still no match, it's definitely an error
+            if (currentPin.length === 6) {
+                setError('PIN Tidak Terdaftar');
+                setTimeout(() => {
+                    setPin('');
+                    setError('');
+                }, 1500);
+            }
         } catch (err) {
-            setError('Terjadi kesalahan. Silakan coba lagi.');
-            setCredential('');
+            setError('Gangguan Koneksi');
+            setPin('');
         } finally {
             setLoading(false);
         }
+    }, [authLoginAdmin, authLoginPetugas, navigate]);
+
+    const handleNumberClick = (num: string) => {
+        if (loading || pin.length >= 6) return;
+        
+        const nextPin = pin + num;
+        setPin(nextPin);
+        setError('');
+
+        // Auto-check on 4 digits (Petugas usually) and 6 digits (Admin/Petugas)
+        if (nextPin.length === 4 || nextPin.length === 6) {
+            processLogin(nextPin);
+        }
     };
-    
-    const togglePasswordVisibility = () => setIsPasswordVisible(!isPasswordVisible);
+
+    const handleDelete = () => {
+        if (loading) return;
+        setPin(prev => prev.slice(0, -1));
+        setError('');
+    };
+
+    const handleClear = () => {
+        if (loading) return;
+        setPin('');
+        setError('');
+    };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-            <div className="w-full max-w-sm bg-white p-8 rounded-xl shadow-lg animate-fade-in">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-primary">SapaDesa</h1>
-                    <p className="text-gray-600">Login Petugas / Admin</p>
+        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 relative overflow-hidden">
+            {/* Background elements */}
+            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-emerald-100 rounded-full blur-3xl opacity-50"></div>
+            <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
+
+            <div className="w-full max-w-sm relative z-10">
+                <div className="text-center mb-10 animate-fade-in">
+                    <div className="w-20 h-20 bg-slate-900 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl -rotate-6 font-black text-3xl">SD</div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">SapaDesa</h1>
+                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Akses Sistem Terpadu</p>
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2" htmlFor="credential">
-                            PIN / Password
-                        </label>
-                        <div className="relative">
-                             <input
-                                id="credential"
-                                type={isPasswordVisible ? 'text' : 'password'}
-                                value={credential}
-                                onChange={(e) => setCredential(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={togglePasswordVisibility}
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-primary"
-                                aria-label="Toggle password visibility"
-                            >
-                                {isPasswordVisible ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
-                            </button>
+
+                <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-2xl shadow-slate-200/60 border border-white animate-slide-in-up">
+                    {/* PIN Display - Fixed 6 dots */}
+                    <div className="mb-10 text-center">
+                        <div className={`flex justify-center gap-4 h-12 items-center ${error ? 'animate-shake' : ''}`}>
+                            {loading ? (
+                                <div className="flex gap-2 items-center text-emerald-500 font-black text-[10px] uppercase tracking-widest">
+                                    <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                    Memverifikasi...
+                                </div>
+                            ) : (
+                                // Always show 6 slots for the dots
+                                Array.from({ length: 6 }).map((_, i) => (
+                                    <div 
+                                        key={i} 
+                                        className={`w-4 h-4 rounded-full transition-all duration-300 ${
+                                            i < pin.length 
+                                            ? 'bg-emerald-500 shadow-lg shadow-emerald-500/30 scale-110' 
+                                            : 'bg-slate-100 border border-slate-200'
+                                        }`}
+                                    ></div>
+                                ))
+                            )}
                         </div>
+                        {error ? (
+                            <p className="mt-4 text-rose-500 font-black text-[10px] uppercase tracking-widest">
+                                {error}
+                            </p>
+                        ) : pin.length === 0 && !loading ? (
+                            <p className="mt-4 text-slate-400 font-bold uppercase tracking-widest text-[9px] animate-pulse">Masukkan 4 atau 6 Digit PIN</p>
+                        ) : null}
                     </div>
-                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-                    <div>
+
+                    {/* Keypad Grid */}
+                    <div className={`grid grid-cols-3 gap-4 transition-opacity duration-300 ${loading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                            <button
+                                key={num}
+                                onClick={() => handleNumberClick(String(num))}
+                                className="h-16 rounded-2xl bg-white text-2xl font-black text-slate-800 hover:bg-emerald-500 hover:text-white hover:scale-105 active:scale-95 transition-all duration-200 border border-slate-100 shadow-sm"
+                            >
+                                {num}
+                            </button>
+                        ))}
                         <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-primary hover:bg-primary-focus text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline disabled:bg-gray-400 transition-colors duration-300"
+                            onClick={handleClear}
+                            className="h-16 rounded-2xl bg-rose-50 text-rose-500 font-black text-[10px] uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all border border-rose-100"
                         >
-                            {loading ? 'Mencoba Masuk...' : 'Login'}
+                            C
+                        </button>
+                        <button
+                            onClick={() => handleNumberClick('0')}
+                            className="h-16 rounded-2xl bg-white text-2xl font-black text-slate-800 hover:bg-emerald-500 hover:text-white hover:scale-105 active:scale-95 transition-all duration-200 border border-slate-100 shadow-sm"
+                        >
+                            0
+                        </button>
+                        <button
+                            onClick={handleDelete}
+                            className="h-16 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 transition-all border border-slate-100"
+                        >
+                            <i className="fa-solid fa-delete-left text-xl"></i>
                         </button>
                     </div>
-                </form>
+
+                    {/* Quick Info */}
+                    <div className="mt-8 flex items-center justify-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Sistem akan login otomatis saat PIN lengkap</p>
+                    </div>
+                </div>
+
+                <div className="mt-8 text-center animate-fade-in delay-300">
+                    <button onClick={() => navigate('/')} className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] hover:text-emerald-500 transition-colors">
+                        &larr; Kembali ke Beranda Publik
+                    </button>
+                </div>
             </div>
+            
+            <style>{`
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    25% { transform: translateX(-6px); }
+                    75% { transform: translateX(6px); }
+                }
+                .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
+            `}</style>
         </div>
     );
 };

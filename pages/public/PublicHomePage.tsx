@@ -4,13 +4,13 @@ import { Link } from 'react-router-dom';
 import { 
     getWargaById, 
     getTransactionsByWargaId, 
-    getDukuhById, 
-    getRTById, 
+    getAllDukuh, 
+    getAllRT, 
     getActiveAnnouncements, 
     getPublicDashboardStats, 
     checkIfWargaPaidToday 
 } from '@/services/api';
-import type { Warga, Transaksi, Announcement, PublicStats } from '@/types';
+import type { Warga, Transaksi, Announcement, PublicStats, Dukuh, RT } from '@/types';
 import { 
     SearchIcon, 
     LeafIcon, 
@@ -36,6 +36,8 @@ const PublicHomePage: React.FC = () => {
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [stats, setStats] = useState<PublicStats | null>(null);
+  const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
+  const [rtList, setRtList] = useState<RT[]>([]);
   
   const resultRef = useRef<HTMLDivElement>(null);
   const searchSectionRef = useRef<HTMLDivElement>(null);
@@ -43,12 +45,16 @@ const PublicHomePage: React.FC = () => {
   useEffect(() => {
       const fetchPublicData = async () => {
           try {
-              const [announcementData, statsData] = await Promise.all([
+              const [announcementData, statsData, dList, rList] = await Promise.all([
                   getActiveAnnouncements(), 
-                  getPublicDashboardStats()
+                  getPublicDashboardStats(),
+                  getAllDukuh(),
+                  getAllRT()
               ]);
               setAnnouncements(announcementData);
               setStats(statsData);
+              setDukuhList(dList);
+              setRtList(rList);
           } catch (e) {
               console.error("Error loading public data", e);
           }
@@ -90,8 +96,8 @@ const PublicHomePage: React.FC = () => {
     }
   };
 
-  const getDukuhName = (id: number) => getDukuhById(id)?.name || 'N/A';
-  const getRTNumber = (id: number) => getRTById(id)?.number || 'N/A';
+  const getDukuhName = (id: number) => dukuhList.find(d => d.id === id)?.name || 'N/A';
+  const getRTNumber = (id: number) => rtList.find(r => r.id === id)?.number || 'N/A';
 
   return (
     <div className="min-h-screen bg-white text-slate-800 flex flex-col selection:bg-emerald-100 selection:text-emerald-900">

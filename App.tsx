@@ -5,7 +5,7 @@ import PublicHomePage from './pages/public/PublicHomePage';
 import PublicReportPage from './pages/public/PublicReportPage';
 import TipsPage from './pages/public/TipsPage';
 import ContactPage from './pages/public/ContactPage';
-// import UnifiedLoginPage from './pages/auth/UnifiedLoginPage';
+import UnifiedLoginPage from './pages/auth/UnifiedLoginPage';
 import PetugasLayout from './pages/petugas/PetugasLayout';
 import PetugasDashboardPage from './pages/petugas/PetugasDashboardPage';
 import PetugasScanPage from './pages/petugas/PetugasScanPage';
@@ -39,7 +39,7 @@ const PetugasRoutes: React.FC = () => {
             </Routes>
         </PetugasLayout>
     ) : (
-        <Navigate to="/" />
+        <Navigate to="/login" />
     );
 };
 
@@ -64,7 +64,7 @@ const AdminRoutes: React.FC = () => {
             </Routes>
         </AdminLayout>
     ) : (
-        <Navigate to="/" />
+        <Navigate to="/login" />
     );
 };
 
@@ -78,8 +78,12 @@ const App: React.FC = () => {
                 <Route path="/laporan-publik" element={<PublicReportPage />} />
                 <Route path="/tips" element={<TipsPage />} />
                 <Route path="/contact" element={<ContactPage />} />
+                <Route path="/login" element={<UnifiedLoginPage />} />
                 <Route path="/petugas/*" element={<PetugasRoutes />} />
                 <Route path="/admin/*" element={<AdminRoutes />} />
+                {/* Legacy redirects */}
+                <Route path="/admin/login" element={<Navigate to="/login" />} />
+                <Route path="/petugas/login" element={<Navigate to="/login" />} />
             </Routes>
         </HashRouter>
     </AuthProvider>

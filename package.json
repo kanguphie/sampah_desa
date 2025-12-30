@@ -16,7 +16,8 @@
     "qrcode.react": "4.2.0",
     "jsqr": "1.4.0",
     "xlsx": "0.18.5",
-    "immer": "9.0.21"
+    "immer": "9.0.21",
+    "@supabase/supabase-js": "^2.48.1"
   },
   "devDependencies": {
     "@types/react": "19.0.0",

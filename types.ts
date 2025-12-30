@@ -29,6 +29,7 @@ export interface Admin {
     id: string;
     username: string;
     name: string;
+    pin: string; // Updated to use PIN for consistency
 }
 
 export type TransactionStatus = 'LUNAS' | 'HUTANG';

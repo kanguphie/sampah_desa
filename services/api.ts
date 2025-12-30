@@ -1,221 +1,548 @@
-import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, PublicStats, Announcement } from '@/types';
 
-// --- DATA PERSISTENCE HELPERS ---
-const DB_KEY = 'sapadesa_db_v1';
+import { supabase } from '@/lib/supabase';
+import type { Warga, Petugas, Admin, Transaksi, Dukuh, RT, Pengeluaran, PublicStats, Announcement, ContactMessage } from '@/types';
 
-const saveToStorage = (data: any) => {
-    localStorage.setItem(DB_KEY, JSON.stringify(data));
+// --- AUTHENTICATION ---
+
+export const loginPetugas = async (pin: string): Promise<Petugas | null> => {
+    const { data, error } = await supabase
+        .from('petugases')
+        .select('*')
+        .eq('pin', pin)
+        .single();
+    if (error) return null;
+    return data as Petugas;
 };
 
-const loadFromStorage = () => {
-    const stored = localStorage.getItem(DB_KEY);
-    if (!stored) return null;
-    return JSON.parse(stored);
+export const loginAdmin = async (pin: string): Promise<Admin | null> => {
+    const { data, error } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('pin', pin)
+        .single();
+    if (error) return null;
+    return data as Admin;
 };
 
-// --- INITIAL STATE / MOCK DATA ---
-const createInitialData = () => {
-    const data = {
-        dukuhs: [
-            { id: 1, name: 'Rowosari' },
-            { id: 2, name: 'Pencar' },
-            { id: 3, name: 'Paten' },
-            { id: 4, name: 'Adiloko' },
-        ],
-        rts: Array.from({ length: 10 }, (_, i) => ({ id: i + 1, number: (i + 1).toString().padStart(2, '0') })),
-        wargas: [] as Warga[],
-        petugases: [
-            { id: 'petugas01', name: 'Agus', phone: '081234567890', pin: '1234' },
-            { id: 'petugas02', name: 'Bambang', phone: '081234567891', pin: '5678' },
-        ],
-        admins: [{ id: 'admin01', username: 'admin', name: 'Admin Desa' }],
-        transactions: [] as Transaksi[],
-        pengeluarans: [] as Pengeluaran[],
-        schedule: { 
-            Senin: [1, 2], Selasa: [3, 4], Rabu: [1, 2], Kamis: [3, 4], Jumat: 'libur', Sabtu: [1, 2], Minggu: [4, 3] 
-        }
-    };
+// --- DATA MASTER: WARGA ---
 
-    const dummyNames = ["Budi Santoso", "Siti Aminah", "Agus Setiawan", "Dewi Lestari", "Eko Prasetyo", "Rina Wulandari", "Joko Susilo"];
-    
-    data.dukuhs.forEach(dukuh => {
-        data.rts.slice(0, 3).forEach(rt => {
-            for (let i = 0; i < 2; i++) {
-                const id = String(100000 + data.wargas.length);
-                const name = dummyNames[data.wargas.length % dummyNames.length];
-                
-                // BERIKAN TUNGGAKAN PADA ID TERTENTU UNTUK TESTING
-                let debt = 0;
-                if (id === '100001') debt = 2000;  // Siti Aminah
-                if (id === '100003') debt = 6000;  // Dewi Lestari
-                if (id === '100005') debt = 10000; // Rina Wulandari
-                
-                data.wargas.push({
-                    id: id,
-                    name: name,
-                    rtId: rt.id,
-                    dukuhId: dukuh.id,
-                    dailyFee: 2000,
-                    totalDebt: debt
-                });
-            }
-        });
-    });
+export const getAllWarga = async (): Promise<Warga[]> => {
+    const { data, error } = await supabase
+        .from('wargas')
+        .select('*')
+        .order('name', { ascending: true });
+    if (error) return [];
+    return data as Warga[];
+};
+
+export const getWargaById = async (id: string): Promise<Warga | null> => {
+    const { data, error } = await supabase
+        .from('wargas')
+        .select('*')
+        .eq('id', id)
+        .single();
+    if (error) return null;
+    return data as Warga;
+};
+
+export const createWarga = async (wargaData: Omit<Warga, 'id' | 'totalDebt'>) => {
+    const newId = String(Math.floor(100000 + Math.random() * 900000));
+    const { data, error } = await supabase
+        .from('wargas')
+        .insert([{ ...wargaData, id: newId, totalDebt: 0 }])
+        .select()
+        .single();
+    if (error) throw error;
     return data;
 };
 
-// Load data or set default
-let db = loadFromStorage();
-if (!db || db.wargas.length === 0) {
-    db = createInitialData();
-    saveToStorage(db);
-}
-
-// --- API Implementation ---
-
-export const markDayAsSkipped = async (dukuhIds: number[]) => {
-    db.wargas.forEach(w => {
-        if (dukuhIds.includes(w.dukuhId)) {
-            w.totalDebt += w.dailyFee;
-        }
-    });
-    saveToStorage(db);
-    return true;
+export const bulkCreateWarga = async (wargas: Omit<Warga, 'id' | 'totalDebt'>[]) => {
+    const payload = wargas.map(w => ({
+        ...w,
+        id: String(Math.floor(100000 + Math.random() * 900000)),
+        totalDebt: 0
+    }));
+    const { error } = await supabase.from('wargas').insert(payload);
+    if (error) throw error;
 };
 
-export const getWargaById = async (id: string): Promise<Warga | null> => db.wargas.find(w => w.id === id) || null;
-export const getAllWarga = async (): Promise<Warga[]> => [...db.wargas];
+export const updateWarga = async (id: string, wargaData: Partial<Warga>) => {
+    const { data, error } = await supabase
+        .from('wargas')
+        .update(wargaData)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
+};
 
-export const createTransaksi = async (txData: any): Promise<Transaksi> => {
-    const newTx: Transaksi = { ...txData, id: `tx${Date.now()}`, timestamp: new Date(), category: 'IURAN' };
+export const deleteWarga = async (id: string) => {
+    const { error } = await supabase.from('wargas').delete().eq('id', id);
+    if (error) throw error;
+};
+
+// --- DATA MASTER: PETUGAS ---
+
+export const getAllPetugas = async (): Promise<Petugas[]> => {
+    const { data, error } = await supabase.from('petugases').select('*').order('name', { ascending: true });
+    return (data as Petugas[]) || [];
+};
+
+export const createPetugas = async (p: Omit<Petugas, 'id'>) => {
+    const id = `pt${Date.now()}`;
+    const { data, error } = await supabase.from('petugases').insert([{ ...p, id }]).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const updatePetugas = async (id: string, p: Partial<Petugas>) => {
+    const { data, error } = await supabase.from('petugases').update(p).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const deletePetugas = async (id: string) => {
+    await supabase.from('petugases').delete().eq('id', id);
+};
+
+// --- TRANSAKSI ---
+
+export const createTransaksi = async (txData: Omit<Transaksi, 'id' | 'timestamp'>): Promise<Transaksi | null> => {
+    const txId = `tx${Date.now()}`;
+    const { data, error } = await supabase
+        .from('transactions')
+        .insert([{ ...txData, id: txId, timestamp: new Date().toISOString() }])
+        .select()
+        .single();
+
+    if (error) throw error;
+
+    // Jika transaksi adalah HUTANG, tambahkan ke saldo hutang warga
     if (txData.status === 'HUTANG') {
-        const warga = db.wargas.find(w => w.id === txData.wargaId);
-        if (warga) warga.totalDebt += txData.amount;
+        const { data: warga } = await supabase.from('wargas').select('totalDebt').eq('id', txData.wargaId).single();
+        if (warga) {
+            await supabase.from('wargas').update({ totalDebt: (warga.totalDebt || 0) + txData.amount }).eq('id', txData.wargaId);
+        }
     }
-    db.transactions.unshift(newTx);
-    saveToStorage(db);
-    return newTx;
+    return data ? { ...data, timestamp: new Date(data.timestamp) } : null;
+};
+
+export const deleteTransaksi = async (id: string) => {
+    const { data: tx } = await supabase.from('transactions').select('*').eq('id', id).single();
+    if (tx && tx.status === 'HUTANG') {
+        const { data: warga } = await supabase.from('wargas').select('totalDebt').eq('id', tx.wargaId).single();
+        if (warga) {
+            await supabase.from('wargas').update({ totalDebt: Math.max(0, (warga.totalDebt || 0) - tx.amount) }).eq('id', tx.wargaId);
+        }
+    }
+    await supabase.from('transactions').delete().eq('id', id);
+};
+
+export const getTransactionsByWargaId = async (wargaId: string, limit: number = 10): Promise<Transaksi[]> => {
+    const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('wargaId', wargaId)
+        .order('timestamp', { ascending: false })
+        .limit(limit);
+    if (error) return [];
+    return (data || []).map(tx => ({ ...tx, timestamp: new Date(tx.timestamp) }));
+};
+
+export const checkIfWargaPaidToday = async (wargaId: string): Promise<boolean> => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('wargaId', wargaId)
+        .eq('status', 'LUNAS')
+        .gte('timestamp', today.toISOString())
+        .limit(1);
+    return (data && data.length > 0) || false;
+};
+
+export const getWargaTodayTransaction = async (wargaId: string): Promise<Transaksi | null> => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('wargaId', wargaId)
+        .gte('timestamp', today.toISOString())
+        .limit(1);
+    
+    const tx = data && data.length > 0 ? data[0] : null;
+    return tx ? { ...tx, timestamp: new Date(tx.timestamp) } : null;
 };
 
 export const convertDebtToPaidToday = async (wargaId: string) => {
-    const today = new Date().toDateString();
-    const tx = db.transactions.find(t => t.wargaId === wargaId && new Date(t.timestamp).toDateString() === today && t.status === 'HUTANG');
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data: txs } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('wargaId', wargaId)
+        .eq('status', 'HUTANG')
+        .gte('timestamp', today.toISOString())
+        .limit(1);
+    
+    const tx = txs && txs.length > 0 ? txs[0] : null;
     if (tx) {
-        const warga = db.wargas.find(w => w.id === wargaId);
-        if (warga) warga.totalDebt = Math.max(0, warga.totalDebt - tx.amount);
-        tx.status = 'LUNAS';
-        tx.timestamp = new Date();
-        saveToStorage(db);
-        return tx;
+        await supabase.from('transactions').update({ status: 'LUNAS' }).eq('id', tx.id);
+        const { data: warga } = await supabase.from('wargas').select('totalDebt').eq('id', wargaId).single();
+        if (warga) {
+            await supabase.from('wargas').update({ totalDebt: Math.max(0, (warga.totalDebt || 0) - tx.amount) }).eq('id', wargaId);
+        }
     }
-    return null;
-}
-
-export const payDebt = async (wargaId: string, petugasId: string, amount: number): Promise<Transaksi> => {
-    const warga = db.wargas.find(w => w.id === wargaId);
-    if (warga) warga.totalDebt = Math.max(0, warga.totalDebt - amount);
-    const newTx: Transaksi = { id: `tx-p-${Date.now()}`, timestamp: new Date(), wargaId, petugasId, amount, status: 'LUNAS', category: 'TUNGGAKAN' };
-    db.transactions.unshift(newTx);
-    saveToStorage(db);
-    return newTx;
 };
 
-export const loginPetugas = async (pin: string): Promise<Petugas | null> => db.petugases.find(p => p.pin === pin) || null;
-export const loginAdmin = async (u: string, p: string): Promise<Admin | null> => (u === 'admin' && p === 'password') ? db.admins[0] : null;
-
-export const getAllDukuh = async (): Promise<Dukuh[]> => [...db.dukuhs];
-export const getDukuhById = (id: number) => db.dukuhs.find(d => d.id === id) || null;
-export const getAllRT = async (): Promise<RT[]> => [...db.rts];
-export const getRTById = (id: number) => db.rts.find(r => r.id === id) || null;
+export const payDebt = async (wargaId: string, petugasId: string, amount: number) => {
+    const txId = `tx${Date.now()}`;
+    await supabase.from('transactions').insert([{
+        id: txId,
+        wargaId,
+        petugasId,
+        amount,
+        status: 'LUNAS',
+        category: 'TUNGGAKAN',
+        timestamp: new Date().toISOString()
+    }]);
+    const { data: warga } = await supabase.from('wargas').select('totalDebt').eq('id', wargaId).single();
+    if (warga) {
+        await supabase.from('wargas').update({ totalDebt: Math.max(0, (warga.totalDebt || 0) - amount) }).eq('id', wargaId);
+    }
+};
 
 export const getReports = async (f: { startDate: Date, endDate: Date }): Promise<any[]> => {
-    const start = new Date(f.startDate); start.setHours(0,0,0,0);
-    const end = new Date(f.endDate); end.setHours(23,59,59,999);
-    return db.transactions.filter(tx => {
-        const txDate = new Date(tx.timestamp);
-        return txDate >= start && txDate <= end;
-    }).map(tx => {
-        const w = db.wargas.find(w => w.id === tx.wargaId);
-        return {
-            ...tx,
-            wargaName: w?.name || 'Warga Terhapus',
-            petugasName: db.petugases.find(p => p.id === tx.petugasId)?.name || 'Sistem',
-            dukuhName: db.dukuhs.find(d => d.id === w?.dukuhId)?.name || '-',
-            rtNumber: db.rts.find(r => r.id === w?.rtId)?.number || '-'
-        };
-    });
+    // Pastikan range waktu mencakup seluruh hari terakhir
+    const end = new Date(f.endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+            *,
+            wargas (name, dukuhId, rtId),
+            petugases (name)
+        `)
+        .gte('timestamp', f.startDate.toISOString())
+        .lte('timestamp', end.toISOString());
+
+    if (error) return [];
+
+    const dukuhs = await getAllDukuh();
+    const rts = await getAllRT();
+
+    return data.map(tx => ({
+        ...tx,
+        timestamp: new Date(tx.timestamp),
+        wargaName: tx.wargas?.name || 'Warga Terhapus',
+        petugasName: tx.petugases?.name || (tx.petugasId === 'SYSTEM' ? 'Sistem Otomatis' : 'Petugas Terhapus'),
+        dukuhName: dukuhs.find(d => d.id === tx.wargas?.dukuhId)?.name || 'N/A',
+        rtNumber: rts.find(r => r.id === tx.wargas?.rtId)?.number || 'N/A'
+    }));
 };
+
+// --- KEUANGAN ---
 
 export const getAdminDashboardStats = async () => {
-    const totalRevenue = db.transactions.filter(tx => tx.status === 'LUNAS').reduce((sum, tx) => sum + tx.amount, 0);
-    const totalDebt = db.wargas.reduce((sum, w) => sum + (w.totalDebt || 0), 0);
-    const totalExpense = db.pengeluarans.reduce((sum, p) => sum + p.amount, 0);
-    return { totalRevenue, totalExpense, balance: totalRevenue - totalExpense, totalWarga: db.wargas.length, totalDebt };
+    const { data: income } = await supabase.from('transactions').select('amount').eq('status', 'LUNAS');
+    const { data: expense } = await supabase.from('pengeluarans').select('amount');
+    const { data: wargas } = await supabase.from('wargas').select('totalDebt');
+
+    const totalRevenue = (income || []).reduce((s, i) => s + i.amount, 0);
+    const totalExpense = (expense || []).reduce((s, i) => s + i.amount, 0);
+    const totalDebt = (wargas || []).reduce((s, w) => s + (w.totalDebt || 0), 0);
+
+    return {
+        totalRevenue,
+        totalExpense,
+        balance: totalRevenue - totalExpense,
+        totalWarga: wargas?.length || 0,
+        totalDebt
+    };
 };
 
-export const getSchedule = async () => ({ ...db.schedule });
-export const updateSchedule = async (day: string, s: any) => {
-    (db.schedule as any)[day] = s;
-    saveToStorage(db);
-    return db.schedule;
-}; 
+export const getPublicDashboardStats = async (): Promise<PublicStats> => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    
+    const { data: txs } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('status', 'LUNAS')
+        .gte('timestamp', startOfMonth);
+    
+    const { data: allWarga } = await supabase.from('wargas').select('id');
+
+    return {
+        totalWarga: allWarga?.length || 0,
+        totalTransaksiBulanIni: txs?.length || 0,
+        totalDanaTerkumpulBulanIni: (txs || []).reduce((s, i) => s + i.amount, 0)
+    };
+};
+
+export const getPetugasDailySummary = async (petugasId: string) => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('petugasId', petugasId)
+        .eq('status', 'LUNAS')
+        .gte('timestamp', today.toISOString());
+    const total = (data || []).reduce((s, i) => s + i.amount, 0);
+    return { total, count: data?.length || 0 };
+};
+
+// --- PENGELUARAN ---
+
+export const getPengeluaran = async (f: { startDate: Date, endDate: Date }): Promise<Pengeluaran[]> => {
+    const { data } = await supabase
+        .from('pengeluarans')
+        .select('*')
+        .gte('date', f.startDate.toISOString().split('T')[0])
+        .lte('date', f.endDate.toISOString().split('T')[0])
+        .order('date', { ascending: false });
+    return (data || []).map(e => ({ ...e, date: new Date(e.date) }));
+};
+
+export const createPengeluaran = async (p: Omit<Pengeluaran, 'id'>) => {
+    const id = `exp${Date.now()}`;
+    const { data, error } = await supabase.from('pengeluarans').insert([{ ...p, id, date: p.date.toISOString().split('T')[0] }]).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const updatePengeluaran = async (id: string, p: Partial<Pengeluaran>) => {
+    const payload = { ...p };
+    if (p.date) payload.date = p.date.toISOString().split('T')[0] as any;
+    const { data, error } = await supabase.from('pengeluarans').update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const deletePengeluaran = async (id: string) => {
+    await supabase.from('pengeluarans').delete().eq('id', id);
+};
+
+// --- DATA WILAYAH ---
+
+export const getAllDukuh = async (): Promise<Dukuh[]> => {
+    const { data } = await supabase.from('dukuhs').select('*').order('name', { ascending: true });
+    return (data as Dukuh[]) || [];
+};
+
+export const getDukuhById = async (id: number): Promise<Dukuh | null> => {
+    const { data } = await supabase.from('dukuhs').select('*').eq('id', id).single();
+    return (data as Dukuh) || null;
+};
+
+export const createDukuh = async (d: Omit<Dukuh, 'id'>) => {
+    const { data, error } = await supabase.from('dukuhs').insert([d]).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const updateDukuh = async (id: number, d: Partial<Dukuh>) => {
+    const { data, error } = await supabase.from('dukuhs').update(d).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const deleteDukuh = async (id: number) => {
+    await supabase.from('dukuhs').delete().eq('id', id);
+};
+
+export const getAllRT = async (): Promise<RT[]> => {
+    const { data } = await supabase.from('rts').select('*').order('number', { ascending: true });
+    return (data as RT[]) || [];
+};
+
+export const getRTById = async (id: number): Promise<RT | null> => {
+    const { data } = await supabase.from('rts').select('*').eq('id', id).single();
+    return (data as RT) || null;
+};
+
+export const createRT = async (r: Omit<RT, 'id'>) => {
+    const { data, error } = await supabase.from('rts').insert([r]).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const updateRT = async (id: number, r: Partial<RT>) => {
+    const { data, error } = await supabase.from('rts').update(r).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const deleteRT = async (id: number) => {
+    await supabase.from('rts').delete().eq('id', id);
+};
+
+// --- MESSAGES ---
+
+export const sendMessage = async (m: Omit<ContactMessage, 'id' | 'timestamp' | 'isRead'>) => {
+    const id = `msg${Date.now()}`;
+    const { error } = await supabase.from('contact_messages').insert([{ ...m, id, timestamp: new Date().toISOString(), isRead: false }]);
+    if (error) throw error;
+};
+
+export const getMessages = async (): Promise<ContactMessage[]> => {
+    const { data } = await supabase.from('contact_messages').select('*').order('timestamp', { ascending: false });
+    return (data || []).map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+};
+
+export const markMessageAsRead = async (id: string) => {
+    await supabase.from('contact_messages').update({ isRead: true }).eq('id', id);
+};
+
+export const deleteMessage = async (id: string) => {
+    await supabase.from('contact_messages').delete().eq('id', id);
+};
+
+// --- ANNOUNCEMENTS ---
+
+export const getAnnouncements = async (): Promise<Announcement[]> => {
+    const { data } = await supabase.from('announcements').select('*').order('date', { ascending: false });
+    return (data || []).map(a => ({ ...a, date: new Date(a.date) }));
+};
+
+export const getActiveAnnouncements = async (): Promise<Announcement[]> => {
+    const { data } = await supabase.from('announcements').select('*').eq('isActive', true).order('date', { ascending: false });
+    return (data || []).map(a => ({ ...a, date: new Date(a.date) }));
+};
+
+export const createAnnouncement = async (a: Omit<Announcement, 'id' | 'date'>) => {
+    const id = `ann${Date.now()}`;
+    await supabase.from('announcements').insert([{ ...a, id, date: new Date().toISOString() }]);
+};
+
+export const updateAnnouncement = async (id: string, a: Partial<Announcement>) => {
+    await supabase.from('announcements').update(a).eq('id', id);
+};
+
+export const deleteAnnouncement = async (id: string) => {
+    await supabase.from('announcements').delete().eq('id', id);
+};
+
+// --- PROFILE ---
+
+export const updateAdminProfile = async (id: string, name: string, pin?: string) => {
+    const payload: any = { name };
+    if (pin) payload.pin = pin;
+    const { data, error } = await supabase.from('admins').update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+};
+
+export const updatePetugasProfile = async (id: string, name: string, phone: string, pin: string) => {
+    const { data, error } = await supabase.from('petugases').update({ name, phone, pin }).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+};
+
+// --- JADWAL & OPERATIONAL ---
+
+export const getSchedule = async () => {
+    const { data } = await supabase.from('schedules').select('*');
+    const result: any = {};
+    (data || []).forEach(row => {
+        result[row.day] = row.dukuhIds;
+    });
+    return result;
+};
 
 export const getScheduleForToday = async () => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const todayName = days[new Date().getDay()];
-    const todaySched = (db.schedule as any)[todayName];
-    if (todaySched === 'libur' || !todaySched || todaySched.length === 0) return { isHoliday: true, dukuhIds: [], dukuhNames: [] };
-    const dukuhNames = todaySched.map((id: number) => db.dukuhs.find(d => d.id === id)?.name || 'N/A');
-    return { isHoliday: false, dukuhIds: todaySched, dukuhNames };
+    const { data } = await supabase.from('schedules').select('*').eq('day', todayName).single();
+    
+    if (!data || data.dukuhIds === 'libur' || !data.dukuhIds.length) {
+        return { isHoliday: true, dukuhIds: [], dukuhNames: [] };
+    }
+    
+    const dukuhs = await getAllDukuh();
+    const names = data.dukuhIds.map((id: number) => dukuhs.find(d => d.id === id)?.name || 'Dukuh Tak Dikenal');
+    return { isHoliday: false, dukuhIds: data.dukuhIds, dukuhNames: names };
 };
 
-export const checkIfWargaPaidToday = async (id: string) => 
-    db.transactions.some(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString() && tx.status === 'LUNAS');
-
-export const getWargaTodayTransaction = async (id: string) => 
-    db.transactions.find(tx => tx.wargaId === id && new Date(tx.timestamp).toDateString() === new Date().toDateString());
-
-export const getUnpaidWargaForToday = async () => db.wargas.filter(w => !db.transactions.some(tx => tx.wargaId === w.id && new Date(tx.timestamp).toDateString() === new Date().toDateString() && tx.status === 'LUNAS'));
-
-export const getActiveAnnouncements = async () => [];
-export const getPublicDashboardStats = async (): Promise<PublicStats> => ({
-    totalWarga: db.wargas.length, totalTransaksiBulanIni: db.transactions.length, totalDanaTerkumpulBulanIni: db.transactions.reduce((s, t) => s + t.amount, 0)
-});
-export const getTransactionsByWargaId = async (id: string, limit?: number) => db.transactions.filter(t => t.wargaId === id).slice(0, limit);
-export const getPengeluaran = async (f: any) => db.pengeluarans;
-export const getPetugasDailySummary = async (id: string) => {
-    const txs = db.transactions.filter(t => t.petugasId === id && new Date(t.timestamp).toDateString() === new Date().toDateString() && t.status === 'LUNAS');
-    return { total: txs.reduce((s, t) => s + t.amount, 0), count: txs.length };
+export const updateSchedule = async (day: string, dukuhIds: number[] | 'libur') => {
+    const { error } = await supabase.from('schedules').upsert([{ day, dukuhIds }]);
+    if (error) throw error;
 };
-export const getDetailedPublicTransparency = async (year: number) => ({
-    dukuhStats: db.dukuhs.map(d => ({ name: d.name, total: 0 })),
-    monthlyStats: [], totalRevenue: 0, totalExpense: 0, balance: 0
-});
-export const updateAdminProfile = async (id: any, n: any, p: any) => db.admins[0];
-export const updatePetugasProfile = async (id: any, n: any, ph: any, pi: any) => db.petugases[0];
-export const updateWarga = async (id: string, data: Warga) => { const i = db.wargas.findIndex(w => w.id === id); if(i>-1) db.wargas[i] = data; saveToStorage(db); return data; };
-export const createWarga = async (data: any) => { const nw = { ...data, id: String(100000 + db.wargas.length), totalDebt: 0 }; db.wargas.push(nw); saveToStorage(db); return nw; };
-export const bulkCreateWarga = async (data: any[]) => { data.forEach(d => { const nw = { ...d, id: String(100000 + db.wargas.length), totalDebt: 0 }; db.wargas.push(nw); }); saveToStorage(db); };
-export const deleteWarga = async (id: string) => { db.wargas = db.wargas.filter(w => w.id !== id); saveToStorage(db); };
-export const getAllPetugas = async () => db.petugases;
-export const createPetugas = async (d: any) => { const np = { ...d, id: 'petugas' + Date.now() }; db.petugases.push(np); saveToStorage(db); return np; };
-export const updatePetugas = async (id: string, d: any) => { const i = db.petugases.findIndex(p => p.id === id); if(i>-1) db.petugases[i] = { ...db.petugases[i], ...d }; saveToStorage(db); return db.petugases[i]; };
-export const deletePetugas = async (id: string) => { db.petugases = db.petugases.filter(p => p.id !== id); saveToStorage(db); };
-export const createDukuh = async (d: any) => { const nd = { ...d, id: db.dukuhs.length + 1 }; db.dukuhs.push(nd); saveToStorage(db); return nd; };
-export const updateDukuh = async (id: number, d: any) => { const i = db.dukuhs.findIndex(du => du.id === id); if(i>-1) db.dukuhs[i] = { ...db.dukuhs[i], ...d }; saveToStorage(db); return db.dukuhs[i]; };
-export const deleteDukuh = async (id: number) => { db.dukuhs = db.dukuhs.filter(du => du.id !== id); saveToStorage(db); };
-export const createRT = async (d: any) => { const nr = { ...d, id: db.rts.length + 1 }; db.rts.push(nr); saveToStorage(db); return nr; };
-export const updateRT = async (id: number, d: any) => { const i = db.rts.findIndex(r => r.id === id); if(i>-1) db.rts[i] = { ...db.rts[i], ...d }; saveToStorage(db); return db.rts[i]; };
-export const deleteRT = async (id: number) => { db.rts = db.rts.filter(r => r.id !== id); saveToStorage(db); };
-export const deleteTransaksi = async (id: string) => { db.transactions = db.transactions.filter(t => t.id !== id); saveToStorage(db); };
-export const createPengeluaran = async (d: any) => { const ne = { ...d, id: 'exp' + Date.now() }; db.pengeluarans.push(ne); saveToStorage(db); return ne; };
-export const updatePengeluaran = async (id: string, d: any) => { const i = db.pengeluarans.findIndex(e => e.id === id); if(i>-1) db.pengeluarans[i] = { ...db.pengeluarans[i], ...d }; saveToStorage(db); return db.pengeluarans[i]; };
-export const deletePengeluaran = async (id: string) => { db.pengeluarans = db.pengeluarans.filter(e => e.id !== id); saveToStorage(db); };
-export const getMessages = async () => [];
-export const markMessageAsRead = async (id: string) => {};
-export const deleteMessage = async (id: string) => {};
-export const sendMessage = async (d: any) => {};
-export const getAnnouncements = async () => [];
-export const createAnnouncement = async (d: any) => {};
-export const updateAnnouncement = async (id: string, d: any) => {};
-export const deleteAnnouncement = async (id: string) => {};
+
+export const markDayAsSkipped = async (dukuhIds: number[]) => {
+    // Ambil warga di dukuh terpilih
+    const { data: wargas } = await supabase.from('wargas').select('*').in('dukuhId', dukuhIds);
+    if (wargas) {
+        for (const w of wargas) {
+            await createTransaksi({
+                wargaId: w.id,
+                petugasId: 'SYSTEM',
+                amount: w.dailyFee,
+                status: 'HUTANG',
+                category: 'IURAN'
+            });
+        }
+    }
+};
+
+export const getUnpaidWargaForToday = async (): Promise<Warga[]> => {
+    const sched = await getScheduleForToday();
+    if (sched.isHoliday) return [];
+    
+    const { data: allWarga } = await supabase.from('wargas').select('*').in('dukuhId', sched.dukuhIds);
+    if (!allWarga) return [];
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data: todayTxs } = await supabase
+        .from('transactions')
+        .select('wargaId')
+        .gte('timestamp', today.toISOString());
+        
+    const paidIds = new Set((todayTxs || []).map(tx => tx.wargaId));
+    
+    return allWarga.filter(w => !paidIds.has(w.id));
+};
+
+export const getDetailedPublicTransparency = async (year: number) => {
+    const stats = await getAdminDashboardStats();
+    const dukuhs = await getAllDukuh();
+    
+    // Ambil semua transaksi tahun tsb
+    const start = new Date(year, 0, 1).toISOString();
+    const end = new Date(year, 11, 31, 23, 59, 59).toISOString();
+    
+    const { data: txs } = await supabase
+        .from('transactions')
+        .select('amount, wargaId, timestamp')
+        .eq('status', 'LUNAS')
+        .gte('timestamp', start)
+        .lte('timestamp', end);
+
+    const { data: wargas } = await supabase.from('wargas').select('id, dukuhId');
+
+    // Hitung per dukuh
+    const dukuhStats = dukuhs.map(d => {
+        const wargaInDukuh = new Set(wargas?.filter(w => w.dukuhId === d.id).map(w => w.id));
+        const total = (txs || []).filter(t => wargaInDukuh.has(t.wargaId)).reduce((s, i) => s + i.amount, 0);
+        return { name: d.name, total };
+    });
+
+    // Hitung per bulan
+    const monthlyStats = Array.from({ length: 12 }).map((_, i) => {
+        const monthIncome = (txs || []).filter(t => new Date(t.timestamp).getMonth() === i).reduce((s, i) => s + i.amount, 0);
+        return {
+            monthName: new Date(year, i).toLocaleString('id-ID', { month: 'long' }),
+            income: monthIncome,
+            expense: 0, // Perlu query pengeluaran juga jika ingin akurat
+            balance: monthIncome
+        };
+    });
+
+    return { ...stats, dukuhStats, monthlyStats };
+};

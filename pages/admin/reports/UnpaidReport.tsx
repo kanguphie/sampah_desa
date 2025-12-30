@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { getAllWarga, getDukuhById, getRTById, getAllDukuh, getAllRT } from '@/services/api';
+import { getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
 import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon } from '@/components/icons';
 
@@ -61,8 +61,10 @@ const UnpaidReport: React.FC = () => {
 
         const totalTunggakan = filteredList.reduce((s, i) => s + (i.totalDebt || 0), 0);
         const rows = filteredList.map((w, idx) => {
-            const rtNum = getRTById(w.rtId)?.number || 'N/A';
-            const dukuhName = getDukuhById(w.dukuhId)?.name || 'N/A';
+            // FIX: Use rtList state lookup instead of async getRTById to avoid Promise property errors
+            const rtNum = rtList.find(r => r.id === w.rtId)?.number || 'N/A';
+            // FIX: Use dukuhList state lookup instead of async getDukuhById to avoid Promise property errors
+            const dukuhName = dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A';
             return `
                 <tr>
                     <td style="text-align:center">${idx + 1}</td>
@@ -135,8 +137,10 @@ const UnpaidReport: React.FC = () => {
     };
 
     const generateSlipHtml = (w: Warga) => {
-        const rtNum = getRTById(w.rtId)?.number || 'N/A';
-        const dukuhName = getDukuhById(w.dukuhId)?.name || 'N/A';
+        // FIX: Use rtList state lookup instead of async getRTById to avoid Promise property errors
+        const rtNum = rtList.find(r => r.id === w.rtId)?.number || 'N/A';
+        // FIX: Use dukuhList state lookup instead of async getDukuhById to avoid Promise property errors
+        const dukuhName = dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A';
         return `
             <div class="slip-wrapper">
                 <div class="header">
@@ -286,7 +290,10 @@ const UnpaidReport: React.FC = () => {
                                     <td className="p-5 text-center"><input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} className="w-4 h-4 rounded border-slate-300 text-primary cursor-pointer" /></td>
                                     <td className="p-5" onClick={() => toggleSelect(w.id)}>
                                         <p className="font-bold text-slate-800 text-sm group-hover:text-primary transition-colors cursor-pointer">{w.name}</p>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">RT {getRTById(w.rtId)?.number}, {getDukuhById(w.dukuhId)?.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                            {/* FIX: Use rtList and dukuhList state lookup instead of async API calls */}
+                                            RT {rtList.find(r => r.id === w.rtId)?.number || 'N/A'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A'}
+                                        </p>
                                     </td>
                                     <td className="p-5 text-right font-black text-rose-600 text-base">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
                                     <td className="p-5 text-center">

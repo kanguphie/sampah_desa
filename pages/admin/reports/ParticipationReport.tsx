@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { getAllWarga, getAllDukuh, getAllRT, getReports, getDukuhById, getRTById } from '@/services/api';
+import { getAllWarga, getAllDukuh, getAllRT, getReports } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
 import { DownloadIcon, UsersIcon, CheckCircleIcon, XIcon, SearchIcon } from '@/components/icons';
 
@@ -72,15 +72,21 @@ const ParticipationReport: React.FC = () => {
         if (!printWindow) return;
 
         const mName = new Date(year, month - 1).toLocaleString('id-ID', { month: 'long' });
-        const rows = inactiveList.map((w, idx) => `
-            <tr>
-                <td style="text-align:center">${idx + 1}</td>
-                <td style="font-family:monospace">${w.id}</td>
-                <td style="font-weight:700">${w.name}</td>
-                <td>RT ${getRTById(w.rtId)?.number}, ${getDukuhById(w.dukuhId)?.name}</td>
-                <td style="text-align:center; color:#e11d48; font-weight:800">TIDAK AKTIF</td>
-            </tr>
-        `).join('');
+        const rows = inactiveList.map((w, idx) => {
+            // FIX: Use rtList state lookup instead of async getRTById to avoid Promise property errors
+            const rtNum = rtList.find(r => r.id === w.rtId)?.number || 'N/A';
+            // FIX: Use dukuhList state lookup instead of async getDukuhById to avoid Promise property errors
+            const dukuhName = dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A';
+            return `
+                <tr>
+                    <td style="text-align:center">${idx + 1}</td>
+                    <td style="font-family:monospace">${w.id}</td>
+                    <td style="font-weight:700">${w.name}</td>
+                    <td>RT ${rtNum}, ${dukuhName}</td>
+                    <td style="text-align:center; color:#e11d48; font-weight:800">TIDAK AKTIF</td>
+                </tr>
+            `;
+        }).join('');
 
         printWindow.document.write(`
             <html>
@@ -116,8 +122,11 @@ const ParticipationReport: React.FC = () => {
                     </div>
                 </div>
                 <div style="margin-bottom:20px; font-size:10pt;">
-                    <strong>Filter Wilayah:</strong> ${dukuhId === 'all' ? 'Seluruh Desa' : getDukuhById(Number(dukuhId))?.name}, 
-                    ${rtId === 'all' ? 'Semua RT' : 'RT ' + getRTById(Number(rtId))?.number}
+                    <strong>Filter Wilayah:</strong> 
+                    ${/* FIX: Use synchronous state lookup instead of async API call getDukuhById */
+                        dukuhId === 'all' ? 'Seluruh Desa' : dukuhList.find(d => d.id === Number(dukuhId))?.name}, 
+                    ${/* FIX: Use synchronous state lookup instead of async API call getRTById */
+                        rtId === 'all' ? 'Semua RT' : 'RT ' + rtList.find(r => r.id === Number(rtId))?.number}
                 </div>
                 <table>
                     <thead><tr><th>No</th><th>ID</th><th>Nama Warga</th><th>Wilayah</th><th>Status Bulan Ini</th></tr></thead>
@@ -217,7 +226,10 @@ const ParticipationReport: React.FC = () => {
                                         <p className="font-bold text-slate-700">{w.name}</p>
                                         <p className="text-[10px] text-slate-400 font-mono">ID: {w.id}</p>
                                     </td>
-                                    <td className="p-5 text-xs text-slate-500">RT {getRTById(w.rtId)?.number}, {getDukuhById(w.dukuhId)?.name}</td>
+                                    <td className="p-5 text-xs text-slate-500">
+                                        {/* FIX: Use synchronous state lookup instead of async API calls getRTById and getDukuhById */}
+                                        RT {rtList.find(r => r.id === w.rtId)?.number || 'N/A'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A'}
+                                    </td>
                                     <td className="p-5 text-center">
                                         <span className="bg-rose-100 text-rose-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">Tidak Membayar</span>
                                     </td>

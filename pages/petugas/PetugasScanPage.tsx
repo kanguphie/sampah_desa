@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { FC } from 'react';
-import type { Warga, TransactionStatus, Transaksi } from '@/types';
-import { getWargaById, createTransaksi, payDebt, getDukuhById, getRTById, getWargaTodayTransaction, convertDebtToPaidToday } from '@/services/api';
+import type { Warga, TransactionStatus, Transaksi, Dukuh, RT } from '@/types';
+import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
@@ -12,6 +13,8 @@ const PetugasScanPage: FC = () => {
     const [wargaId, setWargaId] = useState('');
     const [warga, setWarga] = useState<Warga | null>(null);
     const [todayTx, setTodayTx] = useState<Transaksi | null>(null);
+    const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
+    const [rtList, setRtList] = useState<RT[]>([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -28,6 +31,15 @@ const PetugasScanPage: FC = () => {
     
     const { petugas } = useAuth();
     
+    useEffect(() => {
+        const fetchMeta = async () => {
+            const [d, r] = await Promise.all([getAllDukuh(), getAllRT()]);
+            setDukuhList(d);
+            setRtList(r);
+        };
+        fetchMeta();
+    }, []);
+
     const resetState = useCallback(() => {
         setWarga(null);
         setTodayTx(null);
@@ -192,6 +204,8 @@ const PetugasScanPage: FC = () => {
         finally { setLoading(false); }
     }
 
+    const getDukuhName = (id: number) => dukuhList.find(d => d.id === id)?.name || 'N/A';
+
     // LOGIKA TAMPILAN KEUANGAN
     const isTodayDebt = todayTx?.status === 'HUTANG';
     const isTodayPaid = todayTx?.status === 'LUNAS';
@@ -247,7 +261,7 @@ const PetugasScanPage: FC = () => {
                             <QrCodeIcon className="text-3xl text-emerald-500" />
                         </div>
                         <h2 className="text-2xl font-black text-slate-800 tracking-tight">{warga.name}</h2>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {warga.id} • {getDukuhById(warga.dukuhId)?.name}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {warga.id} • {getDukuhName(warga.dukuhId)}</p>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">

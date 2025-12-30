@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -15,7 +16,8 @@ const AdminLoginPage: React.FC = () => {
         setLoading(true);
         setError('');
         try {
-            const admin = await apiLoginAdmin('admin', password);
+            // Corrected: loginAdmin in api.ts only expects one argument (the PIN/password)
+            const admin = await apiLoginAdmin(password);
             if (admin) {
                 loginAdmin(admin);
                 navigate('/admin/dashboard');
