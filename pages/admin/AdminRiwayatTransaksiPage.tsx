@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getReports, deleteTransaksi, getAllDukuh, getAllRT } from '@/services/api';
 import type { Transaksi, Dukuh, RT } from '@/types';
-import { SearchIcon, ClipboardListIcon, TrashIcon, ChevronDownIcon, DownloadIcon, BanknotesIcon, CurrencyDollarIcon } from '@/components/icons';
+import { SearchIcon, TrashIcon, ChevronDownIcon, DownloadIcon, BanknotesIcon, CurrencyDollarIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 
 interface ReportRow extends Transaksi {
@@ -10,6 +10,8 @@ interface ReportRow extends Transaksi {
     petugasName: string;
     dukuhName: string;
     rtNumber: string;
+    wargaDukuhId?: number;
+    wargaRtId?: number;
 }
 
 const AdminRiwayatTransaksiPage: React.FC = () => {
@@ -19,15 +21,15 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [transactionToDelete, setTransactionToDelete] = useState<ReportRow | null>(null);
     
-    // Filters & Sorting
     const [filters, setFilters] = useState({
         startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
         search: '',
         dukuhId: 'all',
         rtId: 'all',
-        category: 'all' // New Filter
+        category: 'all'
     });
+
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'timestamp', direction: 'desc' });
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
     const [currentPage, setCurrentPage] = useState(1);
@@ -43,8 +45,8 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
             setTransactions(data);
             setDukuhList(d);
             setRtList(r);
-        } catch (error) {
-            console.error("Failed to fetch transactions", error);
+        } catch (error: any) {
+            console.error("Gagal mengambil transaksi:", error.message || error);
         } finally {
             setLoading(false);
         }
@@ -61,10 +63,16 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
     const sortedAndFilteredTx = useMemo(() => {
         let items = transactions.filter(tx => {
             const query = (filters.search || '').toLowerCase();
-            const matchSearch = (tx.wargaName || '').toLowerCase().includes(query) || (tx.id || '').toLowerCase().includes(query);
-            const matchDukuh = filters.dukuhId === 'all' || tx.dukuhName === dukuhList.find(d => d.id === Number(filters.dukuhId))?.name;
-            const matchRT = filters.rtId === 'all' || tx.rtNumber === rtList.find(r => r.id === Number(filters.rtId))?.number;
+            const matchSearch = 
+                (tx.wargaName || '').toLowerCase().includes(query) || 
+                (tx.id || '').toLowerCase().includes(query) || 
+                (tx.wargaId || '').toLowerCase().includes(query);
+            
+            // Filter menggunakan flattened data dari API (wargaDukuhId & wargaRtId)
+            const matchDukuh = filters.dukuhId === 'all' || String(tx.wargaDukuhId) === String(filters.dukuhId);
+            const matchRT = filters.rtId === 'all' || String(tx.wargaRtId) === String(filters.rtId);
             const matchCategory = filters.category === 'all' || tx.category === filters.category;
+            
             return matchSearch && matchDukuh && matchRT && matchCategory;
         });
 
@@ -83,7 +91,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
             return 0;
         });
         return items;
-    }, [transactions, filters, sortConfig, dukuhList, rtList]);
+    }, [transactions, filters, sortConfig]);
 
     const paginatedTx = useMemo(() => {
         if (itemsPerPage === 'all') return sortedAndFilteredTx;
@@ -121,7 +129,6 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                     .header-right { text-align: right; }
                     .report-title { font-size: 12pt; font-weight: 800; text-transform: uppercase; color: #1e293b; margin: 0; }
                     .print-date { font-size: 8pt; color: #94a3b8; font-weight: 600; margin-top: 4px; }
-                    
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
                     th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1.5px solid #e2e8f0; color: #475569; }
                     td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
@@ -174,27 +181,39 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Dari</label>
-                        <input type="date" value={filters.startDate} onChange={e => setFilters({...filters, startDate: e.target.value})} className="w-full bg-transparent font-bold text-xs outline-none" />
+                        <input type="date" value={filters.startDate} onChange={e => setFilters({...filters, startDate: e.target.value, currentPage: 1} as any)} className="w-full bg-transparent font-bold text-xs outline-none" />
                     </div>
                     <div className="bg-slate-50/50 p-2 rounded-xl border border-slate-100">
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Sampai</label>
-                        <input type="date" value={filters.endDate} onChange={e => setFilters({...filters, endDate: e.target.value})} className="w-full bg-transparent font-bold text-xs outline-none" />
+                        <input type="date" value={filters.endDate} onChange={e => setFilters({...filters, endDate: e.target.value, currentPage: 1} as any)} className="w-full bg-transparent font-bold text-xs outline-none" />
                     </div>
-                    <select className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50" onChange={e => setFilters({...filters, category: e.target.value})} value={filters.category}>
+                    <select 
+                        className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-primary/20" 
+                        onChange={e => setFilters({...filters, category: e.target.value, currentPage: 1} as any)} 
+                        value={filters.category}
+                    >
                         <option value="all">Semua Jenis</option>
                         <option value="IURAN">Iuran Harian</option>
                         <option value="TUNGGAKAN">Bayar Tunggakan</option>
                     </select>
-                    <select className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.category}>
+                    <select 
+                        className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-primary/20" 
+                        onChange={e => setFilters({...filters, dukuhId: e.target.value, currentPage: 1} as any)} 
+                        value={filters.dukuhId}
+                    >
                         <option value="all">Semua Dukuh</option>
-                        {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        {dukuhList.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
                     </select>
-                    <select className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
+                    <select 
+                        className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-primary/20" 
+                        onChange={e => setFilters({...filters, rtId: e.target.value, currentPage: 1} as any)} 
+                        value={filters.rtId}
+                    >
                         <option value="all">Semua RT</option>
-                        {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
+                        {rtList.map(rt => <option key={rt.id} value={String(rt.id)}>RT {rt.number}</option>)}
                     </select>
                     <div className="relative">
-                        <input type="text" placeholder="Cari warga/petugas..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl text-xs font-medium bg-slate-50/50 outline-none" />
+                        <input type="text" placeholder="Cari warga/petugas..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value, currentPage: 1} as any)} className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl text-xs font-medium bg-slate-50/50 outline-none focus:ring-2 focus:ring-primary/20" />
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
                     </div>
                 </div>
@@ -209,7 +228,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                             <option value="all">Semua</option>
                         </select>
                     </div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total {sortedAndFilteredTx.length} Transaksi</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total {sortedAndFilteredTx.length} Transaksi Terdeteksi</div>
                 </div>
             </div>
 
@@ -228,7 +247,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {loading ? <tr><td colSpan={7} className="p-10 text-center animate-pulse">Memuat data transaksi...</td></tr> : 
+                            {loading ? <tr><td colSpan={7} className="p-10 text-center animate-pulse">Sinkronisasi Database...</td></tr> : 
                             paginatedTx.map(tx => (
                                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-4 text-xs font-medium text-slate-500">
@@ -259,7 +278,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                 </tr>
                             ))}
                             {!loading && sortedAndFilteredTx.length === 0 && (
-                                <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-bold italic text-xs uppercase">Tidak ada data transaksi yang ditemukan</td></tr>
+                                <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-bold italic text-xs uppercase">Tidak ada data transaksi yang ditemukan sesuai filter</td></tr>
                             )}
                         </tbody>
                     </table>

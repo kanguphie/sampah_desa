@@ -57,7 +57,6 @@ export const createWarga = async (wargaData: Omit<Warga, 'id' | 'totalDebt'>) =>
 };
 
 export const bulkCreateWarga = async (wargas: Omit<Warga, 'id' | 'totalDebt'>[]) => {
-    // Generate IDs with better collision handling
     const payload = wargas.map(w => ({
         ...w,
         id: String(Math.floor(100000 + Math.random() * 900000)),
@@ -67,17 +66,8 @@ export const bulkCreateWarga = async (wargas: Omit<Warga, 'id' | 'totalDebt'>[])
     const { error } = await supabase.from('wargas').insert(payload);
     
     if (error) {
-        console.error("Supabase bulk insert full error:", error);
-        let msg = error.message;
-        // Penanganan kode error PostgreSQL yang spesifik
-        if (error.code === '23503') {
-            msg = "Gagal: Salah satu Kode Dukuh atau Kode RT tidak terdaftar di sistem. Harap cek menu Data Wilayah.";
-        } else if (error.code === '23505') {
-            msg = "Gagal: Terjadi duplikasi ID sistem secara acak. Silakan coba impor kembali dalam beberapa saat.";
-        } else if (error.code === '42P01') {
-            msg = "Gagal: Tabel database 'wargas' tidak ditemukan. Harap jalankan script SQL di Supabase.";
-        }
-        throw new Error(msg);
+        console.error("Supabase bulk insert error:", error.message);
+        throw new Error(error.message);
     }
 };
 
@@ -125,15 +115,21 @@ export const deletePetugas = async (id: string) => {
 
 export const createTransaksi = async (txData: Omit<Transaksi, 'id' | 'timestamp'>): Promise<Transaksi | null> => {
     const txId = `tx${Date.now()}`;
+    const payload = { 
+        ...txData, 
+        id: txId, 
+        timestamp: new Date().toISOString(),
+        category: txData.category || 'IURAN' 
+    };
+    
     const { data, error } = await supabase
         .from('transactions')
-        .insert([{ ...txData, id: txId, timestamp: new Date().toISOString() }])
+        .insert([payload])
         .select()
         .single();
 
     if (error) throw new Error(error.message);
 
-    // Jika transaksi adalah HUTANG, tambahkan ke saldo hutang warga
     if (txData.status === 'HUTANG') {
         const { data: warga } = await supabase.from('wargas').select('totalDebt').eq('id', txData.wargaId).single();
         if (warga) {
@@ -231,6 +227,9 @@ export const payDebt = async (wargaId: string, petugasId: string, amount: number
 };
 
 export const getReports = async (f: { startDate: Date, endDate: Date }): Promise<any[]> => {
+    const start = new Date(f.startDate);
+    start.setHours(0, 0, 0, 0);
+    
     const end = new Date(f.endDate);
     end.setHours(23, 59, 59, 999);
 
@@ -238,25 +237,37 @@ export const getReports = async (f: { startDate: Date, endDate: Date }): Promise
         .from('transactions')
         .select(`
             *,
-            wargas (name, dukuhId, rtId),
+            wargas (name, "dukuhId", "rtId"),
             petugases (name)
         `)
-        .gte('timestamp', f.startDate.toISOString())
+        .gte('timestamp', start.toISOString())
         .lte('timestamp', end.toISOString());
 
-    if (error) return [];
+    if (error) {
+        console.error("Supabase Query Error Detail:", error.message);
+        throw new Error(error.message);
+    }
 
     const dukuhs = await getAllDukuh();
     const rts = await getAllRT();
 
-    return data.map(tx => ({
-        ...tx,
-        timestamp: new Date(tx.timestamp),
-        wargaName: tx.wargas?.name || 'Warga Terhapus',
-        petugasName: tx.petugases?.name || (tx.petugasId === 'SYSTEM' ? 'Sistem Otomatis' : 'Petugas Terhapus'),
-        dukuhName: dukuhs.find(d => d.id === tx.wargas?.dukuhId)?.name || 'N/A',
-        rtNumber: rts.find(r => r.id === tx.wargas?.rtId)?.number || 'N/A'
-    }));
+    return (data || []).map(tx => {
+        // PostgREST Join handling (kadang mengembalikan array, kadang objek)
+        const wargaObj = Array.isArray(tx.wargas) ? tx.wargas[0] : tx.wargas;
+        const petugasObj = Array.isArray(tx.petugases) ? tx.petugases[0] : tx.petugases;
+        
+        return {
+            ...tx,
+            timestamp: new Date(tx.timestamp),
+            wargaName: wargaObj?.name || 'Warga Terhapus',
+            petugasName: petugasObj?.name || (tx.petugasId === 'SYSTEM' ? 'Sistem Otomatis' : 'Petugas Terhapus'),
+            // Flatten wilayah agar filter client-side berfungsi 100%
+            wargaDukuhId: wargaObj?.dukuhId,
+            wargaRtId: wargaObj?.rtId,
+            dukuhName: dukuhs.find(d => d.id === wargaObj?.dukuhId)?.name || 'N/A',
+            rtNumber: rts.find(r => r.id === wargaObj?.rtId)?.number || 'N/A'
+        };
+    });
 };
 
 // --- KEUANGAN ---
@@ -349,11 +360,6 @@ export const getAllDukuh = async (): Promise<Dukuh[]> => {
     return (data as Dukuh[]) || [];
 };
 
-export const getDukuhById = async (id: number): Promise<Dukuh | null> => {
-    const { data } = await supabase.from('dukuhs').select('*').eq('id', id).single();
-    return (data as Dukuh) || null;
-};
-
 export const createDukuh = async (d: Omit<Dukuh, 'id'>) => {
     const { data, error } = await supabase.from('dukuhs').insert([d]).select().single();
     if (error) throw new Error(error.message);
@@ -373,11 +379,6 @@ export const deleteDukuh = async (id: number) => {
 export const getAllRT = async (): Promise<RT[]> => {
     const { data } = await supabase.from('rts').select('*').order('number', { ascending: true });
     return (data as RT[]) || [];
-};
-
-export const getRTById = async (id: number): Promise<RT | null> => {
-    const { data } = await supabase.from('rts').select('*').eq('id', id).single();
-    return (data as RT) || null;
 };
 
 export const createRT = async (r: Omit<RT, 'id'>) => {
@@ -536,7 +537,7 @@ export const getDetailedPublicTransparency = async (year: number) => {
         .gte('timestamp', start)
         .lte('timestamp', end);
 
-    const { data: wargas } = await supabase.from('wargas').select('id, dukuhId');
+    const { data: wargas } = await supabase.from('wargas').select('id, "dukuhId"');
 
     const dukuhStats = dukuhs.map(d => {
         const wargaInDukuh = new Set(wargas?.filter(w => w.dukuhId === d.id).map(w => w.id));
