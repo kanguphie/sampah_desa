@@ -16,7 +16,7 @@ const UnifiedLoginPage: React.FC = () => {
         setError('');
 
         try {
-            // Check Admin (6 digits typically)
+            // Check Admin
             const admin = await loginAdmin(currentPin);
             if (admin) {
                 authLoginAdmin(admin);
@@ -24,7 +24,7 @@ const UnifiedLoginPage: React.FC = () => {
                 return;
             }
 
-            // Check Petugas (4-6 digits)
+            // Check Petugas
             const petugas = await loginPetugas(currentPin);
             if (petugas) {
                 authLoginPetugas(petugas);
@@ -32,14 +32,13 @@ const UnifiedLoginPage: React.FC = () => {
                 return;
             }
 
-            // If we reached exactly 6 digits and still no match, it's definitely an error
-            if (currentPin.length === 6) {
-                setError('PIN Tidak Terdaftar');
-                setTimeout(() => {
-                    setPin('');
-                    setError('');
-                }, 1500);
-            }
+            // At 6 digits, if no match found, it's an error
+            setError('PIN Tidak Terdaftar');
+            setTimeout(() => {
+                setPin('');
+                setError('');
+            }, 1500);
+            
         } catch (err) {
             setError('Gangguan Koneksi');
             setPin('');
@@ -55,8 +54,8 @@ const UnifiedLoginPage: React.FC = () => {
         setPin(nextPin);
         setError('');
 
-        // Auto-check on 4 digits (Petugas usually) and 6 digits (Admin/Petugas)
-        if (nextPin.length === 4 || nextPin.length === 6) {
+        // Strictly check only when 6 digits are reached
+        if (nextPin.length === 6) {
             processLogin(nextPin);
         }
     };
@@ -75,7 +74,6 @@ const UnifiedLoginPage: React.FC = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 relative overflow-hidden">
-            {/* Background elements */}
             <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-emerald-100 rounded-full blur-3xl opacity-50"></div>
             <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
 
@@ -87,7 +85,6 @@ const UnifiedLoginPage: React.FC = () => {
                 </div>
 
                 <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-2xl shadow-slate-200/60 border border-white animate-slide-in-up">
-                    {/* PIN Display - Fixed 6 dots */}
                     <div className="mb-10 text-center">
                         <div className={`flex justify-center gap-4 h-12 items-center ${error ? 'animate-shake' : ''}`}>
                             {loading ? (
@@ -96,7 +93,6 @@ const UnifiedLoginPage: React.FC = () => {
                                     Memverifikasi...
                                 </div>
                             ) : (
-                                // Always show 6 slots for the dots
                                 Array.from({ length: 6 }).map((_, i) => (
                                     <div 
                                         key={i} 
@@ -114,11 +110,10 @@ const UnifiedLoginPage: React.FC = () => {
                                 {error}
                             </p>
                         ) : pin.length === 0 && !loading ? (
-                            <p className="mt-4 text-slate-400 font-bold uppercase tracking-widest text-[9px] animate-pulse">Masukkan 4 atau 6 Digit PIN</p>
+                            <p className="mt-4 text-slate-400 font-bold uppercase tracking-widest text-[9px] animate-pulse">Masukkan 6 Digit PIN Akses</p>
                         ) : null}
                     </div>
 
-                    {/* Keypad Grid */}
                     <div className={`grid grid-cols-3 gap-4 transition-opacity duration-300 ${loading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                             <button
@@ -149,7 +144,6 @@ const UnifiedLoginPage: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Quick Info */}
                     <div className="mt-8 flex items-center justify-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Sistem akan login otomatis saat PIN lengkap</p>

@@ -18,6 +18,10 @@ const PetugasForm: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.pin.length !== 6) {
+        alert("PIN harus tepat 6 digit angka.");
+        return;
+    }
     onSave(petugas ? { ...petugas, ...formData } : formData);
   };
 
@@ -32,8 +36,8 @@ const PetugasForm: React.FC<{
         <input type="tel" placeholder="08..." value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary" required />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">PIN (4-6 digit)</label>
-        <input type="text" placeholder="PIN untuk login" value={formData.pin} onChange={e => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})} maxLength={6} className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary" required />
+        <label className="block text-sm font-medium text-slate-700 mb-1">PIN (6 digit)</label>
+        <input type="text" placeholder="PIN 6 Digit" value={formData.pin} onChange={e => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})} maxLength={6} className="p-2.5 border border-slate-300 rounded-lg w-full focus:ring-2 focus:ring-primary focus:border-primary font-mono tracking-widest" required />
       </div>
       <div className="flex justify-end gap-3 pt-4">
         <button type="button" onClick={onCancel} className="bg-slate-200 text-slate-800 font-semibold px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors">Batal</button>
@@ -51,7 +55,6 @@ const AdminPetugasPage: React.FC = () => {
     const [selectedPetugas, setSelectedPetugas] = useState<Petugas | null>(null);
     const [petugasToDelete, setPetugasToDelete] = useState<Petugas | null>(null);
 
-    // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
 
@@ -71,14 +74,13 @@ const AdminPetugasPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    // Pagination Logic
     const paginatedPetugas = useMemo(() => {
         if (itemsPerPage === 'all') return petugasList;
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return petugasList.slice(startIndex, startIndex + itemsPerPage);
+        const startIndex = (currentPage - 1) * (itemsPerPage as number);
+        return petugasList.slice(startIndex, startIndex + (itemsPerPage as number));
     }, [petugasList, currentPage, itemsPerPage]);
 
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(petugasList.length / itemsPerPage);
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(petugasList.length / (itemsPerPage as number));
 
 
     const handleSave = useCallback(async (petugas: Omit<Petugas, 'id'> | Petugas) => {
@@ -154,7 +156,6 @@ const AdminPetugasPage: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-                 {/* Pagination Controls */}
                  {!loading && petugasList.length > 0 && (
                     <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex items-center text-sm text-slate-600">

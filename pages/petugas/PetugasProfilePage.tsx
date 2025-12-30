@@ -15,8 +15,13 @@ const PetugasProfilePage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
-        setLoading(true);
+        
+        if (pin.length !== 6) {
+            setMessage({ type: 'error', text: 'PIN harus tepat 6 digit angka.' });
+            return;
+        }
 
+        setLoading(true);
         try {
             if (petugas) {
                 const updatedPetugas = await updatePetugasProfile(petugas.id, name, phone, pin);
@@ -59,9 +64,9 @@ const PetugasProfilePage: React.FC = () => {
                         <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary" required />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">PIN Login (4-6 Angka)</label>
-                        <input type="text" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={6} minLength={4} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary font-mono tracking-widest" required />
-                        <p className="text-xs text-slate-400 mt-1">Jaga kerahasiaan PIN Anda.</p>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">PIN Login (Harus 6 Digit)</label>
+                        <input type="text" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={6} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary font-mono tracking-widest" required />
+                        <p className="text-xs text-slate-400 mt-1">Jaga kerahasiaan PIN Anda demi keamanan sistem.</p>
                     </div>
 
                     <button type="submit" disabled={loading} className="w-full bg-primary text-white font-bold py-3 rounded-xl shadow-lg shadow-primary/30 hover:bg-primary-focus transition-colors disabled:bg-slate-400 mt-4">

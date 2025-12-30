@@ -22,14 +22,14 @@ export interface Petugas {
     id: string;
     name: string;
     phone: string;
-    pin: string; // 4-6 digit PIN
+    pin: string; // Strictly 6 digit PIN
 }
 
 export interface Admin {
     id: string;
     username: string;
     name: string;
-    pin: string; // Updated to use PIN for consistency
+    pin: string; // 6 digit PIN
 }
 
 export type TransactionStatus = 'LUNAS' | 'HUTANG';
