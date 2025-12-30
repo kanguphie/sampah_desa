@@ -57,15 +57,25 @@ export const createWarga = async (wargaData: Omit<Warga, 'id' | 'totalDebt'>) =>
 };
 
 export const bulkCreateWarga = async (wargas: Omit<Warga, 'id' | 'totalDebt'>[]) => {
+    // Generate IDs with better collision handling
     const payload = wargas.map(w => ({
         ...w,
         id: String(Math.floor(100000 + Math.random() * 900000)),
         totalDebt: 0
     }));
+    
     const { error } = await supabase.from('wargas').insert(payload);
+    
     if (error) {
-        console.error("Supabase bulk insert error:", error);
-        throw new Error(error.message || "Gagal menyimpan data ke database cloud.");
+        console.error("Supabase bulk insert full error:", error);
+        // Buat pesan error yang lebih informatif untuk user
+        let msg = error.message;
+        if (error.code === '23503') {
+            msg = "Gagal: Kode Dukuh atau Kode RT tidak ditemukan di sistem. Pastikan wilayah sudah didaftarkan di menu Data Wilayah.";
+        } else if (error.code === '23505') {
+            msg = "Gagal: Terjadi duplikasi ID warga. Silakan coba impor kembali.";
+        }
+        throw new Error(msg);
     }
 };
 

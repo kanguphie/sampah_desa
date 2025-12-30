@@ -183,7 +183,7 @@ const AdminWargaPage: React.FC = () => {
                 total: rawData.length
             });
         } catch (err: any) { 
-            alert("Gagal membaca Excel: " + err.message); 
+            alert("Gagal membaca Excel: " + (err.message || "File tidak valid.")); 
         } finally { 
             setImportLoading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -200,7 +200,8 @@ const AdminWargaPage: React.FC = () => {
             alert(`Berhasil mengimpor ${importReview.valid.length} warga.`);
             setImportReview(null);
         } catch (err: any) {
-            alert("Gagal menyimpan ke database: " + err.message);
+            console.error("Confirm Import Error:", err);
+            alert("Gagal menyimpan ke database:\n" + (err.message || "Cek koneksi internet atau data wilayah."));
         } finally {
             setImportLoading(false);
         }
@@ -305,7 +306,7 @@ const AdminWargaPage: React.FC = () => {
                 {importReview && (
                     <div className="space-y-6">
                         <div className="grid grid-cols-3 gap-4">
-                            <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                            <div className="bg-slate-50 p-4 rounded-2xl text-center border border-slate-200">
                                 <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Baris</p>
                                 <p className="text-2xl font-black text-slate-800">{importReview.total}</p>
                             </div>
@@ -323,10 +324,9 @@ const AdminWargaPage: React.FC = () => {
                             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
                                 <i className="fa-solid fa-circle-info text-amber-500 mt-1"></i>
                                 <div>
-                                    <p className="text-xs text-amber-800 leading-relaxed font-bold uppercase mb-1">Masalah Header Kolom?</p>
+                                    <p className="text-xs text-amber-800 leading-relaxed font-bold uppercase mb-1">Data Dilewati?</p>
                                     <p className="text-xs text-amber-700 leading-relaxed">
-                                        Pastikan judul kolom di Excel adalah: <strong>Nama, Tarif, Kode Dukuh, Kode RT</strong>.
-                                        Sistem mengabaikan baris yang datanya kosong atau kolom wilayahnya bukan angka.
+                                        Baris dilewati jika Nama kosong, Tarif bukan angka, atau Kode Dukuh/RT tidak valid. Pastikan judul kolom sesuai: <strong>Nama, Tarif, Kode Dukuh, Kode RT</strong>.
                                     </p>
                                 </div>
                             </div>
@@ -336,21 +336,25 @@ const AdminWargaPage: React.FC = () => {
                             <table className="w-full text-xs text-left">
                                 <thead className="bg-slate-50 sticky top-0 font-bold text-slate-500">
                                     <tr>
-                                        <th className="p-3">Nama (Hasil Baca)</th>
+                                        <th className="p-3">Nama</th>
+                                        <th className="p-3">Dukuh (ID)</th>
+                                        <th className="p-3">RT (ID)</th>
                                         <th className="p-3 text-right">Tarif</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {importReview.valid.length > 0 ? importReview.valid.slice(0, 10).map((w, i) => (
+                                    {importReview.valid.length > 0 ? importReview.valid.slice(0, 20).map((w, i) => (
                                         <tr key={i}>
                                             <td className="p-3 font-semibold text-slate-700">{w.name}</td>
+                                            <td className="p-3 text-slate-500">{dukuhList.find(d => d.id === Number(w.dukuhId))?.name || 'Error ID: ' + w.dukuhId}</td>
+                                            <td className="p-3 text-slate-500">{rtList.find(r => r.id === Number(w.rtId))?.number || 'Error ID: ' + w.rtId}</td>
                                             <td className="p-3 text-right font-mono text-slate-500">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
                                         </tr>
                                     )) : (
-                                        <tr><td colSpan={2} className="p-10 text-center text-slate-400 italic">Data tidak terbaca. Periksa judul kolom Anda.</td></tr>
+                                        <tr><td colSpan={4} className="p-10 text-center text-slate-400 italic">Data tidak terbaca. Periksa judul kolom Anda.</td></tr>
                                     )}
-                                    {importReview.valid.length > 10 && (
-                                        <tr><td colSpan={2} className="p-3 text-center text-slate-400 italic">...dan {importReview.valid.length - 10} data lainnya</td></tr>
+                                    {importReview.valid.length > 20 && (
+                                        <tr><td colSpan={4} className="p-3 text-center text-slate-400 italic font-medium">...dan {importReview.valid.length - 20} data lainnya</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -364,7 +368,7 @@ const AdminWargaPage: React.FC = () => {
                                 className="flex-[2] py-4 rounded-2xl font-bold bg-emerald-500 text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:bg-slate-300"
                             >
                                 {importLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircleIcon />}
-                                Impor Sekarang
+                                Simpan ke Database
                             </button>
                         </div>
                     </div>
