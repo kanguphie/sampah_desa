@@ -67,7 +67,8 @@ const AdminWargaPage: React.FC = () => {
     const [importReview, setImportReview] = useState<{
         valid: Omit<Warga, 'id' | 'totalDebt'>[],
         invalidCount: number,
-        total: number
+        total: number,
+        idErrors: boolean
     } | null>(null);
 
     const [filters, setFilters] = useState({ search: '', dukuhId: 'all', rtId: 'all' });
@@ -156,34 +157,42 @@ const AdminWargaPage: React.FC = () => {
         setImportLoading(true);
         try {
             const rawData = await readWargaExcel(file);
-            console.log("Raw read results:", rawData);
             
-            // Pisahkan data valid dan invalid
             const valid: Omit<Warga, 'id' | 'totalDebt'>[] = [];
             let invalidCount = 0;
+            let foundIdErrors = false;
+
+            // Buat Set ID wilayah yang ada di sistem untuk pencarian cepat (O(1))
+            const existingDukuhIds = new Set(dukuhList.map(d => d.id));
+            const existingRtIds = new Set(rtList.map(r => r.id));
 
             rawData.forEach(row => {
-                // Validasi lebih longgar agar nama pendek tetap masuk
                 const hasName = !!row.name && row.name.toString().trim().length >= 1;
                 const hasFee = row.dailyFee !== undefined && !isNaN(Number(row.dailyFee));
-                const hasDukuh = row.dukuhId !== undefined && !isNaN(Number(row.dukuhId));
-                const hasRt = row.rtId !== undefined && !isNaN(Number(row.rtId));
                 
-                if (hasName && hasFee && hasDukuh && hasRt) {
+                // Cek apakah ID wilayah ada di sistem (database)
+                const dId = Number(row.dukuhId);
+                const rId = Number(row.rtId);
+                const isDukuhValid = !isNaN(dId) && existingDukuhIds.has(dId);
+                const isRtValid = !isNaN(rId) && existingRtIds.has(rId);
+                
+                if (hasName && hasFee && isDukuhValid && isRtValid) {
                     valid.push(row as any);
                 } else {
                     invalidCount++;
+                    if (!isDukuhValid || !isRtValid) foundIdErrors = true;
                 }
             });
 
-            // Selalu set review agar modal muncul meskipun 0 valid
             setImportReview({
                 valid,
                 invalidCount,
-                total: rawData.length
+                total: rawData.length,
+                idErrors: foundIdErrors
             });
         } catch (err: any) { 
-            alert("Gagal membaca Excel: " + (err.message || "File tidak valid.")); 
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            alert("Gagal membaca Excel: " + errorMsg); 
         } finally { 
             setImportLoading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -201,7 +210,9 @@ const AdminWargaPage: React.FC = () => {
             setImportReview(null);
         } catch (err: any) {
             console.error("Confirm Import Error:", err);
-            alert("Gagal menyimpan ke database:\n" + (err.message || "Cek koneksi internet atau data wilayah."));
+            // Pastikan error dikonversi ke string agar tidak tampil [object Object]
+            const msg = err instanceof Error ? err.message : (typeof err === 'string' ? err : JSON.stringify(err));
+            alert("Gagal menyimpan ke database:\n" + msg);
         } finally {
             setImportLoading(false);
         }
@@ -315,18 +326,21 @@ const AdminWargaPage: React.FC = () => {
                                 <p className="text-2xl font-black text-emerald-700">{importReview.valid.length}</p>
                             </div>
                             <div className="bg-rose-50 p-4 rounded-2xl text-center border border-rose-100">
-                                <p className="text-[10px] font-black text-rose-600 uppercase mb-1">Tidak Valid</p>
+                                <p className="text-[10px] font-black text-rose-600 uppercase mb-1">Dilewati</p>
                                 <p className="text-2xl font-black text-rose-700">{importReview.invalidCount}</p>
                             </div>
                         </div>
 
-                        {importReview.invalidCount > 0 && (
+                        {(importReview.invalidCount > 0 || importReview.idErrors) && (
                             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
-                                <i className="fa-solid fa-circle-info text-amber-500 mt-1"></i>
+                                <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-1"></i>
                                 <div>
-                                    <p className="text-xs text-amber-800 leading-relaxed font-bold uppercase mb-1">Data Dilewati?</p>
+                                    <p className="text-xs text-amber-800 leading-relaxed font-bold uppercase mb-1">Beberapa Data Tidak Valid</p>
                                     <p className="text-xs text-amber-700 leading-relaxed">
-                                        Baris dilewati jika Nama kosong, Tarif bukan angka, atau Kode Dukuh/RT tidak valid. Pastikan judul kolom sesuai: <strong>Nama, Tarif, Kode Dukuh, Kode RT</strong>.
+                                        {importReview.idErrors 
+                                            ? "Masalah Utama: Beberapa Kode Dukuh atau Kode RT di Excel tidak ditemukan di database. Pastikan wilayah sudah didaftarkan di menu 'Data Wilayah' sebelum impor."
+                                            : "Pastikan judul kolom sesuai: Nama, Tarif, Kode Dukuh, Kode RT. Baris dengan data kosong akan otomatis dilewati."
+                                        }
                                     </p>
                                 </div>
                             </div>
@@ -336,9 +350,8 @@ const AdminWargaPage: React.FC = () => {
                             <table className="w-full text-xs text-left">
                                 <thead className="bg-slate-50 sticky top-0 font-bold text-slate-500">
                                     <tr>
-                                        <th className="p-3">Nama</th>
-                                        <th className="p-3">Dukuh (ID)</th>
-                                        <th className="p-3">RT (ID)</th>
+                                        <th className="p-3">Nama (Hasil Baca)</th>
+                                        <th className="p-3">Wilayah</th>
                                         <th className="p-3 text-right">Tarif</th>
                                     </tr>
                                 </thead>
@@ -346,15 +359,16 @@ const AdminWargaPage: React.FC = () => {
                                     {importReview.valid.length > 0 ? importReview.valid.slice(0, 20).map((w, i) => (
                                         <tr key={i}>
                                             <td className="p-3 font-semibold text-slate-700">{w.name}</td>
-                                            <td className="p-3 text-slate-500">{dukuhList.find(d => d.id === Number(w.dukuhId))?.name || 'Error ID: ' + w.dukuhId}</td>
-                                            <td className="p-3 text-slate-500">{rtList.find(r => r.id === Number(w.rtId))?.number || 'Error ID: ' + w.rtId}</td>
+                                            <td className="p-3 text-slate-500">
+                                                RT {rtList.find(r => r.id === Number(w.rtId))?.number || '?'}, {dukuhList.find(d => d.id === Number(w.dukuhId))?.name || 'ID ' + w.dukuhId + ' Tidak Ada'}
+                                            </td>
                                             <td className="p-3 text-right font-mono text-slate-500">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
                                         </tr>
                                     )) : (
-                                        <tr><td colSpan={4} className="p-10 text-center text-slate-400 italic">Data tidak terbaca. Periksa judul kolom Anda.</td></tr>
+                                        <tr><td colSpan={3} className="p-10 text-center text-slate-400 italic">Tidak ada data yang valid untuk diimpor. Periksa kembali file Excel Anda.</td></tr>
                                     )}
                                     {importReview.valid.length > 20 && (
-                                        <tr><td colSpan={4} className="p-3 text-center text-slate-400 italic font-medium">...dan {importReview.valid.length - 20} data lainnya</td></tr>
+                                        <tr><td colSpan={3} className="p-3 text-center text-slate-400 italic font-medium">...dan {importReview.valid.length - 20} data lainnya</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -365,7 +379,7 @@ const AdminWargaPage: React.FC = () => {
                             <button 
                                 onClick={confirmImport} 
                                 disabled={importLoading || importReview.valid.length === 0} 
-                                className="flex-[2] py-4 rounded-2xl font-bold bg-emerald-500 text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:bg-slate-300"
+                                className="flex-[2] py-4 rounded-2xl font-bold bg-emerald-500 text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:shadow-none"
                             >
                                 {importLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircleIcon />}
                                 Simpan ke Database

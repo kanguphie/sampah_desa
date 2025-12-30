@@ -52,7 +52,7 @@ export const createWarga = async (wargaData: Omit<Warga, 'id' | 'totalDebt'>) =>
         .insert([{ ...wargaData, id: newId, totalDebt: 0 }])
         .select()
         .single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -68,12 +68,14 @@ export const bulkCreateWarga = async (wargas: Omit<Warga, 'id' | 'totalDebt'>[])
     
     if (error) {
         console.error("Supabase bulk insert full error:", error);
-        // Buat pesan error yang lebih informatif untuk user
         let msg = error.message;
+        // Penanganan kode error PostgreSQL yang spesifik
         if (error.code === '23503') {
-            msg = "Gagal: Kode Dukuh atau Kode RT tidak ditemukan di sistem. Pastikan wilayah sudah didaftarkan di menu Data Wilayah.";
+            msg = "Gagal: Salah satu Kode Dukuh atau Kode RT tidak terdaftar di sistem. Harap cek menu Data Wilayah.";
         } else if (error.code === '23505') {
-            msg = "Gagal: Terjadi duplikasi ID warga. Silakan coba impor kembali.";
+            msg = "Gagal: Terjadi duplikasi ID sistem secara acak. Silakan coba impor kembali dalam beberapa saat.";
+        } else if (error.code === '42P01') {
+            msg = "Gagal: Tabel database 'wargas' tidak ditemukan. Harap jalankan script SQL di Supabase.";
         }
         throw new Error(msg);
     }
@@ -86,13 +88,13 @@ export const updateWarga = async (id: string, wargaData: Partial<Warga>) => {
         .eq('id', id)
         .select()
         .single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
 export const deleteWarga = async (id: string) => {
     const { error } = await supabase.from('wargas').delete().eq('id', id);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
 };
 
 // --- DATA MASTER: PETUGAS ---
@@ -105,13 +107,13 @@ export const getAllPetugas = async (): Promise<Petugas[]> => {
 export const createPetugas = async (p: Omit<Petugas, 'id'>) => {
     const id = `pt${Date.now()}`;
     const { data, error } = await supabase.from('petugases').insert([{ ...p, id }]).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
 export const updatePetugas = async (id: string, p: Partial<Petugas>) => {
     const { data, error } = await supabase.from('petugases').update(p).eq('id', id).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -129,7 +131,7 @@ export const createTransaksi = async (txData: Omit<Transaksi, 'id' | 'timestamp'
         .select()
         .single();
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
 
     // Jika transaksi adalah HUTANG, tambahkan ke saldo hutang warga
     if (txData.status === 'HUTANG') {
@@ -229,7 +231,6 @@ export const payDebt = async (wargaId: string, petugasId: string, amount: number
 };
 
 export const getReports = async (f: { startDate: Date, endDate: Date }): Promise<any[]> => {
-    // Pastikan range waktu mencakup seluruh hari terakhir
     const end = new Date(f.endDate);
     end.setHours(23, 59, 59, 999);
 
@@ -325,7 +326,7 @@ export const getPengeluaran = async (f: { startDate: Date, endDate: Date }): Pro
 export const createPengeluaran = async (p: Omit<Pengeluaran, 'id'>) => {
     const id = `exp${Date.now()}`;
     const { data, error } = await supabase.from('pengeluarans').insert([{ ...p, id, date: p.date.toISOString().split('T')[0] }]).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -333,7 +334,7 @@ export const updatePengeluaran = async (id: string, p: Partial<Pengeluaran>) => 
     const payload = { ...p };
     if (p.date) payload.date = p.date.toISOString().split('T')[0] as any;
     const { data, error } = await supabase.from('pengeluarans').update(payload).eq('id', id).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -355,13 +356,13 @@ export const getDukuhById = async (id: number): Promise<Dukuh | null> => {
 
 export const createDukuh = async (d: Omit<Dukuh, 'id'>) => {
     const { data, error } = await supabase.from('dukuhs').insert([d]).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
 export const updateDukuh = async (id: number, d: Partial<Dukuh>) => {
     const { data, error } = await supabase.from('dukuhs').update(d).eq('id', id).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -381,13 +382,13 @@ export const getRTById = async (id: number): Promise<RT | null> => {
 
 export const createRT = async (r: Omit<RT, 'id'>) => {
     const { data, error } = await supabase.from('rts').insert([r]).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
 export const updateRT = async (id: number, r: Partial<RT>) => {
     const { data, error } = await supabase.from('rts').update(r).eq('id', id).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -400,7 +401,7 @@ export const deleteRT = async (id: number) => {
 export const sendMessage = async (m: Omit<ContactMessage, 'id' | 'timestamp' | 'isRead'>) => {
     const id = `msg${Date.now()}`;
     const { error } = await supabase.from('contact_messages').insert([{ ...m, id, timestamp: new Date().toISOString(), isRead: false }]);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
 };
 
 export const getMessages = async (): Promise<ContactMessage[]> => {
@@ -447,13 +448,13 @@ export const updateAdminProfile = async (id: string, name: string, pin?: string)
     const payload: any = { name };
     if (pin) payload.pin = pin;
     const { data, error } = await supabase.from('admins').update(payload).eq('id', id).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
 export const updatePetugasProfile = async (id: string, name: string, phone: string, pin: string) => {
     const { data, error } = await supabase.from('petugases').update({ name, phone, pin }).eq('id', id).select().single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -484,11 +485,10 @@ export const getScheduleForToday = async () => {
 
 export const updateSchedule = async (day: string, dukuhIds: number[] | 'libur') => {
     const { error } = await supabase.from('schedules').upsert([{ day, dukuhIds }]);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
 };
 
 export const markDayAsSkipped = async (dukuhIds: number[]) => {
-    // Ambil warga di dukuh terpilih
     const { data: wargas } = await supabase.from('wargas').select('*').in('dukuhId', dukuhIds);
     if (wargas) {
         for (const w of wargas) {
@@ -526,7 +526,6 @@ export const getDetailedPublicTransparency = async (year: number) => {
     const stats = await getAdminDashboardStats();
     const dukuhs = await getAllDukuh();
     
-    // Ambil semua transaksi tahun tsb
     const start = new Date(year, 0, 1).toISOString();
     const end = new Date(year, 11, 31, 23, 59, 59).toISOString();
     
@@ -539,20 +538,18 @@ export const getDetailedPublicTransparency = async (year: number) => {
 
     const { data: wargas } = await supabase.from('wargas').select('id, dukuhId');
 
-    // Hitung per dukuh
     const dukuhStats = dukuhs.map(d => {
         const wargaInDukuh = new Set(wargas?.filter(w => w.dukuhId === d.id).map(w => w.id));
         const total = (txs || []).filter(t => wargaInDukuh.has(t.wargaId)).reduce((s, i) => s + i.amount, 0);
         return { name: d.name, total };
     });
 
-    // Hitung per bulan
     const monthlyStats = Array.from({ length: 12 }).map((_, i) => {
         const monthIncome = (txs || []).filter(t => new Date(t.timestamp).getMonth() === i).reduce((s, i) => s + i.amount, 0);
         return {
             monthName: new Date(year, i).toLocaleString('id-ID', { month: 'long' }),
             income: monthIncome,
-            expense: 0, // Perlu query pengeluaran juga jika ingin akurat
+            expense: 0,
             balance: monthIncome
         };
     });
