@@ -98,21 +98,21 @@ const AdminKeuanganPage: React.FC = () => {
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const filtered = useMemo(() => {
-        return list.filter(p => p.description.toLowerCase().includes(filters.search.toLowerCase()));
+        return list.filter(p => (p.description || '').toLowerCase().includes((filters.search || '').toLowerCase()));
     }, [list, filters.search]);
 
     const paginated = useMemo(() => {
         if (itemsPerPage === 'all') return filtered;
-        const start = (currentPage - 1) * itemsPerPage;
-        return filtered.slice(start, start + itemsPerPage);
+        const start = (currentPage - 1) * (itemsPerPage as number);
+        return filtered.slice(start, start + (itemsPerPage as number));
     }, [filtered, itemsPerPage, currentPage]);
 
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(filtered.length / itemsPerPage);
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(filtered.length / (itemsPerPage as number));
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
-        const rows = filtered.map(p => `<tr><td>${new Date(p.date).toLocaleDateString('id-ID')}</td><td>${p.description}</td><td style="text-align:right">Rp${p.amount.toLocaleString('id-ID')}</td></tr>`).join('');
+        const rows = filtered.map(p => `<tr><td>${new Date(p.date).toLocaleDateString('id-ID')}</td><td>${p.description || '-'}</td><td style="text-align:right">Rp${(p.amount || 0).toLocaleString('id-ID')}</td></tr>`).join('');
         printWindow.document.write(`
             <html>
             <head>
@@ -170,21 +170,21 @@ const AdminKeuanganPage: React.FC = () => {
                     <div className="bg-emerald-50 text-emerald-600 w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner"><ScaleBalancedIcon className="text-2xl" /></div>
                     <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Kas (Net)</p>
-                      <p className="text-2xl font-black text-slate-800 tracking-tight">Rp{stats?.balance.toLocaleString('id-ID')}</p>
+                      <p className="text-2xl font-black text-slate-800 tracking-tight">Rp{(stats?.balance || 0).toLocaleString('id-ID')}</p>
                     </div>
                 </div>
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center gap-5">
                     <div className="bg-blue-50 text-blue-600 w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner"><CurrencyDollarIcon className="text-2xl" /></div>
                     <div>
                       <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Total Pemasukan</p>
-                      <p className="text-2xl font-black text-blue-600 tracking-tight">Rp{stats?.totalRevenue.toLocaleString('id-ID')}</p>
+                      <p className="text-2xl font-black text-blue-600 tracking-tight">Rp{(stats?.totalRevenue || 0).toLocaleString('id-ID')}</p>
                     </div>
                 </div>
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center gap-5">
                     <div className="bg-rose-50 text-rose-600 w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner"><BanknotesIcon className="text-2xl" /></div>
                     <div>
                       <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Total Pengeluaran</p>
-                      <p className="text-2xl font-black text-rose-600 tracking-tight">Rp{stats?.totalExpense.toLocaleString('id-ID')}</p>
+                      <p className="text-2xl font-black text-rose-600 tracking-tight">Rp{(stats?.totalExpense || 0).toLocaleString('id-ID')}</p>
                     </div>
                 </div>
             </div>
@@ -227,9 +227,9 @@ const AdminKeuanganPage: React.FC = () => {
                             {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse font-bold text-slate-300 uppercase tracking-widest text-xs">Memuat data Keuangan...</td></tr> : 
                             paginated.map(p => (
                                 <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="p-5 font-bold text-slate-400 text-xs font-mono">{new Date(p.date).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'})}</td>
-                                    <td className="p-5 font-bold text-slate-700 group-hover:text-rose-500 transition-colors">{p.description}</td>
-                                    <td className="p-5 text-right font-black text-rose-600 text-base font-mono">Rp{p.amount.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 font-bold text-slate-400 text-xs font-mono">{p.date ? new Date(p.date).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) : 'N/A'}</td>
+                                    <td className="p-5 font-bold text-slate-700 group-hover:text-rose-500 transition-colors">{(p.description || '-')}</td>
+                                    <td className="p-5 text-right font-black text-rose-600 text-base font-mono">Rp{(p.amount || 0).toLocaleString('id-ID')}</td>
                                     <td className="p-5 text-center">
                                         <div className="flex justify-center gap-1">
                                             <button onClick={() => { setSelected(p); setIsModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition-all" title="Edit"><PencilIcon className="text-xl" /></button>
@@ -268,7 +268,7 @@ const AdminKeuanganPage: React.FC = () => {
                           <TrashIcon className="text-3xl" />
                         </div>
                         <p className="font-bold text-slate-800 text-lg">Hapus catatan pengeluaran?</p>
-                        <p className="text-slate-500 text-sm mt-2 px-6">"{toDelete.description}"</p>
+                        <p className="text-slate-500 text-sm mt-2 px-6">"{(toDelete.description || '-')}"</p>
                         <p className="text-xs text-rose-400 mt-4 italic">Tindakan ini akan mempengaruhi perhitungan saldo akhir desa.</p>
                         <div className="mt-10 flex gap-3">
                             <button onClick={() => setToDelete(null)} className="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-all">Batal</button>

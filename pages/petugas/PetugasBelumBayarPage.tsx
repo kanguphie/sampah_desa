@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { getUnpaidWargaForToday, getAllDukuh, getAllRT, getScheduleForToday } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
@@ -39,9 +40,10 @@ const PetugasBelumBayarPage: React.FC = () => {
 
     const filteredWarga = useMemo(() => {
         if (!search) return unpaidWarga;
+        const query = search.toLowerCase();
         return unpaidWarga.filter(w =>
-            w.name.toLowerCase().includes(search.toLowerCase()) ||
-            w.id.includes(search)
+            (w.name || '').toLowerCase().includes(query) ||
+            (w.id || '').includes(search)
         );
     }, [unpaidWarga, search]);
 
@@ -89,7 +91,7 @@ const PetugasBelumBayarPage: React.FC = () => {
                         <p className="text-sm text-slate-500">
                             Jadwal hari ini: 
                             <span className="font-semibold text-slate-700 ml-1">
-                                {scheduleInfo.isHoliday ? 'Libur' : scheduleInfo.dukuhNames.join(', ')}
+                                {scheduleInfo.isHoliday ? 'Libur' : (scheduleInfo.dukuhNames || []).join(', ')}
                             </span>
                         </p>
                     </div>
@@ -120,11 +122,11 @@ const PetugasBelumBayarPage: React.FC = () => {
                 ) : filteredWarga.length > 0 ? (
                     filteredWarga.map(warga => (
                         <div key={warga.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/80">
-                            <p className="font-semibold text-slate-800">{warga.name}</p>
+                            <p className="font-semibold text-slate-800">{(warga.name || 'Warga Tanpa Nama')}</p>
                             <p className="text-sm text-slate-500">
                                 Wilayah: RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}
                                 <span className="mx-2 text-slate-300">|</span>
-                                ID: <span className="font-mono">{warga.id}</span>
+                                ID: <span className="font-mono">{(warga.id || 'N/A')}</span>
                             </p>
                         </div>
                     ))

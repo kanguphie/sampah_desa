@@ -15,13 +15,14 @@ const ScheduleForm: React.FC<{
   dukuhList: Dukuh[];
 }> = ({ day, currentSchedule, onSave, onCancel, dukuhList }) => {
   const isHoliday = currentSchedule === 'libur';
-  const [selectedDukuhIds, setSelectedDukuhIds] = useState<number[]>(isHoliday ? [] : (currentSchedule as number[]));
+  const [selectedDukuhIds, setSelectedDukuhIds] = useState<number[]>(isHoliday ? [] : (currentSchedule as number[] || []));
   const [isHolidayChecked, setIsHolidayChecked] = useState(isHoliday);
 
   const handleDukuhChange = (dukuhId: number) => {
-    setSelectedDukuhIds(prev =>
-      prev.includes(dukuhId) ? prev.filter(id => id !== dukuhId) : [...prev, dukuhId]
-    );
+    setSelectedDukuhIds(prev => {
+      const current = prev || [];
+      return current.includes(dukuhId) ? current.filter(id => id !== dukuhId) : [...current, dukuhId];
+    });
   };
 
   const handleHolidayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,7 +119,7 @@ const AdminPengaturanPage: React.FC = () => {
         const todayName = days[new Date().getDay()];
         const currentSched = (schedule as any)[todayName];
 
-        if (currentSched === 'libur' || !currentSched.length) {
+        if (currentSched === 'libur' || !currentSched || !currentSched.length) {
             alert("Hari ini adalah hari libur.");
             return;
         }
@@ -140,7 +141,7 @@ const AdminPengaturanPage: React.FC = () => {
         if (scheduleData === 'libur' || !scheduleData || scheduleData.length === 0) {
             return <span className="text-amber-600 font-semibold italic text-sm">Libur Pengambilan</span>;
         }
-        return scheduleData
+        return (scheduleData as number[])
             .map(id => dukuhList.find(d => d.id === id)?.name)
             .filter(Boolean)
             .join(', ');

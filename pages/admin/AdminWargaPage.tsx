@@ -107,7 +107,7 @@ const AdminWargaPage: React.FC = () => {
 
     const sortedAndFilteredWarga = useMemo(() => {
         let items = wargaList.filter(w => {
-            const matchSearch = w.name.toLowerCase().includes(filters.search.toLowerCase()) || w.id.includes(filters.search);
+            const matchSearch = (w.name || '').toLowerCase().includes(filters.search.toLowerCase()) || (w.id || '').includes(filters.search);
             const matchDukuh = filters.dukuhId === 'all' || w.dukuhId === Number(filters.dukuhId);
             const matchRT = filters.rtId === 'all' || w.rtId === Number(filters.rtId);
             return matchSearch && matchDukuh && matchRT;
@@ -134,11 +134,11 @@ const AdminWargaPage: React.FC = () => {
 
     const paginatedWarga = useMemo(() => {
         if (itemsPerPage === 'all') return sortedAndFilteredWarga;
-        const start = (currentPage - 1) * itemsPerPage;
-        return sortedAndFilteredWarga.slice(start, start + itemsPerPage);
+        const start = (currentPage - 1) * (itemsPerPage as number);
+        return sortedAndFilteredWarga.slice(start, start + (itemsPerPage as number));
     }, [sortedAndFilteredWarga, itemsPerPage, currentPage]);
 
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / itemsPerPage);
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / (itemsPerPage as number));
 
     // --- IMPORT LOGIC ---
 
@@ -289,10 +289,10 @@ const AdminWargaPage: React.FC = () => {
                             {loading ? <tr><td colSpan={5} className="p-10 text-center animate-pulse font-bold text-slate-300 uppercase tracking-widest text-xs">Memuat data Warga...</td></tr> : 
                             paginatedWarga.map(w => (
                                 <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-5 text-xs font-bold text-slate-400 font-mono tracking-tighter">{w.id}</td>
-                                    <td className="p-5 font-bold text-slate-700">{w.name}</td>
-                                    <td className="p-5 text-slate-500 font-medium text-xs">RT {rtList.find(r => r.id === w.rtId)?.number}, {dukuhList.find(d => d.id === w.dukuhId)?.name}</td>
-                                    <td className="p-5 text-right font-bold text-slate-700 font-mono tracking-tighter">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-xs font-bold text-slate-400 font-mono tracking-tighter">{(w.id || 'N/A')}</td>
+                                    <td className="p-5 font-bold text-slate-700">{(w.name || 'Warga Tanpa Nama')}</td>
+                                    <td className="p-5 text-slate-500 font-medium text-xs">RT {rtList.find(r => r.id === w.rtId)?.number || '?'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || '?'}</td>
+                                    <td className="p-5 text-right font-bold text-slate-700 font-mono tracking-tighter">Rp{(w.dailyFee || 0).toLocaleString('id-ID')}</td>
                                     <td className="p-5">
                                         <div className="flex justify-center items-center gap-1">
                                             <button onClick={() => setQrToShow(w)} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all" title="QR Code"><QrCodeIcon className="text-xl" /></button>
@@ -362,7 +362,7 @@ const AdminWargaPage: React.FC = () => {
                                             <td className="p-3 text-slate-500">
                                                 RT {rtList.find(r => r.id === Number(w.rtId))?.number || '?'}, {dukuhList.find(d => d.id === Number(w.dukuhId))?.name || 'ID ' + w.dukuhId + ' Tidak Ada'}
                                             </td>
-                                            <td className="p-3 text-right font-mono text-slate-500">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
+                                            <td className="p-3 text-right font-mono text-slate-500">Rp{(w.dailyFee || 0).toLocaleString('id-ID')}</td>
                                         </tr>
                                     )) : (
                                         <tr><td colSpan={3} className="p-10 text-center text-slate-400 italic">Tidak ada data yang valid untuk diimpor. Periksa kembali file Excel Anda.</td></tr>
@@ -396,9 +396,9 @@ const AdminWargaPage: React.FC = () => {
                             <div className="bg-emerald-500 w-full h-12 -mt-8 -mx-8 mb-6 rounded-t-[2.5rem] flex items-center justify-center">
                               <span className="text-white font-black uppercase tracking-widest text-xs">SAPADESA CARD</span>
                             </div>
-                            <QRCodeSVG value={qrToShow.id} size={180} />
-                            <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mt-6">{qrToShow.name}</h4>
-                            <p className="text-sm font-bold text-slate-400 mt-1">ID: {qrToShow.id}</p>
+                            <QRCodeSVG value={qrToShow.id || ''} size={180} />
+                            <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mt-6">{(qrToShow.name || 'N/A')}</h4>
+                            <p className="text-sm font-bold text-slate-400 mt-1">ID: {(qrToShow.id || 'N/A')}</p>
                         </div>
                         <button onClick={() => window.print()} className="w-full py-4 rounded-2xl bg-slate-800 text-white font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-slate-900 transition-all"><DownloadIcon /> Unduh / Cetak Slip</button>
                     </div>
@@ -409,7 +409,7 @@ const AdminWargaPage: React.FC = () => {
                 {wargaToDelete && (
                     <div className="text-center py-4">
                         <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-6"><TrashIcon className="text-4xl text-rose-500" /></div>
-                        <p className="font-bold text-slate-800 text-lg px-4">Hapus warga <span className="text-rose-600">"{wargaToDelete.name}"</span>?</p>
+                        <p className="font-bold text-slate-800 text-lg px-4">Hapus warga <span className="text-rose-600">"{(wargaToDelete.name || 'Warga Terpilih')}"</span>?</p>
                         <div className="mt-10 flex gap-3 px-2">
                             <button onClick={() => setWargaToDelete(null)} className="flex-1 py-4 rounded-2xl text-slate-500 font-bold hover:bg-slate-100">Batal</button>
                             <button onClick={async () => { await deleteWarga(wargaToDelete.id); fetchData(); setWargaToDelete(null); }} className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-bold shadow-lg shadow-rose-500/20">Hapus</button>

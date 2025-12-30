@@ -60,8 +60,8 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
 
     const sortedAndFilteredTx = useMemo(() => {
         let items = transactions.filter(tx => {
-            const query = filters.search.toLowerCase();
-            const matchSearch = tx.wargaName.toLowerCase().includes(query) || tx.id.toLowerCase().includes(query);
+            const query = (filters.search || '').toLowerCase();
+            const matchSearch = (tx.wargaName || '').toLowerCase().includes(query) || (tx.id || '').toLowerCase().includes(query);
             const matchDukuh = filters.dukuhId === 'all' || tx.dukuhName === dukuhList.find(d => d.id === Number(filters.dukuhId))?.name;
             const matchRT = filters.rtId === 'all' || tx.rtNumber === rtList.find(r => r.id === Number(filters.rtId))?.number;
             const matchCategory = filters.category === 'all' || tx.category === filters.category;
@@ -71,12 +71,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
         items.sort((a, b) => {
             let aVal: any, bVal: any;
             switch(sortConfig.key) {
-                case 'warga': aVal = a.wargaName; bVal = b.wargaName; break;
-                case 'petugas': aVal = a.petugasName; bVal = b.petugasName; break;
-                case 'amount': aVal = a.amount; bVal = b.amount; break;
-                case 'category': aVal = a.category; bVal = b.category; break;
-                case 'wilayah': aVal = a.dukuhName + a.rtNumber; bVal = b.dukuhName + b.rtNumber; break;
-                default: aVal = new Date(a.timestamp).getTime(); bVal = new Date(b.timestamp).getTime();
+                case 'warga': aVal = (a.wargaName || ''); bVal = (b.wargaName || ''); break;
+                case 'petugas': aVal = (a.petugasName || ''); bVal = (b.petugasName || ''); break;
+                case 'amount': aVal = (a.amount || 0); bVal = (b.amount || 0); break;
+                case 'category': aVal = (a.category || ''); bVal = (b.category || ''); break;
+                case 'wilayah': aVal = (a.dukuhName || '') + (a.rtNumber || ''); bVal = (b.dukuhName || '') + (b.rtNumber || ''); break;
+                default: aVal = a.timestamp ? new Date(a.timestamp).getTime() : 0; bVal = b.timestamp ? new Date(b.timestamp).getTime() : 0;
             }
             if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
             if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -98,12 +98,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
         if (!printWindow) return;
         const rows = sortedAndFilteredTx.map(tx => `
             <tr>
-                <td>${new Date(tx.timestamp).toLocaleDateString('id-ID')}</td>
-                <td><div style="font-weight:700;">${tx.wargaName}</div><div style="font-size:7pt; color:#64748b;">ID: ${tx.wargaId}</div></td>
-                <td>RT ${tx.rtNumber}, ${tx.dukuhName}</td>
-                <td><span style="font-size:8pt; font-weight:800; color:${tx.category === 'TUNGGAKAN' ? '#6366f1' : '#10b981'}">${tx.category}</span></td>
-                <td>${tx.petugasName}</td>
-                <td style="text-align:right; font-weight:700;">Rp${tx.amount.toLocaleString('id-ID')}</td>
+                <td>${tx.timestamp ? new Date(tx.timestamp).toLocaleDateString('id-ID') : 'N/A'}</td>
+                <td><div style="font-weight:700;">${tx.wargaName || 'Warga Terhapus'}</div><div style="font-size:7pt; color:#64748b;">ID: ${tx.wargaId || 'N/A'}</div></td>
+                <td>RT ${tx.rtNumber || '?'}, ${tx.dukuhName || 'N/A'}</td>
+                <td><span style="font-size:8pt; font-weight:800; color:${tx.category === 'TUNGGAKAN' ? '#6366f1' : '#10b981'}">${tx.category || 'IURAN'}</span></td>
+                <td>${tx.petugasName || 'N/A'}</td>
+                <td style="text-align:right; font-weight:700;">Rp${(tx.amount || 0).toLocaleString('id-ID')}</td>
             </tr>
         `).join('');
 
@@ -185,7 +185,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                         <option value="IURAN">Iuran Harian</option>
                         <option value="TUNGGAKAN">Bayar Tunggakan</option>
                     </select>
-                    <select className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
+                    <select className="px-3 py-2 border border-slate-200 rounded-xl font-bold text-xs bg-slate-50/50" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.category}>
                         <option value="all">Semua Dukuh</option>
                         {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
@@ -232,12 +232,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                             paginatedTx.map(tx => (
                                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-4 text-xs font-medium text-slate-500">
-                                        <div className="font-bold text-slate-700">{new Date(tx.timestamp).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}</div>
-                                        <div className="text-[10px] text-slate-400 font-mono">{new Date(tx.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</div>
+                                        <div className="font-bold text-slate-700">{tx.timestamp ? new Date(tx.timestamp).toLocaleDateString('id-ID', { day:'2-digit', month:'short' }) : 'N/A'}</div>
+                                        <div className="text-[10px] text-slate-400 font-mono">{tx.timestamp ? new Date(tx.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '--:--'}</div>
                                     </td>
                                     <td className="p-4">
-                                        <div className="font-bold text-slate-700 group-hover:text-primary transition-colors">{tx.wargaName}</div>
-                                        <div className="text-[10px] text-slate-400 font-mono">ID: {tx.wargaId}</div>
+                                        <div className="font-bold text-slate-700 group-hover:text-primary transition-colors">{(tx.wargaName || 'Warga Terhapus')}</div>
+                                        <div className="text-[10px] text-slate-400 font-mono">ID: {(tx.wargaId || 'N/A')}</div>
                                     </td>
                                     <td className="p-4 text-center">
                                         {tx.category === 'TUNGGAKAN' ? (
@@ -250,9 +250,9 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                             </span>
                                         )}
                                     </td>
-                                    <td className="p-4 text-xs text-slate-500 font-medium">RT {tx.rtNumber}, {tx.dukuhName}</td>
-                                    <td className="p-4 text-slate-600 font-medium text-[10px] uppercase tracking-wider">{tx.petugasName}</td>
-                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp{tx.amount.toLocaleString('id-ID')}</td>
+                                    <td className="p-4 text-xs text-slate-500 font-medium">RT {(tx.rtNumber || '?')}, {(tx.dukuhName || 'N/A')}</td>
+                                    <td className="p-4 text-slate-600 font-medium text-[10px] uppercase tracking-wider">{(tx.petugasName || 'N/A')}</td>
+                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp{(tx.amount || 0).toLocaleString('id-ID')}</td>
                                     <td className="p-4 text-center">
                                         <button onClick={() => setTransactionToDelete(tx)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg transition-all" title="Hapus"><TrashIcon /></button>
                                     </td>
