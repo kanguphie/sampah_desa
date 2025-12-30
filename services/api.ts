@@ -63,7 +63,10 @@ export const bulkCreateWarga = async (wargas: Omit<Warga, 'id' | 'totalDebt'>[])
         totalDebt: 0
     }));
     const { error } = await supabase.from('wargas').insert(payload);
-    if (error) throw error;
+    if (error) {
+        console.error("Supabase bulk insert error:", error);
+        throw new Error(error.message || "Gagal menyimpan data ke database cloud.");
+    }
 };
 
 export const updateWarga = async (id: string, wargaData: Partial<Warga>) => {

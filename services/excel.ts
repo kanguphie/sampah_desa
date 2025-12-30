@@ -1,8 +1,8 @@
 
 import * as XLSX from 'xlsx';
-import type { Warga, Transaksi, Pengeluaran } from '@/types';
+import type { Warga } from '@/types';
 
-// Utility to export data to Excel
+// Fungsi untuk mengekspor data ke Excel
 export const exportToExcel = (data: any[], fileName: string, sheetName: string = 'Sheet1') => {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -10,36 +10,66 @@ export const exportToExcel = (data: any[], fileName: string, sheetName: string =
     XLSX.writeFile(workbook, `${fileName}.xlsx`);
 };
 
-// Utility to read Warga data from Excel file
+// Fungsi untuk membaca data Warga dari file Excel
 export const readWargaExcel = (file: File): Promise<Partial<Warga>[]> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
+        
         reader.onload = (e) => {
             try {
                 const data = e.target?.result;
-                const workbook = XLSX.read(data, { type: 'binary' });
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                if (!workbook.SheetNames.length) {
+                    reject(new Error("File Excel kosong atau tidak memiliki sheet."));
+                    return;
+                }
+
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 
-                // Convert to JSON
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                // Konversi ke JSON (raw)
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: null }) as any[];
                 
-                // Map to Warga Type (assuming columns: Name, RT, DukuhId, Fee)
-                // This is a basic mapping, in real world validation is needed
-                const wargaList: Partial<Warga>[] = jsonData.map((row: any) => ({
-                    name: row['Nama'] || row['name'],
-                    dailyFee: row['Tarif'] || row['dailyFee'],
-                    // We assume IDs for Dukuh/RT are passed or need mapping logic in the component
-                    dukuhId: row['Kode Dukuh'] || row['dukuhId'],
-                    rtId: row['Kode RT'] || row['rtId']
-                }));
+                if (jsonData.length === 0) {
+                    resolve([]);
+                    return;
+                }
+
+                // Logika Pemetaan Kolom Berdasarkan Gambar User
+                const wargaList: Partial<Warga>[] = jsonData.map((row: any) => {
+                    const findValue = (possibleKeys: string[]) => {
+                        // Normalisasi kunci di row: hapus spasi, ubah ke lowercase
+                        const rowKeys = Object.keys(row);
+                        const matchedKey = rowKeys.find(k => {
+                            const cleanK = k.toLowerCase().trim();
+                            return possibleKeys.some(pk => pk.toLowerCase().trim() === cleanK || pk.toLowerCase().replace(/\s/g, '') === cleanK.replace(/\s/g, ''));
+                        });
+                        return matchedKey ? row[matchedKey] : undefined;
+                    };
+
+                    // Sesuai Gambar: Nama, Tarif, Kode Dukuh, Kode RT
+                    const name = findValue(['Nama', 'Nama Lengkap', 'Name']);
+                    const dailyFee = findValue(['Tarif', 'Iuran', 'Daily Fee', 'Fee']);
+                    const dukuhId = findValue(['Kode Dukuh', 'Dukuh ID', 'DukuhId', 'Dukuh']);
+                    const rtId = findValue(['Kode RT', 'RT ID', 'RtId', 'RT']);
+
+                    return {
+                        name: name ? String(name).trim() : undefined,
+                        dailyFee: (dailyFee !== null && dailyFee !== undefined) ? Number(dailyFee) : undefined,
+                        dukuhId: (dukuhId !== null && dukuhId !== undefined) ? Number(dukuhId) : undefined,
+                        rtId: (rtId !== null && rtId !== undefined) ? Number(rtId) : undefined
+                    };
+                });
                 
                 resolve(wargaList);
             } catch (error) {
-                reject(error);
+                console.error("Excel Parsing Error:", error);
+                reject(new Error("Format file tidak didukung. Gunakan .xlsx atau .xls"));
             }
         };
-        reader.onerror = (error) => reject(error);
-        reader.readAsBinaryString(file);
+        
+        reader.onerror = () => reject(new Error("Gagal membaca file."));
+        reader.readAsArrayBuffer(file);
     });
 };

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga, bulkCreateWarga } from '@/services/api';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, DownloadIcon, UploadIcon, FileExcelIcon, ChevronDownIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, DownloadIcon, UploadIcon, FileExcelIcon, CheckCircleIcon, XIcon } from '@/components/icons';
 import { QRCodeSVG } from 'qrcode.react';
 import { exportToExcel, readWargaExcel } from '@/services/excel';
 
@@ -61,8 +61,15 @@ const AdminWargaPage: React.FC = () => {
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
-    const [importLoading, setImportLoading] = useState(false);
     
+    // States for Import Modal
+    const [importLoading, setImportLoading] = useState(false);
+    const [importReview, setImportReview] = useState<{
+        valid: Omit<Warga, 'id' | 'totalDebt'>[],
+        invalidCount: number,
+        total: number
+    } | null>(null);
+
     const [filters, setFilters] = useState({ search: '', dukuhId: 'all', rtId: 'all' });
     const [sortConfig, setSortConfig] = useState<{ key: keyof Warga | 'address'; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
@@ -77,16 +84,20 @@ const AdminWargaPage: React.FC = () => {
 
     const fetchData = useCallback(async () => {
         setLoading(true);
-        const [w, d, r] = await Promise.all([getAllWarga(), getAllDukuh(), getAllRT()]);
-        setWargaList(w);
-        setDukuhList(d);
-        setRtList(r);
-        setLoading(false);
+        try {
+            const [w, d, r] = await Promise.all([getAllWarga(), getAllDukuh(), getAllRT()]);
+            setWargaList(w);
+            setDukuhList(d);
+            setRtList(r);
+        } catch (err) {
+            console.error("Error loading data", err);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // Sorting Logic
     const handleSort = (key: keyof Warga | 'address') => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
@@ -128,7 +139,8 @@ const AdminWargaPage: React.FC = () => {
 
     const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / itemsPerPage);
 
-    // Import/Excel Handlers
+    // --- IMPORT LOGIC ---
+
     const handleDownloadTemplate = () => {
         const templateData = [
             { "Nama": "Budi Santoso", "Tarif": 2000, "Kode Dukuh": 1, "Kode RT": 1 },
@@ -137,22 +149,60 @@ const AdminWargaPage: React.FC = () => {
         exportToExcel(templateData, "Template_Warga_Rowosari", "DataWarga");
     };
 
-    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
         setImportLoading(true);
         try {
-            const data = await readWargaExcel(file);
-            const validData = data.filter(d => d.name && d.dailyFee) as Omit<Warga, 'id' | 'totalDebt'>[];
-            if (validData.length > 0) {
-                await bulkCreateWarga(validData);
-                fetchData();
-                alert(`Berhasil mengimpor ${validData.length} warga.`);
-            }
-        } catch (err) { alert("Gagal memproses file Excel."); }
-        finally { 
+            const rawData = await readWargaExcel(file);
+            console.log("Raw read results:", rawData);
+            
+            // Pisahkan data valid dan invalid
+            const valid: Omit<Warga, 'id' | 'totalDebt'>[] = [];
+            let invalidCount = 0;
+
+            rawData.forEach(row => {
+                // Validasi lebih longgar agar nama pendek tetap masuk
+                const hasName = !!row.name && row.name.toString().trim().length >= 1;
+                const hasFee = row.dailyFee !== undefined && !isNaN(Number(row.dailyFee));
+                const hasDukuh = row.dukuhId !== undefined && !isNaN(Number(row.dukuhId));
+                const hasRt = row.rtId !== undefined && !isNaN(Number(row.rtId));
+                
+                if (hasName && hasFee && hasDukuh && hasRt) {
+                    valid.push(row as any);
+                } else {
+                    invalidCount++;
+                }
+            });
+
+            // Selalu set review agar modal muncul meskipun 0 valid
+            setImportReview({
+                valid,
+                invalidCount,
+                total: rawData.length
+            });
+        } catch (err: any) { 
+            alert("Gagal membaca Excel: " + err.message); 
+        } finally { 
             setImportLoading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const confirmImport = async () => {
+        if (!importReview || importReview.valid.length === 0) return;
+        
+        setImportLoading(true);
+        try {
+            await bulkCreateWarga(importReview.valid);
+            await fetchData();
+            alert(`Berhasil mengimpor ${importReview.valid.length} warga.`);
+            setImportReview(null);
+        } catch (err: any) {
+            alert("Gagal menyimpan ke database: " + err.message);
+        } finally {
+            setImportLoading(false);
         }
     };
 
@@ -171,12 +221,12 @@ const AdminWargaPage: React.FC = () => {
                     <p className="text-slate-500 text-sm font-medium">Manajemen profil warga desa Rowosari.</p>
                 </div>
                 <div className="flex flex-wrap gap-2 w-full md:w-auto">
-                    <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
+                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".xlsx, .xls" className="hidden" />
                     <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2 border border-slate-200 text-xs">
                         <FileExcelIcon className="text-emerald-500" /> Template
                     </button>
                     <button onClick={() => fileInputRef.current?.click()} disabled={importLoading} className="flex-1 md:flex-none bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition-all flex items-center justify-center gap-2 text-xs">
-                        <UploadIcon /> {importLoading ? 'Memproses...' : 'Import Excel'}
+                        <UploadIcon /> {importLoading ? 'Membaca...' : 'Import Excel'}
                     </button>
                     <button onClick={() => { setSelectedWarga(null); setIsFormModalOpen(true); }} className="flex-1 md:flex-none bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all text-sm">
                       + Tambah Warga
@@ -224,7 +274,8 @@ const AdminWargaPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {paginatedWarga.map(w => (
+                            {loading ? <tr><td colSpan={5} className="p-10 text-center animate-pulse font-bold text-slate-300 uppercase tracking-widest text-xs">Memuat data Warga...</td></tr> : 
+                            paginatedWarga.map(w => (
                                 <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
                                     <td className="p-5 text-xs font-bold text-slate-400 font-mono tracking-tighter">{w.id}</td>
                                     <td className="p-5 font-bold text-slate-700">{w.name}</td>
@@ -239,23 +290,85 @@ const AdminWargaPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {paginatedWarga.length === 0 && (
-                                <tr><td colSpan={6} className="p-10 text-center text-slate-300 font-bold italic">Tidak ada data ditemukan</td></tr>
-                            )}
                         </tbody>
                     </table>
                 </div>
-                {itemsPerPage !== 'all' && totalPages > 1 && (
-                    <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex justify-center gap-2">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 text-slate-400 hover:text-primary disabled:opacity-30"><i className="fa-solid fa-chevron-left"></i></button>
-                        <span className="bg-primary text-white px-3 py-1 rounded-xl text-xs font-bold flex items-center">{currentPage} / {totalPages}</span>
-                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 text-slate-400 hover:text-primary disabled:opacity-30"><i className="fa-solid fa-chevron-right"></i></button>
-                    </div>
-                )}
             </div>
 
+            {/* MODAL: FORM ADD/EDIT */}
             <Modal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} title={selectedWarga ? 'Edit Warga' : 'Tambah Warga'} size="lg">
                 <WargaForm warga={selectedWarga} dukuhList={dukuhList} rtList={rtList} onSave={async (d) => { if ('id' in d) await updateWarga(d.id, d as Warga); else await createWarga(d); fetchData(); setIsFormModalOpen(false); }} onCancel={() => setIsFormModalOpen(false)} />
+            </Modal>
+
+            {/* MODAL: REVIEW IMPORT EXCEL */}
+            <Modal isOpen={!!importReview} onClose={() => setImportReview(null)} title="Review Import Excel" size="lg">
+                {importReview && (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Baris</p>
+                                <p className="text-2xl font-black text-slate-800">{importReview.total}</p>
+                            </div>
+                            <div className="bg-emerald-50 p-4 rounded-2xl text-center border border-emerald-100">
+                                <p className="text-[10px] font-black text-emerald-600 uppercase mb-1">Siap Impor</p>
+                                <p className="text-2xl font-black text-emerald-700">{importReview.valid.length}</p>
+                            </div>
+                            <div className="bg-rose-50 p-4 rounded-2xl text-center border border-rose-100">
+                                <p className="text-[10px] font-black text-rose-600 uppercase mb-1">Tidak Valid</p>
+                                <p className="text-2xl font-black text-rose-700">{importReview.invalidCount}</p>
+                            </div>
+                        </div>
+
+                        {importReview.invalidCount > 0 && (
+                            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
+                                <i className="fa-solid fa-circle-info text-amber-500 mt-1"></i>
+                                <div>
+                                    <p className="text-xs text-amber-800 leading-relaxed font-bold uppercase mb-1">Masalah Header Kolom?</p>
+                                    <p className="text-xs text-amber-700 leading-relaxed">
+                                        Pastikan judul kolom di Excel adalah: <strong>Nama, Tarif, Kode Dukuh, Kode RT</strong>.
+                                        Sistem mengabaikan baris yang datanya kosong atau kolom wilayahnya bukan angka.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-2xl">
+                            <table className="w-full text-xs text-left">
+                                <thead className="bg-slate-50 sticky top-0 font-bold text-slate-500">
+                                    <tr>
+                                        <th className="p-3">Nama (Hasil Baca)</th>
+                                        <th className="p-3 text-right">Tarif</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {importReview.valid.length > 0 ? importReview.valid.slice(0, 10).map((w, i) => (
+                                        <tr key={i}>
+                                            <td className="p-3 font-semibold text-slate-700">{w.name}</td>
+                                            <td className="p-3 text-right font-mono text-slate-500">Rp{w.dailyFee.toLocaleString('id-ID')}</td>
+                                        </tr>
+                                    )) : (
+                                        <tr><td colSpan={2} className="p-10 text-center text-slate-400 italic">Data tidak terbaca. Periksa judul kolom Anda.</td></tr>
+                                    )}
+                                    {importReview.valid.length > 10 && (
+                                        <tr><td colSpan={2} className="p-3 text-center text-slate-400 italic">...dan {importReview.valid.length - 10} data lainnya</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex gap-3 pt-4">
+                            <button onClick={() => setImportReview(null)} className="flex-1 py-4 rounded-2xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Batal</button>
+                            <button 
+                                onClick={confirmImport} 
+                                disabled={importLoading || importReview.valid.length === 0} 
+                                className="flex-[2] py-4 rounded-2xl font-bold bg-emerald-500 text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:bg-slate-300"
+                            >
+                                {importLoading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <CheckCircleIcon />}
+                                Impor Sekarang
+                            </button>
+                        </div>
+                    </div>
+                )}
             </Modal>
 
             <Modal isOpen={!!qrToShow} onClose={() => setQrToShow(null)} title="Kartu Warga (Barcode)">
