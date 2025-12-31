@@ -27,7 +27,8 @@ const PetugasScanPage: FC = () => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isScanning, setIsScanning] = useState(false);
-    const isScanningRef = useRef(false); 
+    const isScanningRef = useRef(false);
+    const lastScanTimeRef = useRef<number>(0); 
     
     const { petugas } = useAuth();
     
@@ -71,7 +72,11 @@ const PetugasScanPage: FC = () => {
             } else {
                 setError(`ID Warga "${id}" tidak ditemukan.`);
                 if (mode === 'scan') {
-                    setTimeout(() => { setIsScanning(true); isScanningRef.current = true; }, 3000);
+                    // Beri jeda sebelum scan ulang jika gagal
+                    setTimeout(() => { 
+                        isScanningRef.current = true; 
+                        setIsScanning(true); 
+                    }, 2000);
                 }
             }
         } catch (err) {
@@ -85,21 +90,36 @@ const PetugasScanPage: FC = () => {
         let stream: MediaStream | null = null;
         let animationFrameId: number;
 
-        const tick = () => {
+        const tick = (time: number) => {
             if (!isScanningRef.current) {
                 animationFrameId = requestAnimationFrame(tick);
                 return;
             }
+
+            // OPTIMASI: Scan hanya setiap 150ms (bukan setiap frame/16ms)
+            // Ini sangat meningkatkan kecepatan scan karena CPU tidak terbebani loop jsQR yang terlalu rapat
+            if (time - lastScanTimeRef.current < 150) {
+                animationFrameId = requestAnimationFrame(tick);
+                return;
+            }
+
             if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
+                lastScanTimeRef.current = time;
                 const canvas = canvasRef.current;
                 const video = videoRef.current;
-                canvas.height = video.videoHeight;
-                canvas.width = video.videoWidth;
+                
+                // Gunakan resolusi lebih rendah untuk scanning agar lebih ringan (Internal processing only)
+                canvas.height = video.videoHeight / 2;
+                canvas.width = video.videoWidth / 2;
+                
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 if (ctx) {
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { 
+                        inversionAttempts: "dontInvert" 
+                    });
+                    
                     if (code && code.data) {
                         isScanningRef.current = false;
                         setIsScanning(false);
@@ -115,7 +135,11 @@ const PetugasScanPage: FC = () => {
             if (mode !== 'scan' || warga || success) return;
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+                    video: { 
+                        facingMode: 'environment', 
+                        width: { ideal: 1280 }, 
+                        height: { ideal: 720 } 
+                    } 
                 });
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
@@ -123,7 +147,7 @@ const PetugasScanPage: FC = () => {
                         videoRef.current?.play();
                         setIsScanning(true);
                         isScanningRef.current = true;
-                        tick();
+                        animationFrameId = requestAnimationFrame(tick);
                     };
                 }
             } catch (err) {
@@ -206,15 +230,10 @@ const PetugasScanPage: FC = () => {
 
     const getDukuhName = (id: number) => dukuhList.find(d => d.id === id)?.name || 'N/A';
 
-    // LOGIKA TAMPILAN KEUANGAN
     const isTodayDebt = todayTx?.status === 'HUTANG';
     const isTodayPaid = todayTx?.status === 'LUNAS';
     const hasDebt = warga ? warga.totalDebt > 0 : false;
-    
-    // Iuran rutin tampil 0 jika hari ini sudah tercatat (baik lunas maupun hutang hari ini)
     const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
-    
-    // Total Bayar Semua (Hari ini + Hutang lama)
     const bulkAmount = warga ? (isTodayDebt ? warga.totalDebt : warga.dailyFee + warga.totalDebt) : 0;
 
     return (
@@ -234,15 +253,27 @@ const PetugasScanPage: FC = () => {
                 <div className="relative aspect-square w-full bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white animate-fade-in">
                     <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
                     <canvas ref={canvasRef} className="hidden" />
-                    <div className="absolute inset-0 border-[45px] border-slate-900/40 pointer-events-none">
-                        <div className="w-full h-full border-2 border-primary/50 rounded-2xl relative">
-                            <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-primary rounded-tl-lg"></div>
-                            <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-primary rounded-tr-lg"></div>
-                            <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-primary rounded-bl-lg"></div>
-                            <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-primary rounded-br-lg"></div>
-                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-[scan_2.5s_linear_infinite]"></div>
+                    
+                    {/* OVERLAY OPTIMASI: Tanpa garis bergerak, lebih fokus pada target frame */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-[70%] h-[70%] relative">
+                            {/* Border sudut dengan efek pulse ringan untuk indikator aktif */}
+                            <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-primary rounded-tl-2xl animate-pulse"></div>
+                            <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-primary rounded-tr-2xl animate-pulse"></div>
+                            <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-primary rounded-bl-2xl animate-pulse"></div>
+                            <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-2xl animate-pulse"></div>
+                            
+                            {/* Tips text yang statis */}
+                            <div className="absolute -bottom-12 left-0 w-full text-center">
+                                <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full">
+                                    Posisikan QR di Tengah Bingkai
+                                </span>
+                            </div>
                         </div>
                     </div>
+                    
+                    {/* Shadow masking di sekitar area scan */}
+                    <div className="absolute inset-0 border-[40px] border-slate-900/40 pointer-events-none"></div>
                 </div>
             )}
 
@@ -291,7 +322,6 @@ const PetugasScanPage: FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {/* 1. AKSI UTAMA: BAYAR / LUNASI HARI INI */}
                             {isTodayPaid ? (
                                 <div className="w-full bg-emerald-100 text-emerald-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-sm uppercase tracking-widest border border-emerald-200">
                                     <CheckCircleIcon /> Sudah Lunas Hari Ini
@@ -306,21 +336,18 @@ const PetugasScanPage: FC = () => {
                                 </button>
                             )}
 
-                            {/* 2. AKSI ALTERNATIF: JADIKAN TUNGGAKAN (Prioritas Kedua) */}
                             {!isTodayPaid && !isTodayDebt && (
                                 <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <ClockIcon /> Jadikan Tunggakan (Nanti)
                                 </button>
                             )}
 
-                            {/* 3. AKSI PRIORITAS TUNGGAKAN: CICIL (Hanya jika ada tunggakan) */}
                             {hasDebt && (
-                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <BanknotesIcon /> Cicil Tunggakan
                                 </button>
                             )}
 
-                            {/* 4. OPSI TERAKHIR: BAYAR BORONGAN (Hanya jika ada tunggakan & iuran hari ini belum lunas) */}
                             {hasDebt && !isTodayPaid && (
                                 <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-white border-2 border-slate-800 text-slate-800 font-black py-4 rounded-2xl hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5">
                                     <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
@@ -330,7 +357,6 @@ const PetugasScanPage: FC = () => {
                                 </button>
                             )}
 
-                            {/* INFO STATUS HARI INI */}
                             {isTodayDebt && (
                                 <div className="mt-4 p-3 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-center gap-3">
                                      <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
@@ -356,10 +382,6 @@ const PetugasScanPage: FC = () => {
                     <p className="text-2xl font-black text-slate-800 tracking-tight">{modalTitle}!</p>
                 </div>
             </Modal>
-            
-            <style>{`
-                @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
-            `}</style>
         </div>
     );
 };
