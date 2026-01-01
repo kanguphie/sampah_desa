@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { FC } from 'react';
 import type { Warga, TransactionStatus, Transaksi, Dukuh, RT } from '@/types';
-import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday } from '@/services/api';
+import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
@@ -15,6 +15,7 @@ const PetugasScanPage: FC = () => {
     const [todayTx, setTodayTx] = useState<Transaksi | null>(null);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
+    const [scheduleToday, setScheduleToday] = useState<{isHoliday: boolean, dukuhIds: number[], dukuhNames: string[]} | null>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -34,9 +35,14 @@ const PetugasScanPage: FC = () => {
     
     useEffect(() => {
         const fetchMeta = async () => {
-            const [d, r] = await Promise.all([getAllDukuh(), getAllRT()]);
+            const [d, r, s] = await Promise.all([
+                getAllDukuh(), 
+                getAllRT(),
+                getScheduleForToday()
+            ]);
             setDukuhList(d);
             setRtList(r);
+            setScheduleToday(s);
         };
         fetchMeta();
     }, []);
@@ -56,6 +62,8 @@ const PetugasScanPage: FC = () => {
         }
     }, [mode]);
 
+    const getDukuhName = useCallback((id: number) => dukuhList.find(d => d.id === id)?.name || 'Wilayah Tak Dikenal', [dukuhList]);
+
     const fetchWarga = useCallback(async (id: string) => {
         setIsScanning(false);
         isScanningRef.current = false;
@@ -65,6 +73,21 @@ const PetugasScanPage: FC = () => {
         try {
             const data = await getWargaById(id);
             if (data) {
+                // VALIDASI JADWAL
+                if (scheduleToday) {
+                    if (scheduleToday.isHoliday) {
+                        setError('Hari ini adalah jadwal libur pengambilan sampah.');
+                        if (mode === 'scan') setTimeout(() => { isScanningRef.current = true; setIsScanning(true); }, 3000);
+                        return;
+                    }
+                    
+                    if (!scheduleToday.dukuhIds.includes(data.dukuhId)) {
+                        setError(`Warga berada di wilayah ${getDukuhName(data.dukuhId)}. Wilayah ini tidak dijadwalkan untuk pengambilan hari ini.`);
+                        if (mode === 'scan') setTimeout(() => { isScanningRef.current = true; setIsScanning(true); }, 4000);
+                        return;
+                    }
+                }
+
                 setWarga(data);
                 setDebtInput(''); 
                 const tx = await getWargaTodayTransaction(id);
@@ -72,7 +95,6 @@ const PetugasScanPage: FC = () => {
             } else {
                 setError(`ID Warga "${id}" tidak ditemukan.`);
                 if (mode === 'scan') {
-                    // Beri jeda sebelum scan ulang jika gagal
                     setTimeout(() => { 
                         isScanningRef.current = true; 
                         setIsScanning(true); 
@@ -84,7 +106,7 @@ const PetugasScanPage: FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [mode]);
+    }, [mode, scheduleToday, getDukuhName]);
 
     useEffect(() => {
         let stream: MediaStream | null = null;
@@ -96,8 +118,6 @@ const PetugasScanPage: FC = () => {
                 return;
             }
 
-            // OPTIMASI: Scan hanya setiap 150ms (bukan setiap frame/16ms)
-            // Ini sangat meningkatkan kecepatan scan karena CPU tidak terbebani loop jsQR yang terlalu rapat
             if (time - lastScanTimeRef.current < 150) {
                 animationFrameId = requestAnimationFrame(tick);
                 return;
@@ -108,7 +128,6 @@ const PetugasScanPage: FC = () => {
                 const canvas = canvasRef.current;
                 const video = videoRef.current;
                 
-                // Gunakan resolusi lebih rendah untuk scanning agar lebih ringan (Internal processing only)
                 canvas.height = video.videoHeight / 2;
                 canvas.width = video.videoWidth / 2;
                 
@@ -228,8 +247,6 @@ const PetugasScanPage: FC = () => {
         finally { setLoading(false); }
     }
 
-    const getDukuhName = (id: number) => dukuhList.find(d => d.id === id)?.name || 'N/A';
-
     const isTodayDebt = todayTx?.status === 'HUTANG';
     const isTodayPaid = todayTx?.status === 'LUNAS';
     const hasDebt = warga ? warga.totalDebt > 0 : false;
@@ -249,21 +266,25 @@ const PetugasScanPage: FC = () => {
                 </div>
             )}
 
+            {error && !warga && (
+                <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-2xl mb-6 flex items-start gap-3 animate-fade-in">
+                    <i className="fa-solid fa-triangle-exclamation mt-1"></i>
+                    <p className="text-xs font-bold uppercase tracking-tight leading-relaxed">{error}</p>
+                </div>
+            )}
+
             {!warga && mode === 'scan' && (
                 <div className="relative aspect-square w-full bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white animate-fade-in">
                     <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
                     <canvas ref={canvasRef} className="hidden" />
                     
-                    {/* OVERLAY OPTIMASI: Tanpa garis bergerak, lebih fokus pada target frame */}
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-[70%] h-[70%] relative">
-                            {/* Border sudut dengan efek pulse ringan untuk indikator aktif */}
                             <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-primary rounded-tl-2xl animate-pulse"></div>
                             <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-primary rounded-tr-2xl animate-pulse"></div>
                             <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-primary rounded-bl-2xl animate-pulse"></div>
                             <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-2xl animate-pulse"></div>
                             
-                            {/* Tips text yang statis */}
                             <div className="absolute -bottom-12 left-0 w-full text-center">
                                 <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full">
                                     Posisikan QR di Tengah Bingkai
@@ -272,7 +293,6 @@ const PetugasScanPage: FC = () => {
                         </div>
                     </div>
                     
-                    {/* Shadow masking di sekitar area scan */}
                     <div className="absolute inset-0 border-[40px] border-slate-900/40 pointer-events-none"></div>
                 </div>
             )}
@@ -281,7 +301,9 @@ const PetugasScanPage: FC = () => {
                 <form onSubmit={(e) => { e.preventDefault(); fetchWarga(wargaId); }} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">ID Warga (6 Digit)</label>
                     <input type="tel" value={wargaId} onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))} maxLength={6} placeholder="100001" className="w-full text-2xl font-bold px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all" autoFocus />
-                    <button type="submit" disabled={loading} className="w-full mt-6 bg-slate-800 text-white font-bold py-4 rounded-2xl hover:bg-slate-900 shadow-xl shadow-slate-900/10 transition-all">Cari Warga</button>
+                    <button type="submit" disabled={loading} className="w-full mt-6 bg-slate-800 text-white font-bold py-4 rounded-2xl hover:bg-slate-900 shadow-xl shadow-slate-900/10 transition-all">
+                        {loading ? 'Mengecek...' : 'Cari Warga'}
+                    </button>
                 </form>
             )}
 
@@ -355,17 +377,6 @@ const PetugasScanPage: FC = () => {
                                     </div>
                                     <span className="text-[11px] font-black">Lunas Semua: Rp{bulkAmount.toLocaleString('id-ID')}</span>
                                 </button>
-                            )}
-
-                            {isTodayDebt && (
-                                <div className="mt-4 p-3 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-center gap-3">
-                                     <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
-                                        <i className="fa-solid fa-triangle-exclamation text-amber-600 text-xs"></i>
-                                     </div>
-                                     <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest text-left leading-tight">
-                                        Iuran Hari Ini Menjadi Tunggakan<br/><span className="text-amber-500 opacity-70">Gunakan tombol borongan untuk lunas</span>
-                                     </p>
-                                </div>
                             )}
 
                             <button onClick={resetState} className="w-full text-slate-300 font-bold py-2 hover:text-slate-500 text-[10px] uppercase tracking-widest mt-2 transition-colors">Batal / Kembali</button>
