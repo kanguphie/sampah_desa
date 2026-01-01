@@ -27,10 +27,10 @@ const PetugasScanPage: FC = () => {
     
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isScanning, setIsScanning] = useState(false);
+    
     const isScanningRef = useRef(false);
+    const isProcessingRef = useRef(false);
     const lastScanTimeRef = useRef<number>(0); 
-    // Fix: Use ReturnType<typeof setTimeout> instead of NodeJS.Timeout to avoid namespace error in browser environment
     const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const { petugas } = useAuth();
@@ -59,8 +59,9 @@ const PetugasScanPage: FC = () => {
         setLoading(false);
         setIsPayingDebt(false);
         setDebtInput('');
+        isProcessingRef.current = false;
+        
         if (mode === 'scan') {
-            setIsScanning(true);
             isScanningRef.current = true;
         }
     }, [mode]);
@@ -68,13 +69,13 @@ const PetugasScanPage: FC = () => {
     const getDukuhName = useCallback((id: number) => dukuhList.find(d => d.id === id)?.name || 'Wilayah Tak Dikenal', [dukuhList]);
 
     const fetchWarga = useCallback(async (id: string) => {
-        // Hentikan scan sementara proses fetch
-        setIsScanning(false);
-        isScanningRef.current = false;
+        if (isProcessingRef.current) return;
+        
+        isProcessingRef.current = true;
+        isScanningRef.current = false; // Kunci scanner
         setLoading(true);
         setError('');
         
-        // Bersihkan timeout error sebelumnya jika ada
         if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         
         try {
@@ -84,71 +85,63 @@ const PetugasScanPage: FC = () => {
                 if (scheduleToday) {
                     if (scheduleToday.isHoliday) {
                         setError('HARI INI ADALAH JADWAL LIBUR PENGAMBILAN SAMPAH.');
-                        // Otomatis aktifkan scan lagi setelah 2.5 detik agar kontinyu
-                        if (mode === 'scan') {
-                            errorTimeoutRef.current = setTimeout(() => {
-                                setError('');
-                                isScanningRef.current = true;
-                                setIsScanning(true);
-                            }, 2500);
-                        }
+                        errorTimeoutRef.current = setTimeout(() => {
+                            setError('');
+                            isProcessingRef.current = false;
+                            isScanningRef.current = true;
+                        }, 3000);
                         return;
                     }
                     
                     if (!scheduleToday.dukuhIds.includes(data.dukuhId)) {
                         setError(`WARGA BERADA DI WILAYAH ${getDukuhName(data.dukuhId).toUpperCase()}. WILAYAH INI TIDAK DIJADWALKAN UNTUK PENGAMBILAN HARI INI.`);
-                        // Otomatis aktifkan scan lagi setelah 2.5 detik agar kontinyu
-                        if (mode === 'scan') {
-                            errorTimeoutRef.current = setTimeout(() => {
-                                setError('');
-                                isScanningRef.current = true;
-                                setIsScanning(true);
-                            }, 2500);
-                        }
+                        errorTimeoutRef.current = setTimeout(() => {
+                            setError('');
+                            isProcessingRef.current = false;
+                            isScanningRef.current = true;
+                        }, 3000);
                         return;
                     }
                 }
 
                 setWarga(data);
-                setDebtInput(''); 
                 const tx = await getWargaTodayTransaction(id);
                 setTodayTx(tx || null);
             } else {
                 setError(`ID WARGA "${id}" TIDAK DITEMUKAN.`);
-                if (mode === 'scan') {
-                    errorTimeoutRef.current = setTimeout(() => { 
-                        setError('');
-                        isScanningRef.current = true; 
-                        setIsScanning(true); 
-                    }, 2000);
-                }
+                errorTimeoutRef.current = setTimeout(() => { 
+                    setError('');
+                    isProcessingRef.current = false;
+                    isScanningRef.current = true; 
+                }, 2000);
             }
         } catch (err) {
             setError('GAGAL MEMUAT DATA WARGA.');
-            if (mode === 'scan') {
-                errorTimeoutRef.current = setTimeout(() => {
-                    setError('');
-                    isScanningRef.current = true;
-                    setIsScanning(true);
-                }, 2000);
-            }
+            errorTimeoutRef.current = setTimeout(() => {
+                setError('');
+                isProcessingRef.current = false;
+                isScanningRef.current = true;
+            }, 2000);
         } finally {
             setLoading(false);
         }
-    }, [mode, scheduleToday, getDukuhName]);
+    }, [scheduleToday, getDukuhName]);
 
     useEffect(() => {
         let stream: MediaStream | null = null;
         let animationFrameId: number;
 
         const tick = (time: number) => {
-            if (!isScanningRef.current) {
-                animationFrameId = requestAnimationFrame(tick);
+            // Selalu panggil requestAnimationFrame agar loop tidak mati
+            animationFrameId = requestAnimationFrame(tick);
+
+            // Cek apakah scanner sedang aktif dan tidak sedang memproses data
+            if (!isScanningRef.current || isProcessingRef.current) {
                 return;
             }
 
-            if (time - lastScanTimeRef.current < 150) {
-                animationFrameId = requestAnimationFrame(tick);
+            // Throttling: Scan setiap 200ms agar CPU tidak panas
+            if (time - lastScanTimeRef.current < 200) {
                 return;
             }
 
@@ -169,14 +162,10 @@ const PetugasScanPage: FC = () => {
                     });
                     
                     if (code && code.data) {
-                        isScanningRef.current = false;
-                        setIsScanning(false);
                         fetchWarga(code.data);
-                        return; 
                     }
                 }
             }
-            animationFrameId = requestAnimationFrame(tick);
         };
 
         const startCamera = async () => {
@@ -193,7 +182,6 @@ const PetugasScanPage: FC = () => {
                     videoRef.current.srcObject = stream;
                     videoRef.current.onloadedmetadata = () => {
                         videoRef.current?.play();
-                        setIsScanning(true);
                         isScanningRef.current = true;
                         animationFrameId = requestAnimationFrame(tick);
                     };
@@ -205,6 +193,7 @@ const PetugasScanPage: FC = () => {
         };
 
         if (mode === 'scan' && !warga && !success) startCamera();
+        
         return () => {
             if (stream) stream.getTracks().forEach(track => track.stop());
             cancelAnimationFrame(animationFrameId);
@@ -322,7 +311,6 @@ const PetugasScanPage: FC = () => {
                             </div>
                         </div>
                     </div>
-                    
                     <div className="absolute inset-0 border-[40px] border-slate-900/40 pointer-events-none"></div>
                 </div>
             )}
@@ -389,7 +377,7 @@ const PetugasScanPage: FC = () => {
                             )}
 
                             {!isTodayPaid && !isTodayDebt && (
-                                <button onClick={handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <ClockIcon /> Jadikan Tunggakan (Nanti)
                                 </button>
                             )}
