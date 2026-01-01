@@ -30,6 +30,8 @@ const PetugasScanPage: FC = () => {
     const [isScanning, setIsScanning] = useState(false);
     const isScanningRef = useRef(false);
     const lastScanTimeRef = useRef<number>(0); 
+    // Fix: Use ReturnType<typeof setTimeout> instead of NodeJS.Timeout to avoid namespace error in browser environment
+    const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const { petugas } = useAuth();
     
@@ -48,6 +50,7 @@ const PetugasScanPage: FC = () => {
     }, []);
 
     const resetState = useCallback(() => {
+        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         setWarga(null);
         setTodayTx(null);
         setWargaId('');
@@ -65,10 +68,14 @@ const PetugasScanPage: FC = () => {
     const getDukuhName = useCallback((id: number) => dukuhList.find(d => d.id === id)?.name || 'Wilayah Tak Dikenal', [dukuhList]);
 
     const fetchWarga = useCallback(async (id: string) => {
+        // Hentikan scan sementara proses fetch
         setIsScanning(false);
         isScanningRef.current = false;
         setLoading(true);
         setError('');
+        
+        // Bersihkan timeout error sebelumnya jika ada
+        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         
         try {
             const data = await getWargaById(id);
@@ -76,14 +83,28 @@ const PetugasScanPage: FC = () => {
                 // VALIDASI JADWAL
                 if (scheduleToday) {
                     if (scheduleToday.isHoliday) {
-                        setError('Hari ini adalah jadwal libur pengambilan sampah.');
-                        if (mode === 'scan') setTimeout(() => { isScanningRef.current = true; setIsScanning(true); }, 3000);
+                        setError('HARI INI ADALAH JADWAL LIBUR PENGAMBILAN SAMPAH.');
+                        // Otomatis aktifkan scan lagi setelah 2.5 detik agar kontinyu
+                        if (mode === 'scan') {
+                            errorTimeoutRef.current = setTimeout(() => {
+                                setError('');
+                                isScanningRef.current = true;
+                                setIsScanning(true);
+                            }, 2500);
+                        }
                         return;
                     }
                     
                     if (!scheduleToday.dukuhIds.includes(data.dukuhId)) {
-                        setError(`Warga berada di wilayah ${getDukuhName(data.dukuhId)}. Wilayah ini tidak dijadwalkan untuk pengambilan hari ini.`);
-                        if (mode === 'scan') setTimeout(() => { isScanningRef.current = true; setIsScanning(true); }, 4000);
+                        setError(`WARGA BERADA DI WILAYAH ${getDukuhName(data.dukuhId).toUpperCase()}. WILAYAH INI TIDAK DIJADWALKAN UNTUK PENGAMBILAN HARI INI.`);
+                        // Otomatis aktifkan scan lagi setelah 2.5 detik agar kontinyu
+                        if (mode === 'scan') {
+                            errorTimeoutRef.current = setTimeout(() => {
+                                setError('');
+                                isScanningRef.current = true;
+                                setIsScanning(true);
+                            }, 2500);
+                        }
                         return;
                     }
                 }
@@ -93,16 +114,24 @@ const PetugasScanPage: FC = () => {
                 const tx = await getWargaTodayTransaction(id);
                 setTodayTx(tx || null);
             } else {
-                setError(`ID Warga "${id}" tidak ditemukan.`);
+                setError(`ID WARGA "${id}" TIDAK DITEMUKAN.`);
                 if (mode === 'scan') {
-                    setTimeout(() => { 
+                    errorTimeoutRef.current = setTimeout(() => { 
+                        setError('');
                         isScanningRef.current = true; 
                         setIsScanning(true); 
                     }, 2000);
                 }
             }
         } catch (err) {
-            setError('Gagal memuat data warga.');
+            setError('GAGAL MEMUAT DATA WARGA.');
+            if (mode === 'scan') {
+                errorTimeoutRef.current = setTimeout(() => {
+                    setError('');
+                    isScanningRef.current = true;
+                    setIsScanning(true);
+                }, 2000);
+            }
         } finally {
             setLoading(false);
         }
@@ -180,6 +209,7 @@ const PetugasScanPage: FC = () => {
             if (stream) stream.getTracks().forEach(track => track.stop());
             cancelAnimationFrame(animationFrameId);
             isScanningRef.current = false;
+            if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         };
     }, [mode, warga, success, fetchWarga]);
 
@@ -268,7 +298,7 @@ const PetugasScanPage: FC = () => {
 
             {error && !warga && (
                 <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-2xl mb-6 flex items-start gap-3 animate-fade-in">
-                    <i className="fa-solid fa-triangle-exclamation mt-1"></i>
+                    <i className="fa-solid fa-circle-exclamation mt-1"></i>
                     <p className="text-xs font-bold uppercase tracking-tight leading-relaxed">{error}</p>
                 </div>
             )}
@@ -359,7 +389,7 @@ const PetugasScanPage: FC = () => {
                             )}
 
                             {!isTodayPaid && !isTodayDebt && (
-                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                <button onClick={handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <ClockIcon /> Jadikan Tunggakan (Nanti)
                                 </button>
                             )}
