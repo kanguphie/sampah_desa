@@ -59,7 +59,7 @@ async function startServer() {
         `CREATE TABLE IF NOT EXISTS rts (id INT AUTO_INCREMENT PRIMARY KEY, number VARCHAR(10), dukuhId INT)`,
         `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT, totalDebt INT DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS petugases (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), pin VARCHAR(10))`,
-        `CREATE TABLE IF NOT EXISTS admins (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), pin VARCHAR(10))`,
+        `CREATE TABLE IF NOT EXISTS admins (id VARCHAR(50) PRIMARY KEY, username VARCHAR(255), name VARCHAR(255), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS transactions (id VARCHAR(50) PRIMARY KEY, wargaId VARCHAR(50), petugasId VARCHAR(50), amount INT, status VARCHAR(20), category VARCHAR(50), timestamp DATETIME)`,
         `CREATE TABLE IF NOT EXISTS pengeluarans (id VARCHAR(50) PRIMARY KEY, description TEXT, amount INT, date DATE, category VARCHAR(50))`,
         `CREATE TABLE IF NOT EXISTS contact_messages (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), subject VARCHAR(255), message TEXT, timestamp DATETIME, isRead BOOLEAN DEFAULT FALSE)`,
@@ -68,13 +68,20 @@ async function startServer() {
       ];
       for (const q of queries) { await db.execute(q); }
       // Ensure village_config has all columns (Migration for existing databases)
-      const [cols]: any = await db.execute('DESCRIBE village_config');
-      const existingCols = cols.map((c: any) => c.Field);
-      const neededCols = ['district', 'regency', 'phone', 'email'];
-      for (const col of neededCols) {
-        if (!existingCols.includes(col)) {
+      const [vCols]: any = await db.execute('DESCRIBE village_config');
+      const existingVCols = vCols.map((c: any) => c.Field);
+      const neededVCols = ['district', 'regency', 'phone', 'email'];
+      for (const col of neededVCols) {
+        if (!existingVCols.includes(col)) {
             await db.execute(`ALTER TABLE village_config ADD COLUMN ${col} VARCHAR(255)`);
         }
+      }
+
+      // Migration for admins table to add username
+      const [aCols]: any = await db.execute('DESCRIBE admins');
+      const existingACols = aCols.map((c: any) => c.Field);
+      if (!existingACols.includes('username')) {
+          await db.execute(`ALTER TABLE admins ADD COLUMN username VARCHAR(255)`);
       }
       
       console.log("Database Schema Verified.");
@@ -94,7 +101,7 @@ async function startServer() {
         
         // JIKA KOSONG (First Run): Ijinkan PIN 123456
         if (admins.length === 0 && pin === '123456') {
-            return res.json({ id: 'admin-master', name: 'Master Admin (First Run)', role: 'admin' });
+            return res.json({ id: 'admin-master', username: 'admin', name: 'Master Admin (First Run)', role: 'admin' });
         }
         
         // JIKA ADA DATA: Gunakan PIN dari Database
@@ -454,6 +461,47 @@ async function startServer() {
         const db = await getDB();
         await db.execute('DELETE FROM pengeluarans WHERE id = ?', [id]);
         res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/profile/admin', async (req, res) => {
+    try {
+        const { id, name, pin } = req.body;
+        const db = await getDB();
+        const queries = [];
+        const params = [];
+        
+        if (name) { queries.push('name = ?'); params.push(name); }
+        if (pin) { queries.push('pin = ?'); params.push(pin); }
+        
+        if (queries.length > 0) {
+            params.push(id);
+            await db.execute(`UPDATE admins SET ${queries.join(', ')} WHERE id = ?`, params);
+        }
+        
+        const [rows]: any = await db.execute('SELECT * FROM admins WHERE id = ?', [id]);
+        res.json({ ...rows[0], role: 'admin' });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/profile/petugas', async (req, res) => {
+    try {
+        const { id, name, phone, pin } = req.body;
+        const db = await getDB();
+        const queries = [];
+        const params = [];
+        
+        if (name) { queries.push('name = ?'); params.push(name); }
+        if (phone) { queries.push('phone = ?'); params.push(phone); }
+        if (pin) { queries.push('pin = ?'); params.push(pin); }
+        
+        if (queries.length > 0) {
+            params.push(id);
+            await db.execute(`UPDATE petugases SET ${queries.join(', ')} WHERE id = ?`, params);
+        }
+        
+        const [rows]: any = await db.execute('SELECT * FROM petugases WHERE id = ?', [id]);
+        res.json({ ...rows[0], role: 'petugas' });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
