@@ -1,0 +1,72 @@
+
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: sapadesa_app
+    restart: always
+    ports:
+      - "3002:3000" # Map to host port 3002 (since 3001 is taken)
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+      - DB_NAME=sapadesa
+      - DB_USER=sapadesa_user
+      - DB_PASSWORD=sapadesapassword
+      - DB_PORT=3306
+      - TZ=Asia/Jakarta
+      - VITE_API_URL=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M # Prevents Memory Leak from hanging Proxmox
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  db:
+    image: mysql:8.0
+    container_name: sapadesa_db
+    restart: always
+    command: 
+      - --default-authentication-plugin=mysql_native_password
+      - --innodb-buffer-pool-size=128M # Optimization for small RAM
+      - --max-connections=50
+    ports:
+      - "3308:3306" # Map to host port 3308 (since 3306 & 3307 are taken)
+    environment:
+      - MYSQL_DATABASE=sapadesa
+      - MYSQL_USER=sapadesa_user
+      - MYSQL_PASSWORD=sapadesapassword
+      - MYSQL_ROOT_PASSWORD=root_password
+      - TZ=Asia/Jakarta
+    volumes:
+      - sapadesa_db_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: 512M # DB needs more RAM but still limited
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  sapadesa_db_data:

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getSchedule, updateSchedule, getAllDukuh, markDayAsSkipped, getVillageProfile, updateVillageProfile } from '@/services/api';
+import { getSchedule, updateSchedule, getAllDukuh, markDayAsSkipped, getVillageProfile, updateVillageProfile, exportFullBackup, importFullBackup } from '@/services/api';
 import Modal from '@/components/Modal';
-import { PencilIcon, HomeIcon, ClockIcon, XIcon, CheckCircleIcon, PhoneIcon, EnvelopeIcon } from '@/components/icons';
+import { PencilIcon, HomeIcon, ClockIcon, XIcon, CheckCircleIcon, PhoneIcon, EnvelopeIcon, DatabaseIcon, DownloadIcon, UploadIcon } from '@/components/icons';
 import type { Dukuh, VillageProfile } from '@/types';
 
 type Schedule = Record<string, number[] | 'libur'>;
@@ -169,8 +169,134 @@ const VillageProfileForm: React.FC = () => {
     );
 };
 
+const DatabaseManager: React.FC = () => {
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    const handleDownload = async () => {
+        setLoading(true);
+        try {
+            const data = await exportFullBackup();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `SapaDesa_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setMessage({ type: 'success', text: 'Backup berhasil diunduh!' });
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Gagal membuat backup data.' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!window.confirm("PERINGATAN: Restore data akan memperbarui database dengan data dari file JSON. Lanjutkan?")) {
+            e.target.value = '';
+            return;
+        }
+
+        setLoading(true);
+        setMessage(null);
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const json = JSON.parse(event.target?.result as string);
+                const result = await importFullBackup(json);
+                
+                if (result.errors.length === 0) {
+                    setMessage({ type: 'success', text: `Restore berhasil! ${result.success.length} tabel diperbarui.` });
+                } else {
+                    setMessage({ type: 'error', text: `Gagal memulihkan ${result.errors.length} tabel. Periksa konsol.` });
+                    console.error("Restore Errors:", result.errors);
+                }
+            } catch (err) {
+                setMessage({ type: 'error', text: 'File JSON tidak valid atau rusak.' });
+            } finally {
+                setLoading(false);
+                e.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto space-y-8 py-4">
+             {message && (
+                <div className={`p-4 rounded-2xl flex items-center gap-3 font-bold text-sm animate-fade-in ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                    {message.type === 'success' ? <CheckCircleIcon /> : <XIcon />}
+                    {message.text}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Backup Card */}
+                <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 flex flex-col justify-between items-start gap-6">
+                    <div>
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-primary mb-4">
+                            <DownloadIcon className="text-xl" />
+                        </div>
+                        <h3 className="font-black text-slate-800 text-lg">Backup Data</h3>
+                        <p className="text-slate-500 text-sm mt-1">Unduh semua data Master, Transaksi, dan Pengaturan dalam format JSON untuk cadangan atau migrasi server.</p>
+                    </div>
+                    <button 
+                        onClick={handleDownload}
+                        disabled={loading}
+                        className="w-full py-4 bg-white border border-slate-200 hover:bg-primary hover:text-white hover:border-primary text-slate-600 font-black rounded-2xl shadow-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                    >
+                        {loading ? 'Memproses...' : (
+                            <>
+                                <DownloadIcon />
+                                Unduh JSON
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {/* Restore Card */}
+                <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 flex flex-col justify-between items-start gap-6">
+                    <div>
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-amber-500 mb-4">
+                            <UploadIcon className="text-xl" />
+                        </div>
+                        <h3 className="font-black text-slate-800 text-lg">Restore Data</h3>
+                        <p className="text-slate-500 text-sm mt-1">Unggah file JSON backup untuk memulihkan data. Sistem akan melakukan 'upsert' (update jika ada, insert jika baru).</p>
+                    </div>
+                    <label className="w-full">
+                        <input type="file" accept=".json" onChange={handleRestore} disabled={loading} className="hidden" />
+                        <div className="w-full py-4 bg-white border border-slate-200 hover:bg-amber-500 hover:text-white hover:border-amber-500 text-slate-600 font-black rounded-2xl shadow-sm transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50">
+                            <UploadIcon />
+                            Pilih File
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 p-6 rounded-[2rem] flex gap-4">
+                 <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center shrink-0">
+                    <XIcon className="text-xs" />
+                 </div>
+                 <div>
+                    <h4 className="font-black text-amber-800 text-sm">Peringatan Penting</h4>
+                    <p className="text-amber-700/80 text-xs mt-1 leading-relaxed">
+                        Fitur restore ini dirancang untuk memudahkan migrasi antar database (misal dari Supabase Cloud ke Proxmox Lokal). Pastikan file JSON yang Anda gunakan adalah asli hasil backup aplikasi ini untuk menghindari kerusakan struktur data.
+                    </p>
+                 </div>
+            </div>
+        </div>
+    );
+};
+
 const AdminPengaturanPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'jadwal' | 'profil'>('jadwal');
+    const [activeTab, setActiveTab] = useState<'jadwal' | 'profil' | 'database'>('jadwal');
     const [schedule, setSchedule] = useState<Schedule | null>(null);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [loading, setLoading] = useState(true);
@@ -269,6 +395,9 @@ const AdminPengaturanPage: React.FC = () => {
                     <button onClick={() => setActiveTab('profil')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'profil' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600'}`}>
                         <HomeIcon className="text-lg" /> Profil Desa
                     </button>
+                    <button onClick={() => setActiveTab('database')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'database' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <DatabaseIcon className="text-lg" /> Database
+                    </button>
                 </div>
 
                 <div className="p-6 md:p-10 animate-fade-in min-h-[400px]">
@@ -298,8 +427,10 @@ const AdminPengaturanPage: React.FC = () => {
                                 ))}
                             </div>
                         </div>
-                    ) : (
+                    ) : activeTab === 'profil' ? (
                         <VillageProfileForm />
+                    ) : (
+                        <DatabaseManager />
                     )}
                 </div>
             </div>
