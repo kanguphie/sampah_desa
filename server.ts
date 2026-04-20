@@ -110,6 +110,47 @@ async function startServer() {
     }
   });
 
+  // --- DASHBOARD STATS ROUTES ---
+
+  app.get('/api/stats/admin', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [wargaCount]: any = await db.execute('SELECT COUNT(*) as total FROM wargas');
+        const [totalSaldo]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid"');
+        const [unpaidCount]: any = await db.execute('SELECT COUNT(*) as total FROM wargas WHERE totalDebt > 0');
+        const [recentTransactions]: any = await db.execute('SELECT * FROM transactions ORDER BY timestamp DESC LIMIT 5');
+        
+        res.json({
+            wargaCount: wargaCount[0].total,
+            totalSaldo: totalSaldo[0].total || 0,
+            unpaidCount: unpaidCount[0].total,
+            recentTransactions: recentTransactions || []
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/stats/public', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [summary]: any = await db.execute(`
+            SELECT 
+                (SELECT SUM(amount) FROM transactions WHERE status = 'paid') as totalMasuk,
+                (SELECT SUM(amount) FROM pengeluarans) as totalKeluar
+        `);
+        const [announcements]: any = await db.execute('SELECT * FROM announcements WHERE isActive = TRUE ORDER BY date DESC LIMIT 3');
+        
+        res.json({
+            totalMasuk: summary[0].totalMasuk || 0,
+            totalKeluar: summary[0].totalKeluar || 0,
+            announcements: announcements || []
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   // Proxy-like routes for Supabase tables to local MySQL
   // (In a real migration, we would implement all crud here)
   app.get('/api/data/:table', async (req, res) => {
@@ -208,7 +249,6 @@ async function startServer() {
         const db = await getDB();
         const results = { success: [], errors: [] };
         
-        // Order matters for foreign keys
         const tables = [
             'village_config', 'dukuhs', 'rts', 'wargas', 
             'petugases', 'admins', 'schedules',
@@ -218,17 +258,30 @@ async function startServer() {
         for (const table of tables) {
             if (data[table] && Array.isArray(data[table]) && data[table].length > 0) {
                 try {
-                    // Simple replacement logic for restore
-                    // For Production, use ON DUPLICATE KEY UPDATE
-                    const columns = Object.keys(data[table][0]).map(c => `\`${c}\``).join(', ');
-                    const placeholders = Object.keys(data[table][0]).map(() => '?').join(', ');
+                    // Get actual table columns to avoid "column not found" errors
+                    const [colsInfo]: any = await db.execute(`DESCRIBE \`${table}\``);
+                    const validCols = colsInfo.map((c: any) => c.Field);
                     
                     for (const row of data[table]) {
-                        const values = Object.values(row);
-                        await db.execute(`REPLACE INTO \`${table}\` (${columns}) VALUES (${placeholders})`, values);
+                        // Filter out keys that don't exist in our local table
+                        const filteredRow: any = {};
+                        validCols.forEach((col: string) => {
+                            if (row[col] !== undefined) {
+                                filteredRow[col] = row[col];
+                            }
+                        });
+
+                        if (Object.keys(filteredRow).length > 0) {
+                            const columns = Object.keys(filteredRow).map(c => `\`${c}\``).join(', ');
+                            const placeholders = Object.keys(filteredRow).map(() => '?').join(', ');
+                            const values = Object.values(filteredRow);
+                            
+                            await db.execute(`REPLACE INTO \`${table}\` (${columns}) VALUES (${placeholders})`, values);
+                        }
                     }
                     (results.success as string[]).push(table);
                 } catch (e: any) {
+                    console.error(`Restore error for ${table}:`, e);
                     (results.errors as any[]).push({ table, error: e.message });
                 }
             }
