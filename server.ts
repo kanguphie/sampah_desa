@@ -151,6 +151,175 @@ async function startServer() {
     }
   });
 
+  // --- FRIENDLY ROUTES (Mapping to tables) ---
+  
+  app.get('/api/village-profile', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [rows]: any = await db.execute('SELECT * FROM village_config LIMIT 1');
+        res.json(rows[0] || {});
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/village-profile', async (req, res) => {
+    try {
+        const db = await getDB();
+        const data = req.body;
+        const [colsInfo]: any = await db.execute(`DESCRIBE village_config`);
+        const validCols = colsInfo.map((c: any) => c.Field);
+        const filteredRow: any = {};
+        validCols.forEach((col: string) => { if (data[col] !== undefined) filteredRow[col] = data[col]; });
+        if (Object.keys(filteredRow).length === 0) return res.json({ success: true });
+        const columns = Object.keys(filteredRow).map(c => `\`${c}\``).join(', ');
+        const placeholders = Object.keys(filteredRow).map(() => '?').join(', ');
+        const values = Object.values(filteredRow);
+        await db.execute(`REPLACE INTO village_config (id, ${columns}) VALUES (1, ${placeholders})`, [1, ...values]);
+        res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/pay-debt', async (req, res) => {
+    try {
+        const { wargaId, petugasId, amount } = req.body;
+        const db = await getDB();
+        const id = `tr-${Date.now()}`;
+        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", NOW())', [id, wargaId, petugasId, amount]);
+        await db.execute('UPDATE wargas SET totalDebt = totalDebt - ? WHERE id = ?', [amount, wargaId]);
+        res.json({ success: true, id });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/convert-debt/:wargaId', async (req, res) => {
+    try {
+        const { wargaId } = req.params;
+        const db = await getDB();
+        const today = new Date().toISOString().split('T')[0];
+        const [warga]: any = await db.execute('SELECT * FROM wargas WHERE id = ?', [wargaId]);
+        if (warga.length === 0) throw new Error('Warga not found');
+        const amount = warga[0].dailyFee;
+        const id = `tr-debt-${Date.now()}`;
+        await db.execute('INSERT INTO transactions (id, wargaId, status, amount, category, timestamp) VALUES (?, ?, "unpaid", ?, "harian", NOW())', [id, wargaId, amount]);
+        await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, wargaId]);
+        res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/check-payment/:wargaId', async (req, res) => {
+    try {
+        const { wargaId } = req.params;
+        const db = await getDB();
+        const today = new Date().toISOString().split('T')[0];
+        const [rows]: any = await db.execute('SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? AND status = "paid" LIMIT 1', [wargaId, today]);
+        res.json({ paid: rows.length > 0 });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/transactions/today/:wargaId', async (req, res) => {
+    try {
+        const { wargaId } = req.params;
+        const db = await getDB();
+        const today = new Date().toISOString().split('T')[0];
+        const [rows]: any = await db.execute('SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? LIMIT 1', [wargaId, today]);
+        res.json(rows[0] || null);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/transactions/warga/:wargaId', async (req, res) => {
+    try {
+        const { wargaId } = req.params;
+        const db = await getDB();
+        const [rows] = await db.execute('SELECT * FROM transactions WHERE wargaId = ? ORDER BY timestamp DESC', [wargaId]);
+        res.json(rows);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/reports', async (req, res) => {
+    try {
+        const { startDate, endDate, dukuhId, status } = req.body;
+        const db = await getDB();
+        let query = 'SELECT t.*, w.name as wargaName FROM transactions t JOIN wargas w ON t.wargaId = w.id WHERE 1=1';
+        const params = [];
+        if (startDate) { query += ' AND t.timestamp >= ?'; params.push(startDate); }
+        if (endDate) { query += ' AND t.timestamp <= ?'; params.push(endDate); }
+        if (dukuhId) { query += ' AND w.dukuhId = ?'; params.push(dukuhId); }
+        if (status) { query += ' AND t.status = ?'; params.push(status); }
+        query += ' ORDER BY t.timestamp DESC';
+        const [rows] = await db.execute(query, params);
+        res.json(rows);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/unpaid-today', async (req, res) => {
+    try {
+        const db = await getDB();
+        const today = new Date().toISOString().split('T')[0];
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const dayName = days[new Date().getDay()];
+        const [schedule]: any = await db.execute('SELECT * FROM schedules WHERE day = ?', [dayName]);
+        const dukuhIds = schedule.length > 0 ? schedule[0].dukuhIds : [];
+        if (!Array.isArray(dukuhIds) || dukuhIds.length === 0) return res.json([]);
+        const placeholders = dukuhIds.map(() => '?').join(',');
+        const [wargas]: any = await db.execute(`
+            SELECT w.* FROM wargas w 
+            WHERE w.dukuhId IN (${placeholders})
+            AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.wargaId = w.id AND DATE(t.timestamp) = ?)
+        `, [...dukuhIds, today]);
+        res.json(wargas);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/announcements', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [rows] = await db.execute('SELECT * FROM announcements ORDER BY date DESC');
+        res.json(rows);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/announcements/active', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [rows] = await db.execute('SELECT * FROM announcements WHERE isActive = TRUE ORDER BY date DESC');
+        res.json(rows);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/schedule', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [rows] = await db.execute('SELECT * FROM schedules');
+        res.json(rows);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/schedule/today', async (req, res) => {
+    try {
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const today = days[new Date().getDay()];
+        const db = await getDB();
+        const [rows]: any = await db.execute('SELECT * FROM schedules WHERE day = ?', [today]);
+        res.json(rows[0] || { day: today, dukuhIds: [] });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/messages', async (req, res) => {
+    try {
+        const db = await getDB();
+        const { name, phone, subject, message } = req.body;
+        const id = `msg-${Date.now()}`;
+        await db.execute('INSERT INTO contact_messages (id, name, phone, subject, message, timestamp) VALUES (?, ?, ?, ?, ?, NOW())', [id, name, phone, subject, message]);
+        res.json({ success: true, id });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/messages', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [rows] = await db.execute('SELECT * FROM contact_messages ORDER BY timestamp DESC');
+        res.json(rows);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // Proxy-like routes for Supabase tables to local MySQL
   // (In a real migration, we would implement all crud here)
   app.get('/api/data/:table', async (req, res) => {
@@ -256,18 +425,31 @@ async function startServer() {
         ];
 
         for (const table of tables) {
-            if (data[table] && Array.isArray(data[table]) && data[table].length > 0) {
+            // Support both singular and plural names from different versions
+            const possibleNames = [table, `${table}s`].filter((v, i, a) => a.indexOf(v) === i);
+            let foundData = null;
+            for (const name of possibleNames) {
+                if (data[name] && Array.isArray(data[name])) {
+                    foundData = data[name];
+                    break;
+                }
+            }
+
+            if (foundData && foundData.length > 0) {
                 try {
-                    // Get actual table columns to avoid "column not found" errors
                     const [colsInfo]: any = await db.execute(`DESCRIBE \`${table}\``);
                     const validCols = colsInfo.map((c: any) => c.Field);
                     
-                    for (const row of data[table]) {
-                        // Filter out keys that don't exist in our local table
+                    for (const row of foundData) {
                         const filteredRow: any = {};
                         validCols.forEach((col: string) => {
                             if (row[col] !== undefined) {
-                                filteredRow[col] = row[col];
+                                // MySQL JSON or Longtext needs string
+                                if (typeof row[col] === 'object' && row[col] !== null) {
+                                    filteredRow[col] = JSON.stringify(row[col]);
+                                } else {
+                                    filteredRow[col] = row[col];
+                                }
                             }
                         });
 
@@ -275,21 +457,17 @@ async function startServer() {
                             const columns = Object.keys(filteredRow).map(c => `\`${c}\``).join(', ');
                             const placeholders = Object.keys(filteredRow).map(() => '?').join(', ');
                             const values = Object.values(filteredRow);
-                            
                             await db.execute(`REPLACE INTO \`${table}\` (${columns}) VALUES (${placeholders})`, values);
                         }
                     }
                     (results.success as string[]).push(table);
                 } catch (e: any) {
-                    console.error(`Restore error for ${table}:`, e);
                     (results.errors as any[]).push({ table, error: e.message });
                 }
             }
         }
         res.json(results);
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
   // --- VITE MIDDLEWARE ---
