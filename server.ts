@@ -320,6 +320,49 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  app.post('/api/pengeluaran', async (req, res) => {
+    try {
+        const db = await getDB();
+        const data = req.body;
+        
+        // Distinguish between Filter (get) and Create
+        if (data.startDate || data.category || data.description === undefined) {
+            // It's a filter request
+            let query = 'SELECT * FROM pengeluarans WHERE 1=1';
+            const params = [];
+            if (data.startDate) { query += ' AND date >= ?'; params.push(data.startDate); }
+            if (data.endDate) { query += ' AND date <= ?'; params.push(data.endDate); }
+            if (data.category) { query += ' AND category = ?'; params.push(data.category); }
+            query += ' ORDER BY date DESC';
+            const [rows] = await db.execute(query, params);
+            return res.json(rows);
+        }
+
+        // It's a create request
+        const { description, amount, date, category } = data;
+        const id = `exp-${Date.now()}`;
+        await db.execute('INSERT INTO pengeluarans (id, description, amount, date, category) VALUES (?, ?, ?, ?, ?)', [id, description, amount, date, category]);
+        res.json({ id, description, amount, date, category });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/backup', async (req, res) => {
+    try {
+        const db = await getDB();
+        const tables = [
+            'village_config', 'dukuhs', 'rts', 'wargas', 
+            'petugases', 'admins', 'schedules',
+            'transactions', 'pengeluarans', 'contact_messages', 'announcements'
+        ];
+        const backup: any = {};
+        for (const table of tables) {
+            const [rows] = await db.execute(`SELECT * FROM \`${table}\``);
+            backup[table] = rows;
+        }
+        res.json(backup);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // Proxy-like routes for Supabase tables to local MySQL
   // (In a real migration, we would implement all crud here)
   app.get('/api/data/:table', async (req, res) => {
@@ -425,8 +468,10 @@ async function startServer() {
         ];
 
         for (const table of tables) {
-            // Support both singular and plural names from different versions
-            const possibleNames = [table, `${table}s`].filter((v, i, a) => a.indexOf(v) === i);
+            // Support many variations from Supabase JSON (table, table_s, table_ss, etc)
+            const base = table.endsWith('s') ? table.slice(0, -1) : table;
+            const possibleNames = [table, base, `${base}s`, `${table}s`].filter((v, i, a) => a.indexOf(v) === i);
+            
             let foundData = null;
             for (const name of possibleNames) {
                 if (data[name] && Array.isArray(data[name])) {
