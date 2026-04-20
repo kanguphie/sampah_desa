@@ -306,17 +306,49 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
-  app.post('/api/messages', async (req, res) => {
+  app.post(['/api/announcements', '/api/announcement'], async (req, res) => {
     try {
         const db = await getDB();
-        const { name, phone, subject, message } = req.body;
-        const id = `msg-${Date.now()}`;
-        await db.execute('INSERT INTO contact_messages (id, name, phone, subject, message, timestamp) VALUES (?, ?, ?, ?, ?, NOW())', [id, name, phone, subject, message]);
+        const { title, content, isActive, date } = req.body;
+        const id = `ann-${Date.now()}`;
+        await db.execute('INSERT INTO announcements (id, title, content, isActive, date) VALUES (?, ?, ?, ?, ?)', [id, title, content, isActive || true, date || new Date()]);
         res.json({ success: true, id });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
-  app.get('/api/messages', async (req, res) => {
+  app.put(['/api/announcements/:id', '/api/announcement/:id'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+        const db = await getDB();
+        const sets = Object.keys(data).map(c => `\`${c}\` = ?`).join(', ');
+        const vals = [...Object.values(data), id];
+        await db.execute(`UPDATE announcements SET ${sets} WHERE id = ?`, vals);
+        res.json({ success: true, id });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.delete(['/api/announcements/:id', '/api/announcement/:id'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = await getDB();
+        await db.execute('DELETE FROM announcements WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post(['/api/messages', '/api/message'], async (req, res) => {
+    try {
+        const db = await getDB();
+        const { name, phone, contact, subject, message } = req.body;
+        const id = `msg-${Date.now()}`;
+        const contactVal = contact || phone;
+        await db.execute('INSERT INTO contact_messages (id, name, phone, subject, message, timestamp) VALUES (?, ?, ?, ?, ?, NOW())', [id, name, contactVal, subject || 'Pesan Baru', message]);
+        res.json({ success: true, id });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get(['/api/messages', '/api/message'], async (req, res) => {
     try {
         const db = await getDB();
         const [rows] = await db.execute('SELECT * FROM contact_messages ORDER BY timestamp DESC');
@@ -324,13 +356,31 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
-  app.post('/api/pengeluaran', async (req, res) => {
+  app.post(['/api/messages/:id/read', '/api/message/:id/read'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = await getDB();
+        await db.execute('UPDATE contact_messages SET isRead = TRUE WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.delete(['/api/messages/:id', '/api/message/:id'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = await getDB();
+        await db.execute('DELETE FROM contact_messages WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post(['/api/pengeluaran', '/api/pengeluarans'], async (req, res) => {
     try {
         const db = await getDB();
         const data = req.body;
         
-        // Distinguish between Filter (get) and Create
-        if (data.startDate || data.category || data.description === undefined) {
+        // Distinguish between Filter (get-like) and Create
+        if (data.startDate || data.category || (data.description === undefined && data.amount === undefined)) {
             // It's a filter request
             let query = 'SELECT * FROM pengeluarans WHERE 1=1';
             const params = [];
@@ -347,6 +397,27 @@ async function startServer() {
         const id = `exp-${Date.now()}`;
         await db.execute('INSERT INTO pengeluarans (id, description, amount, date, category) VALUES (?, ?, ?, ?, ?)', [id, description, amount, date, category]);
         res.json({ id, description, amount, date, category });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.put(['/api/pengeluaran/:id', '/api/pengeluarans/:id'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+        const db = await getDB();
+        const sets = Object.keys(data).map(c => `\`${c}\` = ?`).join(', ');
+        const vals = [...Object.values(data), id];
+        await db.execute(`UPDATE pengeluarans SET ${sets} WHERE id = ?`, vals);
+        res.json({ id, ...data });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.delete(['/api/pengeluaran/:id', '/api/pengeluarans/:id'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = await getDB();
+        await db.execute('DELETE FROM pengeluarans WHERE id = ?', [id]);
+        res.json({ success: true });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
@@ -523,7 +594,6 @@ async function startServer() {
         ];
 
         for (const table of tables) {
-            // Support many variations from Supabase JSON (table, table_s, table_ss, etc)
             const base = table.endsWith('s') ? table.slice(0, -1) : table;
             const possibleNames = [table, base, `${base}s`, `${table}s`].filter((v, i, a) => a.indexOf(v) === i);
             
@@ -542,14 +612,39 @@ async function startServer() {
                     
                     for (const row of foundData) {
                         const filteredRow: any = {};
+                        
+                        // Fuzzy field mapping for common Supabase -> MySQL naming differences
+                        const fuzzyMap: any = {
+                            'full_name': 'name',
+                            'username': 'name',
+                            'created_at': table === 'pengeluarans' ? 'date' : 'timestamp',
+                            'updated_at': null, // ignore
+                            'is_active': 'isActive',
+                            'rt_id': 'rtId',
+                            'dukuh_id': 'dukuhId',
+                            'daily_fee': 'dailyFee',
+                            'total_debt': 'totalDebt',
+                            'warga_id': 'wargaId',
+                            'petugas_id': 'petugasId'
+                        };
+
+                        // First, try direct matches or fuzzy matches from the row
                         validCols.forEach((col: string) => {
+                            // Direct match
                             if (row[col] !== undefined) {
-                                // MySQL JSON or Longtext needs string
-                                if (typeof row[col] === 'object' && row[col] !== null) {
-                                    filteredRow[col] = JSON.stringify(row[col]);
-                                } else {
-                                    filteredRow[col] = row[col];
-                                }
+                                filteredRow[col] = row[col];
+                            } else {
+                                // Check if any row key maps to this column
+                                Object.keys(row).forEach(rowKey => {
+                                    if (fuzzyMap[rowKey] === col) {
+                                        filteredRow[col] = row[rowKey];
+                                    }
+                                });
+                            }
+
+                            // Handle special types for MySQL (Object/Array -> JSON String)
+                            if (filteredRow[col] !== undefined && typeof filteredRow[col] === 'object' && filteredRow[col] !== null) {
+                                filteredRow[col] = JSON.stringify(filteredRow[col]);
                             }
                         });
 
@@ -562,6 +657,7 @@ async function startServer() {
                     }
                     (results.success as string[]).push(table);
                 } catch (e: any) {
+                    console.error(`Restore error for table ${table}:`, e);
                     (results.errors as any[]).push({ table, error: e.message });
                 }
             }
