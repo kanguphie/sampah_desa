@@ -13,11 +13,31 @@ async function fetchLocal(endpoint: string, options: any = {}) {
             ...options.headers
         }
     });
+
     if (!res.ok) {
-        const error = await res.json();
+        const error = await res.json().catch(() => ({ message: 'Server Error' }));
         throw new Error(error.message || 'Server Error');
     }
-    return res.json();
+
+    const data = await res.json();
+    
+    // Automatic Date Parsing Helper
+    const dateReviver = (val: any): any => {
+        if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+            return new Date(val);
+        }
+        if (Array.isArray(val)) return val.map(dateReviver);
+        if (val !== null && typeof val === 'object') {
+            const newVal: any = {};
+            for (const key in val) {
+                newVal[key] = dateReviver(val[key]);
+            }
+            return newVal;
+        }
+        return val;
+    };
+
+    return dateReviver(data);
 }
 
 // --- AUTHENTICATION ---

@@ -116,15 +116,17 @@ async function startServer() {
     try {
         const db = await getDB();
         const [wargaCount]: any = await db.execute('SELECT COUNT(*) as total FROM wargas');
-        const [totalSaldo]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid"');
-        const [unpaidCount]: any = await db.execute('SELECT COUNT(*) as total FROM wargas WHERE totalDebt > 0');
-        const [recentTransactions]: any = await db.execute('SELECT * FROM transactions ORDER BY timestamp DESC LIMIT 5');
+        const [totalRevenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid"');
+        const [totalDebt]: any = await db.execute('SELECT SUM(totalDebt) as total FROM wargas');
+        const [totalExpense]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans');
         
+        const balance = (totalRevenue[0].total || 0) - (totalExpense[0].total || 0);
+
         res.json({
-            wargaCount: wargaCount[0].total,
-            totalSaldo: totalSaldo[0].total || 0,
-            unpaidCount: unpaidCount[0].total,
-            recentTransactions: recentTransactions || []
+            totalWarga: wargaCount[0].total,
+            totalRevenue: totalRevenue[0].total || 0,
+            totalDebt: totalDebt[0].total || 0,
+            balance: balance
         });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -134,17 +136,19 @@ async function startServer() {
   app.get('/api/stats/public', async (req, res) => {
     try {
         const db = await getDB();
+        const [wargaCount]: any = await db.execute('SELECT COUNT(*) as total FROM wargas');
         const [summary]: any = await db.execute(`
             SELECT 
                 (SELECT SUM(amount) FROM transactions WHERE status = 'paid') as totalMasuk,
-                (SELECT SUM(amount) FROM pengeluarans) as totalKeluar
+                (SELECT COUNT(*) FROM transactions WHERE status = 'paid' AND MONTH(timestamp) = MONTH(CURRENT_DATE())) as transBulanIni,
+                (SELECT SUM(amount) FROM transactions WHERE status = 'paid' AND MONTH(timestamp) = MONTH(CURRENT_DATE())) as danaBulanIni
         `);
-        const [announcements]: any = await db.execute('SELECT * FROM announcements WHERE isActive = TRUE ORDER BY date DESC LIMIT 3');
         
         res.json({
-            totalMasuk: summary[0].totalMasuk || 0,
-            totalKeluar: summary[0].totalKeluar || 0,
-            announcements: announcements || []
+            totalWarga: wargaCount[0].total,
+            totalTransaksiBulanIni: summary[0].transBulanIni || 0,
+            totalDanaTerkumpulBulanIni: summary[0].danaBulanIni || 0,
+            totalMasuk: summary[0].totalMasuk || 0
         });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -360,6 +364,57 @@ async function startServer() {
             backup[table] = rows;
         }
         res.json(backup);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get('/api/stats/transparency/:year', async (req, res) => {
+    try {
+        const { year } = req.params;
+        const db = await getDB();
+        
+        const [revenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ?', [year]);
+        const [expense]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ?', [year]);
+        
+        const totalRevenue = revenue[0].total || 0;
+        const totalExpense = expense[0].total || 0;
+        
+        const [dukuhList]: any = await db.execute('SELECT * FROM dukuhs');
+        const dukuhStats = [];
+        for (const dukuh of dukuhList) {
+            const [sum]: any = await db.execute(`
+                SELECT SUM(t.amount) as total 
+                FROM transactions t 
+                JOIN wargas w ON t.wargaId = w.id 
+                WHERE w.dukuhId = ? AND t.status = 'paid' AND YEAR(t.timestamp) = ?
+            `, [dukuh.id, year]);
+            dukuhStats.push({ name: dukuh.name, total: sum[0].total || 0 });
+        }
+
+        const months = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const monthlyStats = [];
+        for (let i = 1; i <= 12; i++) {
+            const [inc]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ? AND MONTH(timestamp) = ?', [year, i]);
+            const [exp]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ? AND MONTH(date) = ?', [year, i]);
+            const income = inc[0].total || 0;
+            const expenseVal = exp[0].total || 0;
+            monthlyStats.push({
+                monthName: months[i-1],
+                income,
+                expense: expenseVal,
+                balance: income - expenseVal
+            });
+        }
+
+        res.json({
+            totalRevenue,
+            totalExpense,
+            balance: totalRevenue - totalExpense,
+            dukuhStats,
+            monthlyStats
+        });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
