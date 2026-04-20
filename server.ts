@@ -39,7 +39,55 @@ async function startServer() {
     return pool;
   };
 
+  // --- DATABASE INITIALIZATION ---
+  const initializeDatabase = async () => {
+    try {
+      const db = await getDB();
+      const queries = [
+        `CREATE TABLE IF NOT EXISTS village_config (id INT PRIMARY KEY, name VARCHAR(255), code VARCHAR(50), address TEXT, logo_url TEXT, lastUpdated DATETIME)`,
+        `CREATE TABLE IF NOT EXISTS dukuhs (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
+        `CREATE TABLE IF NOT EXISTS rts (id INT AUTO_INCREMENT PRIMARY KEY, number VARCHAR(10), dukuhId INT)`,
+        `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT, totalDebt INT DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS petugases (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), pin VARCHAR(10))`,
+        `CREATE TABLE IF NOT EXISTS admins (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), pin VARCHAR(10))`,
+        `CREATE TABLE IF NOT EXISTS transactions (id VARCHAR(50) PRIMARY KEY, wargaId VARCHAR(50), petugasId VARCHAR(50), amount INT, status VARCHAR(20), category VARCHAR(50), timestamp DATETIME)`,
+        `CREATE TABLE IF NOT EXISTS pengeluarans (id VARCHAR(50) PRIMARY KEY, description TEXT, amount INT, date DATE, category VARCHAR(50))`,
+        `CREATE TABLE IF NOT EXISTS contact_messages (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), subject VARCHAR(255), message TEXT, timestamp DATETIME, isRead BOOLEAN DEFAULT FALSE)`,
+        `CREATE TABLE IF NOT EXISTS announcements (id VARCHAR(50) PRIMARY KEY, title VARCHAR(255), content TEXT, date DATETIME, isActive BOOLEAN DEFAULT TRUE)`,
+        `CREATE TABLE IF NOT EXISTS schedules (day VARCHAR(20) PRIMARY KEY, dukuhIds JSON)`
+      ];
+      for (const q of queries) { await db.execute(q); }
+      console.log("Database Schema Verified.");
+    } catch (err) {
+      console.error("DB Init Error:", err);
+    }
+  };
+
   // --- API ROUTES ---
+
+  // Enhanced Admin Login with First-Run Fallback
+  app.post('/api/login/admin', async (req, res) => {
+    try {
+        const { pin } = req.body;
+        const db = await getDB();
+        const [admins]: any = await db.execute('SELECT * FROM admins');
+        
+        // JIKA KOSONG (First Run): Ijinkan PIN 123456
+        if (admins.length === 0 && pin === '123456') {
+            return res.json({ id: 'admin-master', name: 'Master Admin (First Run)', role: 'admin' });
+        }
+        
+        // JIKA ADA DATA: Gunakan PIN dari Database
+        const [rows]: any = await db.execute('SELECT * FROM admins WHERE pin = ? LIMIT 1', [pin]);
+        if (rows.length > 0) {
+            res.json({ ...rows[0], role: 'admin' });
+        } else {
+            res.status(401).json({ message: 'PIN Admin salah atau database belum terisi' });
+        }
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
 
   // Healthcheck for Docker
   app.get('/api/health', (req, res) => {
@@ -206,7 +254,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
+    await initializeDatabase();
     console.log(`Server SapaDesa running on http://localhost:${PORT}`);
     console.log(`Timezone forced to WIB (UTC+7)`);
   });
