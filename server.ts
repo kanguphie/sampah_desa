@@ -75,6 +75,85 @@ async function startServer() {
      }
   });
 
+  app.get('/api/data/:table/:id', async (req, res) => {
+    try {
+        const { table, id } = req.params;
+        const db = await getDB();
+        const [rows]: any = await db.execute(`SELECT * FROM \`${table}\` WHERE id = ?`, [id]);
+        res.json(rows[0] || null);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/data/:table/bulk', async (req, res) => {
+    try {
+        const { table } = req.params;
+        const items = req.body;
+        const db = await getDB();
+        
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.json({ success: true, count: 0 });
+        }
+
+        const cols = Object.keys(items[0]).map(c => `\`${c}\``).join(', ');
+        const q = Object.keys(items[0]).map(() => '?').join(', ');
+        
+        for (const item of items) {
+            const vals = Object.values(item);
+            await db.execute(`INSERT INTO \`${table}\` (${cols}) VALUES (${q})`, vals);
+        }
+        
+        res.json({ success: true, count: items.length });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/data/:table', async (req, res) => {
+    try {
+        const { table } = req.params;
+        const data = req.body;
+        const db = await getDB();
+        
+        const cols = Object.keys(data).map(c => `\`${c}\``).join(', ');
+        const q = Object.keys(data).map(() => '?').join(', ');
+        const vals = Object.values(data);
+        
+        const [result]: any = await db.execute(`INSERT INTO \`${table}\` (${cols}) VALUES (${q})`, vals);
+        res.json({ id: result.insertId, ...data });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/data/:table/:id', async (req, res) => {
+    try {
+        const { table, id } = req.params;
+        const data = req.body;
+        const db = await getDB();
+        
+        const sets = Object.keys(data).map(c => `\`${c}\` = ?`).join(', ');
+        const vals = [...Object.values(data), id];
+        
+        await db.execute(`UPDATE \`${table}\` SET ${sets} WHERE id = ?`, vals);
+        res.json({ id, ...data });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/data/:table/:id', async (req, res) => {
+    try {
+        const { table, id } = req.params;
+        const db = await getDB();
+        await db.execute(`DELETE FROM \`${table}\` WHERE id = ?`, [id]);
+        res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post('/api/restore', async (req, res) => {
     try {
         const data = req.body;
