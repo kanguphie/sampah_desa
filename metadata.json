@@ -3,5 +3,6 @@
   "description": "A web application to digitize daily waste collection and retribution payments in Desa Rowosari, featuring roles for Village Admins, Waste Collectors, and Residents.",
   "requestFramePermissions": [
     "camera"
-  ]
+  ],
+  "majorCapabilities": []
 }
