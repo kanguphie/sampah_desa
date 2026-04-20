@@ -10,6 +10,10 @@ RUN npm run build
 # Stage 2: Production Server
 FROM node:18-alpine
 WORKDIR /app
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 COPY --from=build-stage /app/dist ./dist
 COPY --from=build-stage /app/package*.json ./
 COPY --from=build-stage /app/server.ts ./
