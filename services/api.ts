@@ -3,10 +3,12 @@
 // This file is now optimized for the Local Portainer environment.
 // It talks to our Express backend instead of Supabase.
 
-const API_URL = '/api'; // Relative to the same host
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 async function fetchLocal(endpoint: string, options: any = {}) {
-    const res = await fetch(`${API_URL}${endpoint}`, {
+    // Ensure endpoint starts with / for relative, or normalize for absolute
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(`${API_URL}${cleanEndpoint}`, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
