@@ -44,7 +44,17 @@ async function startServer() {
     try {
       const db = await getDB();
       const queries = [
-        `CREATE TABLE IF NOT EXISTS village_config (id INT PRIMARY KEY, name VARCHAR(255), code VARCHAR(50), address TEXT, logo_url TEXT, lastUpdated DATETIME)`,
+        `CREATE TABLE IF NOT EXISTS village_config (
+            id INT PRIMARY KEY, 
+            name VARCHAR(255), 
+            district VARCHAR(255),
+            regency VARCHAR(255),
+            address TEXT, 
+            phone VARCHAR(50),
+            email VARCHAR(255),
+            logo_url TEXT, 
+            lastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )`,
         `CREATE TABLE IF NOT EXISTS dukuhs (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
         `CREATE TABLE IF NOT EXISTS rts (id INT AUTO_INCREMENT PRIMARY KEY, number VARCHAR(10), dukuhId INT)`,
         `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT, totalDebt INT DEFAULT 0)`,
@@ -57,6 +67,16 @@ async function startServer() {
         `CREATE TABLE IF NOT EXISTS schedules (day VARCHAR(20) PRIMARY KEY, dukuhIds JSON)`
       ];
       for (const q of queries) { await db.execute(q); }
+      // Ensure village_config has all columns (Migration for existing databases)
+      const [cols]: any = await db.execute('DESCRIBE village_config');
+      const existingCols = cols.map((c: any) => c.Field);
+      const neededCols = ['district', 'regency', 'phone', 'email'];
+      for (const col of neededCols) {
+        if (!existingCols.includes(col)) {
+            await db.execute(`ALTER TABLE village_config ADD COLUMN ${col} VARCHAR(255)`);
+        }
+      }
+      
       console.log("Database Schema Verified.");
     } catch (err) {
       console.error("DB Init Error:", err);
@@ -291,8 +311,24 @@ async function startServer() {
   app.get('/api/schedule', async (req, res) => {
     try {
         const db = await getDB();
-        const [rows] = await db.execute('SELECT * FROM schedules');
-        res.json(rows);
+        const [rows]: any = await db.execute('SELECT * FROM schedules');
+        // Transform array to object { [day]: dukuhIds }
+        const scheduleObj: any = {};
+        rows.forEach((row: any) => {
+            scheduleObj[row.day] = row.dukuhIds;
+        });
+        res.json(scheduleObj);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/schedule', async (req, res) => {
+    try {
+        const { day, dukuhIds } = req.body;
+        const db = await getDB();
+        // Use REPLACE for upsert on PRIMARY KEY 'day'
+        const dukuhIdsVal = Array.isArray(dukuhIds) || dukuhIds === 'libur' ? JSON.stringify(dukuhIds) : '[]';
+        await db.execute('REPLACE INTO schedules (day, dukuhIds) VALUES (?, ?)', [day, dukuhIdsVal]);
+        res.json({ success: true });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
@@ -617,11 +653,17 @@ async function startServer() {
                         const fuzzyMap: any = {
                             'full_name': 'name',
                             'username': 'name',
+                            'village_name': 'name', // village_config
+                            'district_name': 'district', // village_config
+                            'regency_name': 'regency', // village_config
+                            'email_address': 'email', // village_config
+                            'phone_number': 'phone', // village_config
                             'created_at': table === 'pengeluarans' ? 'date' : 'timestamp',
                             'updated_at': null, // ignore
                             'is_active': 'isActive',
                             'rt_id': 'rtId',
                             'dukuh_id': 'dukuhId',
+                            'dukuh_ids': 'dukuhIds', // Added for schedules
                             'daily_fee': 'dailyFee',
                             'total_debt': 'totalDebt',
                             'warga_id': 'wargaId',
@@ -643,8 +685,13 @@ async function startServer() {
                             }
 
                             // Handle special types for MySQL (Object/Array -> JSON String)
+                            // IMPORTANT: Check if it's already a string that looks like JSON to avoid double stringification
                             if (filteredRow[col] !== undefined && typeof filteredRow[col] === 'object' && filteredRow[col] !== null) {
                                 filteredRow[col] = JSON.stringify(filteredRow[col]);
+                            } else if (filteredRow[col] !== undefined && typeof filteredRow[col] === 'string') {
+                                // If column is explicitly JSON but we got a string, it might be valid as is
+                                // or it might need parsing then stringifying to normalize.
+                                // For MySQL JSON columns, a string "[1,2]" is fine.
                             }
                         });
 
