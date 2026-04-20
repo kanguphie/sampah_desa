@@ -268,7 +268,8 @@ async function startServer() {
     try {
         const { startDate, endDate, dukuhId, status } = req.body;
         const db = await getDB();
-        let query = 'SELECT t.*, w.name as wargaName FROM transactions t JOIN wargas w ON t.wargaId = w.id WHERE 1=1';
+        // Use LEFT JOIN to ensure we don't lose transactions if warga data is missing
+        let query = 'SELECT t.*, w.name as wargaName FROM transactions t LEFT JOIN wargas w ON t.wargaId = w.id WHERE 1=1';
         const params = [];
         if (startDate) { query += ' AND t.timestamp >= ?'; params.push(startDate); }
         if (endDate) { query += ' AND t.timestamp <= ?'; params.push(endDate); }
