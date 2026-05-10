@@ -15,31 +15,53 @@ const UnifiedLoginPage: React.FC = () => {
         setLoading(true);
         setError('');
 
+        let loginSuccess = false;
+
         try {
-            // Check Admin
-            const admin = await loginAdmin(currentPin);
-            if (admin) {
-                authLoginAdmin(admin);
-                navigate('/admin/dashboard');
-                return;
+            // 1. Try Admin Login
+            try {
+                const admin = await loginAdmin(currentPin);
+                if (admin) {
+                    authLoginAdmin(admin);
+                    navigate('/admin/dashboard');
+                    loginSuccess = true;
+                    return;
+                }
+            } catch (adminErr: any) {
+                // Ignore 401 errors for Admin, we will try Petugas next
+                // If the error message is NOT related to PIN/Credentials, it might be a connection issue
+                if (!adminErr.message.toLowerCase().includes('pin') && !adminErr.message.toLowerCase().includes('database belum terisi')) {
+                    throw adminErr; // Re-throw to be caught by the outer catch (Connection Error)
+                }
             }
 
-            // Check Petugas
-            const petugas = await loginPetugas(currentPin);
-            if (petugas) {
-                authLoginPetugas(petugas);
-                navigate('/petugas/dashboard');
-                return;
+            // 2. Try Petugas Login
+            try {
+                const petugas = await loginPetugas(currentPin);
+                if (petugas) {
+                    authLoginPetugas(petugas);
+                    navigate('/petugas/dashboard');
+                    loginSuccess = true;
+                    return;
+                }
+            } catch (petugasErr: any) {
+                // If it's a real connection error (not just a wrong PIN), throw it
+                if (!petugasErr.message.toLowerCase().includes('pin')) {
+                    throw petugasErr;
+                }
             }
 
-            // At 6 digits, if no match found, it's an error
-            setError('PIN Tidak Terdaftar');
-            setTimeout(() => {
-                setPin('');
-                setError('');
-            }, 1500);
+            // 3. If we reached here, both failed with "Wrong PIN"
+            if (!loginSuccess) {
+                setError('PIN Tidak Terdaftar');
+                setTimeout(() => {
+                    setPin('');
+                    setError('');
+                }, 2000);
+            }
             
-        } catch (err) {
+        } catch (err: any) {
+            console.error("Login connection error:", err);
             setError('Gangguan Koneksi');
             setPin('');
         } finally {
