@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
-import type { Warga, Dukuh, RT } from '@/types';
-import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon } from '@/components/icons';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { getAllWarga, getAllDukuh, getAllRT, getTransactionsByWargaId, deleteTransaksi } from '@/services/api';
+import type { Warga, Dukuh, RT, Transaksi } from '@/types';
+import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon, TrashIcon, XIcon, InfoIcon } from '@/components/icons';
+import Modal from '@/components/Modal';
 
 const UnpaidReport: React.FC = () => {
     const [list, setList] = useState<Warga[]>([]);
@@ -11,25 +12,75 @@ const UnpaidReport: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     
+    // Modal states
+    const [detailWarga, setDetailWarga] = useState<Warga | null>(null);
+    const [wargaTransactions, setWargaTransactions] = useState<Transaksi[]>([]);
+    const [loadingTransactions, setLoadingTransactions] = useState(false);
+    
     const [filters, setFilters] = useState({
         search: '',
         dukuhId: 'all',
         rtId: 'all'
     });
 
-    useEffect(() => {
-        const fetch = async () => {
-            setLoading(true);
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
             const [all, d, r] = await Promise.all([getAllWarga(), getAllDukuh(), getAllRT()]);
             // Filter hanya yang memiliki tunggakan
             const withDebt = all.filter(w => (w.totalDebt || 0) > 0).sort((a,b) => (b.totalDebt || 0) - (a.totalDebt || 0));
             setList(withDebt);
             setDukuhList(d);
             setRtList(r);
+        } catch (error) {
+            console.error("Error fetching data", error);
+        } finally {
             setLoading(false);
-        };
-        fetch();
+        }
     }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const openDetail = async (warga: Warga) => {
+        setDetailWarga(warga);
+        setLoadingTransactions(true);
+        try {
+            const txs = await getTransactionsByWargaId(warga.id);
+            // Hanya ambil yang unpaid
+            const unpaidTxs = txs.filter((t: Transaksi) => t.status === 'unpaid' || t.status === 'HUTANG');
+            setWargaTransactions(unpaidTxs);
+        } catch (error) {
+            console.error("Error fetching transactions", error);
+        } finally {
+            setLoadingTransactions(false);
+        }
+    };
+
+    const handleDeleteTx = async (txId: string) => {
+        if (!window.confirm("Hapus catatan tunggakan ini? Tindakan ini akan mengoreksi saldo saldo warga.")) return;
+        
+        try {
+            await deleteTransaksi(txId);
+            // Refresh detail
+            if (detailWarga) {
+                const txs = await getTransactionsByWargaId(detailWarga.id);
+                const unpaidTxs = txs.filter((t: Transaksi) => t.status === 'unpaid' || t.status === 'HUTANG');
+                setWargaTransactions(unpaidTxs);
+                // If no more transactions, refresh the main list
+                if (unpaidTxs.length === 0) {
+                    fetchData();
+                    setDetailWarga(null);
+                } else {
+                    // Update the list just for this citizen if we want to be smooth, or just refresh all
+                    fetchData();
+                }
+            }
+        } catch (error) {
+            alert("Gagal menghapus transaksi.");
+        }
+    };
 
     const filteredList = useMemo(() => {
         return list.filter(w => {
@@ -297,7 +348,12 @@ const UnpaidReport: React.FC = () => {
                                     </td>
                                     <td className="p-5 text-right font-black text-rose-600 text-base">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
                                     <td className="p-5 text-center">
-                                        <button onClick={(e) => { e.stopPropagation(); handlePrintSlips([w]); }} className="bg-slate-900 text-white hover:bg-black px-4 py-2 rounded-lg text-[10px] font-bold transition-all shadow-md">Slip DL</button>
+                                        <div className="flex justify-center gap-1">
+                                            <button onClick={(e) => { e.stopPropagation(); openDetail(w); }} className="bg-indigo-500 text-white hover:bg-indigo-600 px-3 py-2 rounded-lg text-[10px] font-bold transition-all shadow-md flex items-center gap-1">
+                                                <InfoIcon className="text-xs" /> Kelola
+                                            </button>
+                                            <button onClick={(e) => { e.stopPropagation(); handlePrintSlips([w]); }} className="bg-slate-900 text-white hover:bg-black px-3 py-2 rounded-lg text-[10px] font-bold transition-all shadow-md">Slip DL</button>
+                                        </div>
                                     </td>
                                 </tr>
                             )) : <tr><td colSpan={4} className="p-12 text-center text-slate-400 font-bold italic text-xs uppercase">Tidak ada data sesuai filter</td></tr>}
@@ -305,6 +361,68 @@ const UnpaidReport: React.FC = () => {
                     </table>
                 </div>
             </div>
+
+            {/* DETAIL MODAL */}
+            <Modal isOpen={!!detailWarga} onClose={() => setDetailWarga(null)} title="Detail Tunggakan" size="lg">
+                {detailWarga && (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div>
+                                <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">{detailWarga.name}</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {detailWarga.id}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Saldo Arrears</p>
+                                <p className="text-2xl font-black text-rose-600">Rp{detailWarga.totalDebt.toLocaleString('id-ID')}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Daftar Transaksi Belum Terbayar</h4>
+                            {loadingTransactions ? (
+                                <div className="p-10 text-center animate-pulse text-slate-400 font-bold text-xs">Mengambil rincian...</div>
+                            ) : wargaTransactions.length > 0 ? (
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                    {wargaTransactions.map(tx => (
+                                        <div key={tx.id} className="p-4 bg-white border border-slate-200 rounded-2xl flex justify-between items-center group hover:border-indigo-200 transition-all">
+                                            <div>
+                                                <p className="font-black text-slate-700 text-sm">{tx.timestamp ? new Date(tx.timestamp).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Tanggal Tidak Diketahui'}</p>
+                                                <p className="text-[10px] text-slate-400 font-medium">Jam: {tx.timestamp ? new Date(tx.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '--:--'}</p>
+                                            </div>
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-right">
+                                                    <p className="text-sm font-black text-rose-600">Rp{(tx.amount || 0).toLocaleString('id-ID')}</p>
+                                                    <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Hutang</p>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleDeleteTx(tx.id)} 
+                                                    className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                                    title="Hapus tunggakan ini"
+                                                >
+                                                    <TrashIcon className="text-lg" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center">
+                                    <p className="text-slate-400 font-bold text-xs uppercase italic">Tidak ditemukan riwayat tunggakan aktif.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                                <InfoIcon className="text-amber-500" />
+                            </div>
+                            <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                                <span className="font-bold">Info:</span> Jika Anda menghapus transaksi di atas, jumlah tunggakan warga akan otomatis berkurang. Jika jumlah total saldo masih tidak sesuai, silakan gunakan fitur <span className="font-bold underline cursor-pointer" onClick={() => window.location.href='/admin/pengaturan'}>Sinkronisasi Tunggakan</span> di menu Pengaturan.
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 };

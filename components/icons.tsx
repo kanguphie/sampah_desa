@@ -159,6 +159,11 @@ export const UserIcon: React.FC<IconProps> = ({ className }) => (
     <i className={`fa-solid fa-user ${className || ''}`}></i>
 );
 
+// Added InfoIcon
+export const InfoIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-circle-info ${className || ''}`}></i>
+);
+
 // Added ArrowLeftIcon to fix import error in PublicReportPage.tsx
 export const ArrowLeftIcon: React.FC<IconProps> = ({ className }) => (
     <i className={`fa-solid fa-arrow-left ${className || ''}`}></i>
