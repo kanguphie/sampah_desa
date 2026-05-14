@@ -16,11 +16,9 @@ RUN apk add --no-cache curl
 
 COPY --from=build-stage /app/dist ./dist
 COPY --from=build-stage /app/package*.json ./
-COPY --from=build-stage /app/server.ts ./
 COPY --from=build-stage /app/node_modules ./node_modules
 
-# Install tsx to run server.ts directly
-RUN npm install -g tsx
+ENV NODE_ENV=production
 
 EXPOSE 3000
-CMD ["tsx", "server.ts"]
+CMD ["node", "dist/server.cjs"]

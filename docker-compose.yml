@@ -16,10 +16,9 @@ services:
       - DB_PASSWORD=sapadesapassword
       - DB_PORT=3306
       - TZ=Asia/Jakarta
-      - VITE_API_URL=http://localhost:3000
+      - VITE_API_URL=
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     deploy:
       resources:
         limits:
