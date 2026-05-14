@@ -788,11 +788,91 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  app.post('/api/transactions', async (req, res) => {
+    try {
+        const { wargaId, petugasId, amount, status, category } = req.body;
+        const db = await getDB();
+        const id = `tr-${Date.now()}`;
+        
+        // Standardize status: LUNAS/paid -> paid, HUTANG/unpaid -> unpaid
+        const finalStatus = (status === 'LUNAS' || status === 'paid') ? 'paid' : 'unpaid';
+        // Standardize category: TUNGGAKAN/tunggakan -> tunggakan, IURAN/harian -> harian
+        const finalCategory = (category === 'TUNGGAKAN' || category === 'tunggakan') ? 'tunggakan' : 'harian';
+
+        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, ?, ?, NOW())', [id, wargaId, petugasId || null, amount, finalStatus, finalCategory]);
+
+        // Effect on totalDebt
+        if (finalStatus === 'unpaid') {
+            // Adding a debt record
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, wargaId]);
+        } else if (finalStatus === 'paid' && finalCategory === 'tunggakan') {
+            // Paying a debt
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt - ? WHERE id = ?', [amount, wargaId]);
+        }
+        // Normal daily payment (paid + harian) doesn't change existing totalDebt field
+
+        res.json({ success: true, id });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   app.delete('/api/transactions/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const db = await getDB();
+        
+        // 1. Get transaction details before deleting
+        const [rows]: any = await db.execute('SELECT * FROM transactions WHERE id = ?', [id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Transaksi tidak ditemukan' });
+        }
+        
+        const tx = rows[0];
+        
+        // 2. Revert debt logic
+        // Use case-insensitive check and handle both DB and Frontend strings
+        const isPaid = tx.status.toLowerCase() === 'paid' || tx.status === 'LUNAS';
+        const isUnpaid = tx.status.toLowerCase() === 'unpaid' || tx.status === 'HUTANG';
+        const isTunggakan = tx.category.toLowerCase() === 'tunggakan' || tx.category === 'TUNGGAKAN';
+
+        if (isUnpaid) {
+            // Deleting a debt record -> decrease totalDebt back
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt - ? WHERE id = ?', [tx.amount, tx.wargaId]);
+        } else if (isPaid && isTunggakan) {
+            // Deleting a payment of debt -> increase totalDebt back
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [tx.amount, tx.wargaId]);
+        }
+        
+        // 3. Delete the transaction
         await db.execute('DELETE FROM transactions WHERE id = ?', [id]);
+        
+        res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/admin/recalculate-debt', async (req, res) => {
+    try {
+        const db = await getDB();
+        
+        // Recalculate totalDebt for ALL wargas based on transaction history
+        await db.execute(`
+            UPDATE wargas w
+            SET w.totalDebt = (
+                SELECT COALESCE(SUM(
+                    CASE 
+                        WHEN t.status IN ('unpaid', 'HUTANG') THEN t.amount 
+                        WHEN t.status IN ('paid', 'LUNAS') AND t.category IN ('tunggakan', 'TUNGGAKAN') THEN -t.amount 
+                        ELSE 0 
+                    END
+                ), 0)
+                FROM transactions t
+                WHERE t.wargaId = w.id
+            )
+        `);
+        
         res.json({ success: true });
     } catch (err: any) {
         res.status(500).json({ error: err.message });

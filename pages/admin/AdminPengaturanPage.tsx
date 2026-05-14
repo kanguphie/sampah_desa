@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getSchedule, updateSchedule, getAllDukuh, markDayAsSkipped, getVillageProfile, updateVillageProfile, exportFullBackup, importFullBackup } from '@/services/api';
+import { getSchedule, updateSchedule, getAllDukuh, markDayAsSkipped, getVillageProfile, updateVillageProfile, exportFullBackup, importFullBackup, recalculateDebt } from '@/services/api';
 import Modal from '@/components/Modal';
-import { PencilIcon, HomeIcon, ClockIcon, XIcon, CheckCircleIcon, PhoneIcon, EnvelopeIcon, DatabaseIcon, DownloadIcon, UploadIcon } from '@/components/icons';
+import { PencilIcon, HomeIcon, ClockIcon, XIcon, CheckCircleIcon, PhoneIcon, EnvelopeIcon, DatabaseIcon, DownloadIcon, UploadIcon, ScaleBalancedIcon } from '@/components/icons';
 import type { Dukuh, VillageProfile } from '@/types';
 
 type Schedule = Record<string, number[] | 'libur'>;
@@ -277,6 +277,38 @@ const DatabaseManager: React.FC = () => {
                             Pilih File
                         </div>
                     </label>
+                </div>
+
+                {/* Sync Debt Card */}
+                <div className="md:col-span-2 p-6 bg-emerald-50 rounded-[2rem] border border-emerald-100 flex flex-col sm:flex-row justify-between items-center gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-emerald-600 shrink-0">
+                            <ScaleBalancedIcon className="text-xl" />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-800 text-lg">Sinkronisasi Tunggakan</h3>
+                            <p className="text-slate-500 text-xs mt-0.5">Kalkulasi ulang saldo tunggakan warga berdasarkan seluruh riwayat transaksi. Gunakan jika data tunggakan dirasa tidak sesuai.</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={async () => {
+                            if (window.confirm("Kalkulasi ulang seluruh saldo tunggakan warga?")) {
+                                setLoading(true);
+                                try {
+                                    await recalculateDebt();
+                                    setMessage({ type: 'success', text: 'Sinkronisasi tunggakan berhasil!' });
+                                } catch (e) {
+                                    setMessage({ type: 'error', text: 'Gagal melakukan sinkronisasi.' });
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }
+                        }}
+                        disabled={loading}
+                        className="px-8 py-3.5 bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all uppercase tracking-widest text-[10px] whitespace-nowrap"
+                    >
+                        {loading ? 'Proses...' : 'Mulai Sinkron'}
+                    </button>
                 </div>
             </div>
 

@@ -191,6 +191,8 @@ export const exportFullBackup = async () => {
     return fetchLocal('/backup');
 };
 
+export const recalculateDebt = async () => fetchLocal('/admin/recalculate-debt', { method: 'POST' });
+
 export const importFullBackup = async (data: any) => {
     return fetchLocal('/restore', {
         method: 'POST',
