@@ -3,6 +3,7 @@ import React, { ReactNode, useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { HomeIcon, QrCodeIcon, LogoutIcon, ClipboardListIcon, UserIcon, WifiOffIcon } from '@/components/icons';
 import { useAuth } from '@/context/AuthContext';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 
 const PetugasLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -65,6 +66,8 @@ const PetugasLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
             <main className="flex-grow overflow-y-auto pb-20">
                 {children}
             </main>
+
+            <PWAInstallPrompt />
             
             <nav className="bg-white/90 backdrop-blur-lg border-t border-slate-200/80 fixed bottom-0 z-20 w-full max-w-lg">
                 <div className="flex justify-around">

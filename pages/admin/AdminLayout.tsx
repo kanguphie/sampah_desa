@@ -2,7 +2,8 @@
 import React, { ReactNode, useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { HomeIcon, ChartBarIcon, LogoutIcon, DatabaseIcon, ChevronDownIcon, QrCodeIcon, UserCircleIcon, MenuIcon, XIcon, CogIcon, BanknotesIcon, ClipboardListIcon, ClockIcon, EnvelopeIcon, MegaphoneIcon, UserIcon } from '../../components/icons';
+import { HomeIcon, ChartBarIcon, LogoutIcon, DatabaseIcon, ChevronDownIcon, QrCodeIcon, UserCircleIcon, MenuIcon, XIcon, CogIcon, BanknotesIcon, ClipboardListIcon, ClockIcon, EnvelopeIcon, MegaphoneIcon, UserIcon } from '@/components/icons';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 const UserMenu: React.FC = () => {
     const { admin, logoutAdmin } = useAuth();
@@ -252,17 +253,17 @@ const AdminLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
             
             <div className="flex-1 flex flex-col min-w-0 md:ml-[18rem] transition-all duration-300">
                 {/* Glass Header */}
-                <header className="sticky top-0 z-30 glass px-6 py-4 flex justify-between items-center transition-all duration-300 mx-4 mt-4 rounded-2xl">
-                    <div className="flex items-center gap-4">
+                <header className="sticky top-0 z-30 glass px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center transition-all duration-300 md:mx-4 md:mt-4 md:rounded-2xl border-b md:border-b-0 border-slate-200/50">
+                    <div className="flex items-center gap-2 sm:gap-4">
                         <button 
                             onClick={() => setIsSidebarOpen(true)} 
-                            className="md:hidden p-2 -ml-2 text-slate-500 hover:text-emerald-600 hover:bg-slate-100 rounded-lg transition-colors" 
+                            className="md:hidden p-2 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-95" 
                             aria-label="Open sidebar"
                         >
                             <MenuIcon className="text-2xl" />
                         </button>
-                        <div className="hidden md:block">
-                            <h2 className="text-lg font-bold text-slate-800">
+                        <div>
+                            <h2 className="text-sm sm:text-lg font-bold text-slate-800 line-clamp-1">
                                 {masterDataPaths.some(p => location.pathname.startsWith(p)) ? 'Master Data' : 
                                  location.pathname.includes('dashboard') ? 'Dashboard' : 
                                  location.pathname.includes('riwayat') ? 'Riwayat Transaksi' : 
@@ -287,6 +288,7 @@ const AdminLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
                         {children}
                     </div>
                 </main>
+                <PWAInstallPrompt />
             </div>
         </div>
     );
