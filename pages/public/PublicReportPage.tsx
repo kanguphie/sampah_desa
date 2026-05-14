@@ -15,15 +15,18 @@ const PublicReportPage: React.FC = () => {
     const [year, setYear] = useState(new Date().getFullYear());
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const report = await getDetailedPublicTransparency(year);
                 setData(report);
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Error fetching public report", e);
+                setError(e.message || "Gagal mengambil data laporan publik.");
             } finally {
                 setLoading(false);
             }
@@ -65,6 +68,15 @@ const PublicReportPage: React.FC = () => {
                         <div className="py-24 text-center">
                             <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                             <p className="font-black text-slate-400 uppercase tracking-widest text-xs">Menyusun Data Transparansi...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="py-24 text-center bg-rose-50 rounded-[3rem] border border-rose-100 p-12">
+                            <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">
+                                <i className="fa-solid fa-circle-exclamation"></i>
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Gangguan Koneksi</h3>
+                            <p className="text-slate-500 font-medium mt-2 max-w-md mx-auto">{error}. Pastikan server aktif dan coba muat ulang halaman.</p>
+                            <button onClick={() => window.location.reload()} className="mt-8 bg-slate-800 text-white px-8 py-3 rounded-full font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-lg">Muat Ulang</button>
                         </div>
                     ) : data && (
                         <div className="space-y-16 animate-fade-in">

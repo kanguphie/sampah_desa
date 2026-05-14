@@ -3,43 +3,69 @@
 // This file is now optimized for the Local Portainer environment.
 // It talks to our Express backend instead of Supabase.
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+    // API_URL normalization
+    let base = import.meta.env.VITE_API_URL || '';
+    if (base === 'undefined' || base === 'null' || base === '[object Object]') base = ''; 
+    
+    // If no absolute URL is provided, default to relative /api
+    if (!base && typeof window !== 'undefined') {
+        base = '/api'; 
+    } else if (base && !base.endsWith('/api') && !base.endsWith('/api/')) {
+        // If an absolute URL is provided but lacks /api suffix, often needed for our setup
+        base = base.endsWith('/') ? base + 'api' : base + '/api';
+    }
+    const API_URL = base;
+    console.log(`[API Service] Using base URL: "${API_URL}"`);
 
 async function fetchLocal(endpoint: string, options: any = {}) {
-    // Ensure endpoint starts with / for relative, or normalize for absolute
+    // Ensure endpoint starts with /
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const res = await fetch(`${API_URL}${cleanEndpoint}`, {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-
-    if (!res.ok) {
-        const error = await res.json().catch(() => ({ message: 'Server Error' }));
-        throw new Error(error.message || 'Server Error');
-    }
-
-    const data = await res.json();
     
-    // Automatic Date Parsing Helper
-    const dateReviver = (val: any): any => {
-        if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
-            return new Date(val);
-        }
-        if (Array.isArray(val)) return val.map(dateReviver);
-        if (val !== null && typeof val === 'object') {
-            const newVal: any = {};
-            for (const key in val) {
-                newVal[key] = dateReviver(val[key]);
+    // Construct full URL with normalization to avoid double slashes
+    let fullUrl = `${API_URL}${cleanEndpoint}`;
+    if (API_URL.endsWith('/') && cleanEndpoint.startsWith('/')) {
+        fullUrl = API_URL + cleanEndpoint.substring(1);
+    }
+    
+    try {
+        const res = await fetch(fullUrl, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
             }
-            return newVal;
-        }
-        return val;
-    };
+        });
 
-    return dateReviver(data);
+        if (!res.ok) {
+            const error = await res.json().catch(() => ({ message: 'Server Error' }));
+            throw new Error(error.message || `Server Error (${res.status})`);
+        }
+
+        const data = await res.json();
+        
+        // Automatic Date Parsing Helper
+        const dateReviver = (val: any): any => {
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+                return new Date(val);
+            }
+            if (Array.isArray(val)) return val.map(dateReviver);
+            if (val !== null && typeof val === 'object') {
+                const newVal: any = {};
+                for (const key in val) {
+                    newVal[key] = dateReviver(val[key]);
+                }
+                return newVal;
+            }
+            return val;
+        };
+
+        return dateReviver(data);
+    } catch (e: any) {
+        if (e.message === 'Failed to fetch') {
+            console.error(`Network Error: Gagal menghubungkan ke ${fullUrl}. Pastikan server aktif dan URL benar.`);
+        }
+        throw e;
+    }
 }
 
 // --- AUTHENTICATION ---

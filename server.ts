@@ -9,8 +9,19 @@ import { fileURLToPath } from 'url';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Safe path resolution for both ESM and CJS
+const getPaths = () => {
+  if (typeof import.meta !== 'undefined' && typeof import.meta.url === 'string') {
+    const filename = fileURLToPath(import.meta.url);
+    return { filename, dirname: path.dirname(filename) };
+  }
+  return { 
+    filename: typeof __filename !== 'undefined' ? __filename : '', 
+    dirname: typeof __dirname !== 'undefined' ? __dirname : process.cwd() 
+  };
+};
+
+const { filename: _filename, dirname: _dirname } = getPaths();
 
 async function startServer() {
   const app = express();
@@ -89,6 +100,14 @@ async function startServer() {
       console.error("DB Init Error:", err);
     }
   };
+
+  // Request Logger
+  app.use((req, res, next) => {
+    if (!req.url.includes('health')) {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    }
+    next();
+  });
 
   // --- API ROUTES ---
 
@@ -527,6 +546,7 @@ async function startServer() {
     try {
         const { year } = req.params;
         const db = await getDB();
+        console.log(`[API] Fetching transparency report for year: ${year}`);
         
         const [revenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ?', [year]);
         const [expense]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ?', [year]);
@@ -762,6 +782,12 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  // 404 handler for API routes
+  app.all('/api/*', (req, res) => {
+    console.warn(`[404] API route not found: ${req.method} ${req.url}`);
+    res.status(404).json({ error: 'API route not found' });
+  });
+
   // --- VITE MIDDLEWARE ---
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -778,9 +804,19 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', async () => {
-    await initializeDatabase();
-    console.log(`Server SapaDesa running on http://localhost:${PORT}`);
-    console.log(`Timezone forced to WIB (UTC+7)`);
+    try {
+      await initializeDatabase();
+      console.log(`Server SapaDesa running on http://localhost:${PORT}`);
+      console.log(`Timezone forced to WIB (UTC+7)`);
+    } catch (e) {
+      console.error("Critical Startup Error:", e);
+    }
+  });
+
+  // Global Error Handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(`[Global Error] ${err.message}`);
+    res.status(500).json({ error: 'Internal Server Error', message: err.message });
   });
 }
 
