@@ -11,13 +11,20 @@ dotenv.config();
 
 // Safe path resolution for both ESM and CJS
 const getPaths = () => {
-  if (typeof import.meta !== 'undefined' && typeof import.meta.url === 'string') {
-    const filename = fileURLToPath(import.meta.url);
-    return { filename, dirname: path.dirname(filename) };
+  try {
+    if (typeof __filename !== 'undefined') {
+      return { filename: __filename, dirname: __dirname };
+    }
+    if (typeof import.meta !== 'undefined' && typeof import.meta.url === 'string') {
+      const filename = fileURLToPath(import.meta.url);
+      return { filename, dirname: path.dirname(filename) };
+    }
+  } catch (e) {
+    console.warn("Path resolution error:", e);
   }
   return { 
-    filename: typeof __filename !== 'undefined' ? __filename : '', 
-    dirname: typeof __dirname !== 'undefined' ? __dirname : process.cwd() 
+    filename: '', 
+    dirname: process.cwd() 
   };
 };
 
@@ -157,6 +164,60 @@ async function startServer() {
   });
 
   // --- DASHBOARD STATS ROUTES ---
+  app.get('/api/stats/transparency/:year', async (req, res) => {
+    try {
+        const { year } = req.params;
+        const db = await getDB();
+        console.log(`[API] Fetching transparency report for year: ${year}`);
+        
+        const [revenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ?', [year]);
+        const [expense]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ?', [year]);
+        
+        const totalRevenue = revenue[0].total || 0;
+        const totalExpense = expense[0].total || 0;
+        
+        const [dukuhList]: any = await db.execute('SELECT * FROM dukuhs');
+        const dukuhStats = [];
+        for (const dukuh of dukuhList) {
+            const [sum]: any = await db.execute(`
+                SELECT SUM(t.amount) as total 
+                FROM transactions t 
+                JOIN wargas w ON t.wargaId = w.id 
+                WHERE w.dukuhId = ? AND t.status = 'paid' AND YEAR(t.timestamp) = ?
+            `, [dukuh.id, year]);
+            dukuhStats.push({ name: dukuh.name, total: sum[0].total || 0 });
+        }
+
+        const months = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const monthlyStats = [];
+        for (let i = 1; i <= 12; i++) {
+            const [inc]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ? AND MONTH(timestamp) = ?', [year, i]);
+            const [exp]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ? AND MONTH(date) = ?', [year, i]);
+            const income = inc[0].total || 0;
+            const expenseVal = exp[0].total || 0;
+            monthlyStats.push({
+                monthName: months[i-1],
+                income,
+                expense: expenseVal,
+                balance: income - expenseVal
+            });
+        }
+
+        res.json({
+            totalRevenue,
+            totalExpense,
+            balance: totalRevenue - totalExpense,
+            dukuhStats,
+            monthlyStats
+        });
+    } catch (err: any) { 
+        console.error(`[API Error] Transparency ${req.params.year}:`, err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+  });
 
   app.get('/api/stats/admin', async (req, res) => {
     try {
@@ -541,61 +602,6 @@ async function startServer() {
         res.json(backup);
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
-
-  app.get('/api/stats/transparency/:year', async (req, res) => {
-    try {
-        const { year } = req.params;
-        const db = await getDB();
-        console.log(`[API] Fetching transparency report for year: ${year}`);
-        
-        const [revenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ?', [year]);
-        const [expense]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ?', [year]);
-        
-        const totalRevenue = revenue[0].total || 0;
-        const totalExpense = expense[0].total || 0;
-        
-        const [dukuhList]: any = await db.execute('SELECT * FROM dukuhs');
-        const dukuhStats = [];
-        for (const dukuh of dukuhList) {
-            const [sum]: any = await db.execute(`
-                SELECT SUM(t.amount) as total 
-                FROM transactions t 
-                JOIN wargas w ON t.wargaId = w.id 
-                WHERE w.dukuhId = ? AND t.status = 'paid' AND YEAR(t.timestamp) = ?
-            `, [dukuh.id, year]);
-            dukuhStats.push({ name: dukuh.name, total: sum[0].total || 0 });
-        }
-
-        const months = [
-            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-        ];
-        const monthlyStats = [];
-        for (let i = 1; i <= 12; i++) {
-            const [inc]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ? AND MONTH(timestamp) = ?', [year, i]);
-            const [exp]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ? AND MONTH(date) = ?', [year, i]);
-            const income = inc[0].total || 0;
-            const expenseVal = exp[0].total || 0;
-            monthlyStats.push({
-                monthName: months[i-1],
-                income,
-                expense: expenseVal,
-                balance: income - expenseVal
-            });
-        }
-
-        res.json({
-            totalRevenue,
-            totalExpense,
-            balance: totalRevenue - totalExpense,
-            dukuhStats,
-            monthlyStats
-        });
-    } catch (err: any) { res.status(500).json({ error: err.message }); }
-  });
-
-  // Proxy-like routes for Supabase tables to local MySQL
-  // (In a real migration, we would implement all crud here)
   app.get('/api/data/:table', async (req, res) => {
      try {
          const { table } = req.params;
@@ -782,10 +788,25 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  app.delete('/api/transactions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = await getDB();
+        await db.execute('DELETE FROM transactions WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   // 404 handler for API routes
   app.all('/api/*all', (req, res) => {
-    console.warn(`[404] API route not found: ${req.method} ${req.url}`);
-    res.status(404).json({ error: 'API route not found' });
+    console.warn(`[404] API route not found: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ 
+        error: 'API route not found', 
+        path: req.originalUrl,
+        method: req.method
+    });
   });
 
   // --- VITE MIDDLEWARE ---
@@ -798,6 +819,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
+    // Correct SPA fallback for Express 5
     app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

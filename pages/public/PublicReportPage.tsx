@@ -26,7 +26,8 @@ const PublicReportPage: React.FC = () => {
                 setData(report);
             } catch (e: any) {
                 console.error("Error fetching public report", e);
-                setError(e.message || "Gagal mengambil data laporan publik.");
+                const msg = e.message || "Gagal mengambil data.";
+                setError(`${msg} (Endpoint: /stats/transparency/${year})`);
             } finally {
                 setLoading(false);
             }

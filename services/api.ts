@@ -4,18 +4,26 @@
 // It talks to our Express backend instead of Supabase.
 
     // API_URL normalization
-    let base = import.meta.env.VITE_API_URL || '';
-    if (base === 'undefined' || base === 'null' || base === '[object Object]') base = ''; 
+    let base = import.meta.env.VITE_API_URL;
     
-    // If no absolute URL is provided, default to relative /api
+    // Check for stringified objects or nulls from build environment
+    const rawBase = String(base);
+    if (!base || rawBase === 'undefined' || rawBase === 'null' || rawBase === '[object Object]') {
+        base = '';
+    }
+    
+    // If no absolute URL is provided, detect context
     if (!base && typeof window !== 'undefined') {
-        base = '/api'; 
-    } else if (base && !base.endsWith('/api') && !base.endsWith('/api/')) {
-        // If an absolute URL is provided but lacks /api suffix, often needed for our setup
+        const origin = window.location.origin;
+        // If we're at a subpath, we might need more logic, 
+        // but typically /api is safest for same-origin
+        base = origin + '/api'; 
+    } else if (base && typeof base === 'string' && !base.endsWith('/api') && !base.endsWith('/api/')) {
+        // If an absolute URL is provided but lacks /api prefix
         base = base.endsWith('/') ? base + 'api' : base + '/api';
     }
-    const API_URL = base;
-    console.log(`[API Service] Using base URL: "${API_URL}"`);
+    const API_URL = base || '/api';
+    console.log(`[API Service] Static Base: "${import.meta.env.VITE_API_URL}", Final API Entry: "${API_URL}"`);
 
 async function fetchLocal(endpoint: string, options: any = {}) {
     // Ensure endpoint starts with /
@@ -27,6 +35,7 @@ async function fetchLocal(endpoint: string, options: any = {}) {
         fullUrl = API_URL + cleanEndpoint.substring(1);
     }
     
+    console.log(`[API] Fetching: ${options.method || 'GET'} ${fullUrl}`);
     try {
         const res = await fetch(fullUrl, {
             ...options,
