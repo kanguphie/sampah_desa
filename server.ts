@@ -783,7 +783,7 @@ async function startServer() {
   });
 
   // 404 handler for API routes
-  app.all('/api/*', (req, res) => {
+  app.all('/api/*all', (req, res) => {
     console.warn(`[404] API route not found: ${req.method} ${req.url}`);
     res.status(404).json({ error: 'API route not found' });
   });
