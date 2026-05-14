@@ -854,17 +854,18 @@ async function startServer() {
   });
 
   app.post('/api/admin/recalculate-debt', async (req, res) => {
+    console.log('[API] recalculate-debt triggered');
     try {
         const db = await getDB();
         
         // Recalculate totalDebt for ALL wargas based on transaction history
-        await db.execute(`
+        const [result] = await db.execute(`
             UPDATE wargas w
             SET w.totalDebt = (
                 SELECT COALESCE(SUM(
                     CASE 
-                        WHEN t.status IN ('unpaid', 'HUTANG') THEN t.amount 
-                        WHEN t.status IN ('paid', 'LUNAS') AND t.category IN ('tunggakan', 'TUNGGAKAN') THEN -t.amount 
+                        WHEN LOWER(t.status) IN ('unpaid', 'hutang') THEN t.amount 
+                        WHEN LOWER(t.status) IN ('paid', 'lunas') AND LOWER(t.category) IN ('tunggakan') THEN -t.amount 
                         ELSE 0 
                     END
                 ), 0)
@@ -873,8 +874,10 @@ async function startServer() {
             )
         `);
         
-        res.json({ success: true });
+        console.log('[API] recalculate-debt finished safely');
+        res.json({ success: true, result });
     } catch (err: any) {
+        console.error('[API] recalculate-debt error:', err);
         res.status(500).json({ error: err.message });
     }
   });

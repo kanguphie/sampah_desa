@@ -1,15 +1,18 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getAllWarga, getAllDukuh, getAllRT, getTransactionsByWargaId, deleteTransaksi } from '@/services/api';
+import { useNavigate } from 'react-router-dom';
+import { getAllWarga, getAllDukuh, getAllRT, getTransactionsByWargaId, deleteTransaksi, recalculateDebt } from '@/services/api';
 import type { Warga, Dukuh, RT, Transaksi } from '@/types';
-import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon, TrashIcon, XIcon, InfoIcon } from '@/components/icons';
+import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon, TrashIcon, XIcon, InfoIcon, ScaleBalancedIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 
 const UnpaidReport: React.FC = () => {
+    const navigate = useNavigate();
     const [list, setList] = useState<Warga[]>([]);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(false);
+    const [syncing, setSyncing] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     
     // Modal states
@@ -43,13 +46,56 @@ const UnpaidReport: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
+    const handleSync = async (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        console.log("[Sync] Button clicked");
+        if (!window.confirm("Kalkulasi ulang saldo tunggakan seluruh warga berdasarkan riwayat transaksi?")) {
+            console.log("[Sync] Cancelled by user");
+            return;
+        }
+        
+        setSyncing(true);
+        try {
+            console.log("[Sync] Sending request to server...");
+            const res = await recalculateDebt();
+            console.log("[Sync] Server responded:", res);
+            
+            console.log("[Sync] Fetching fresh data...");
+            await fetchData();
+            
+            // Also update detailWarga if it's open
+            if (detailWarga) {
+                const refreshedWargas = await getAllWarga();
+                const updated = refreshedWargas.find(w => w.id === detailWarga.id);
+                if (updated) {
+                    if (updated.totalDebt <= 0) setDetailWarga(null);
+                    else setDetailWarga(updated);
+                }
+            }
+            
+            console.log("[Sync] Data fetched successfully");
+            
+            alert("Sinkronisasi berhasil! Saldo warga telah dikoreksi berdasarkan riwayat transaksi.");
+        } catch (error: any) {
+            console.error("[Sync] Error during sync:", error);
+            alert("Gagal melakukan sinkronisasi: " + (error.message || "Kesalahan server"));
+        } finally {
+            setSyncing(false);
+            console.log("[Sync] Process finished");
+        }
+    };
+
     const openDetail = async (warga: Warga) => {
         setDetailWarga(warga);
         setLoadingTransactions(true);
         try {
             const txs = await getTransactionsByWargaId(warga.id);
             // Hanya ambil yang unpaid
-            const unpaidTxs = txs.filter((t: Transaksi) => t.status === 'unpaid' || t.status === 'HUTANG');
+            const unpaidTxs = txs.filter((t: Transaksi) => t.status.toLowerCase() === 'unpaid' || t.status === 'HUTANG');
             setWargaTransactions(unpaidTxs);
         } catch (error) {
             console.error("Error fetching transactions", error);
@@ -63,18 +109,23 @@ const UnpaidReport: React.FC = () => {
         
         try {
             await deleteTransaksi(txId);
+            // Refresh main list first to update totalDebt in UI
+            await fetchData();
+            
             // Refresh detail
             if (detailWarga) {
                 const txs = await getTransactionsByWargaId(detailWarga.id);
-                const unpaidTxs = txs.filter((t: Transaksi) => t.status === 'unpaid' || t.status === 'HUTANG');
+                const unpaidTxs = txs.filter((t: Transaksi) => t.status.toLowerCase() === 'unpaid' || t.status === 'HUTANG');
                 setWargaTransactions(unpaidTxs);
-                // If no more transactions, refresh the main list
-                if (unpaidTxs.length === 0) {
-                    fetchData();
-                    setDetailWarga(null);
-                } else {
-                    // Update the list just for this citizen if we want to be smooth, or just refresh all
-                    fetchData();
+                
+                // Update current detailWarga info from the freshly fetched list
+                const updatedWarga = (await getAllWarga()).find(w => w.id === detailWarga.id);
+                if (updatedWarga) {
+                    if (updatedWarga.totalDebt <= 0) {
+                        setDetailWarga(null);
+                    } else {
+                        setDetailWarga(updatedWarga);
+                    }
                 }
             }
         } catch (error) {
@@ -283,23 +334,31 @@ const UnpaidReport: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 space-y-4">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
-                            <ClipboardListIcon className="text-2xl text-rose-500" />
+                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
+                            <ClipboardListIcon className="text-3xl text-rose-500" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Tunggakan</p>
-                            <p className="text-2xl font-black text-rose-600 tracking-tight">Rp{filteredList.reduce((s,i)=>s+(i.totalDebt || 0),0).toLocaleString('id-ID')}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Tunggakan Desa</p>
+                            <p className="text-3xl font-black text-rose-600 tracking-tight">Rp{filteredList.reduce((s,i)=>s+(i.totalDebt || 0),0).toLocaleString('id-ID')}</p>
                         </div>
                     </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                        <button onClick={handlePrintTable} className="flex-1 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all text-xs">
-                            <FileExcelIcon className="text-emerald-500" /> Cetak Daftar (Tabel)
+                    
+                    <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+                        <button 
+                            onClick={handleSync} 
+                            disabled={syncing}
+                            className="flex-1 lg:flex-none px-5 py-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-[10px] uppercase tracking-widest border border-emerald-100 disabled:opacity-50"
+                        >
+                            <ScaleBalancedIcon className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sinkronisasi...' : 'Sinkron Saldo'}
+                        </button>
+                        <button onClick={handlePrintTable} className="flex-1 lg:flex-none bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-sm transition-all text-[10px] uppercase tracking-widest">
+                            <FileExcelIcon className="text-emerald-500 text-sm" /> Cetak Daftar (Tabel)
                         </button>
                         {selectedIds.size > 0 && (
-                            <button onClick={handlePrintSelected} className="flex-1 bg-primary text-white hover:bg-primary-focus px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all text-xs">
-                                <DownloadIcon /> Cetak Slip ({selectedIds.size})
+                            <button onClick={handlePrintSelected} className="flex-1 lg:flex-none bg-primary text-white hover:bg-primary-focus px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all text-[10px] uppercase tracking-widest">
+                                <DownloadIcon /> Slip ({selectedIds.size})
                             </button>
                         )}
                     </div>
@@ -413,12 +472,15 @@ const UnpaidReport: React.FC = () => {
                         </div>
 
                         <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-sm">
-                                <InfoIcon className="text-amber-500" />
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-sm text-amber-500">
+                                <InfoIcon />
                             </div>
-                            <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                                <span className="font-bold">Info:</span> Jika Anda menghapus transaksi di atas, jumlah tunggakan warga akan otomatis berkurang. Jika jumlah total saldo masih tidak sesuai, silakan gunakan fitur <span className="font-bold underline cursor-pointer" onClick={() => window.location.href='/admin/pengaturan'}>Sinkronisasi Tunggakan</span> di menu Pengaturan.
-                            </p>
+                            <div>
+                                <p className="text-[11px] text-amber-700 font-bold uppercase tracking-tight mb-1">Informasi Sinkronisasi</p>
+                                <p className="text-[11px] text-amber-600/80 leading-relaxed font-medium">
+                                    Jika Anda menghapus riwayat di atas namun jumlah saldo masih tidak sesuai, silakan gunakan fitur <span className="font-black text-emerald-600 underline cursor-pointer" onClick={() => navigate('/admin/pengaturan')}>Sinkronisasi</span> di menu Pengaturan atau klik tombol <span className="font-black text-emerald-600 underline cursor-pointer" onClick={handleSync}>Sinkron Saldo</span> di bagian atas laporan ini.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 )}
