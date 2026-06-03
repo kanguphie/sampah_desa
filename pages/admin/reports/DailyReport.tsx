@@ -4,10 +4,42 @@ import { getReports, getPengeluaran } from '@/services/api';
 import type { Pengeluaran } from '@/types';
 import { DownloadIcon } from '@/components/icons';
 
-const toLocalDateString = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+const toLocalDateString = (d: Date | string | null | undefined): string => {
+    if (!d) return '';
+    let dateObj: Date;
+    if (d instanceof Date) {
+        dateObj = d;
+    } else if (typeof d === 'string') {
+        if (d.includes(' ')) {
+            const [datePart, timePart] = d.split(' ');
+            const [year, month, day] = datePart.split('-').map(Number);
+            if (timePart) {
+                const [hour, minute, second] = timePart.split(':').map(Number);
+                dateObj = new Date(year, month - 1, day, hour || 0, minute || 0, second || 0);
+            } else {
+                dateObj = new Date(year, month - 1, day);
+            }
+        } else if (d.includes('T')) {
+            const datePart = d.split('T')[0];
+            const [year, month, day] = datePart.split('-').map(Number);
+            dateObj = new Date(year, month - 1, day);
+        } else {
+            const parts = d.split('-');
+            if (parts.length === 3) {
+                const [year, month, day] = parts.map(Number);
+                dateObj = new Date(year, month - 1, day);
+            } else {
+                dateObj = new Date(d);
+            }
+        }
+    } else {
+        dateObj = new Date(d);
+    }
+
+    if (isNaN(dateObj.getTime())) return '';
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 };
 
@@ -28,11 +60,15 @@ const DailyReport: React.FC = () => {
         fetch();
     }, [date]);
 
+    // Filter locally to strictly match the selected target calendar date
+    const filteredReports = reports.filter(r => toLocalDateString(r.timestamp) === date);
+    const filteredExpenses = expenses.filter(e => toLocalDateString(e.date) === date);
+
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         
-        const incomeRows = reports.map(r => `
+        const incomeRows = filteredReports.map(r => `
             <tr>
                 <td>${new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
                 <td><div class="font-bold">${r.wargaName}</div><div class="text-xs">RT ${r.rtNumber}, ${r.dukuhName}</div></td>
@@ -40,7 +76,7 @@ const DailyReport: React.FC = () => {
             </tr>
         `).join('');
 
-        const expenseRows = expenses.map(e => `
+        const expenseRows = filteredExpenses.map(e => `
             <tr>
                 <td>-</td>
                 <td><div class="font-bold">${e.description}</div></td>
@@ -100,7 +136,7 @@ const DailyReport: React.FC = () => {
                 <div class="summary-box">
                     <div class="total-line">
                         <span>TOTAL SALDO NETTO</span>
-                        <span style="color: #10b981;">Rp${(reports.reduce((s,i)=>s+i.amount,0) - expenses.reduce((s,i)=>s+i.amount,0)).toLocaleString('id-ID')}</span>
+                        <span style="color: #10b981;">Rp${(filteredReports.reduce((s,i)=>s+i.amount,0) - filteredExpenses.reduce((s,i)=>s+i.amount,0)).toLocaleString('id-ID')}</span>
                     </div>
                 </div>
                 <script>window.onload=()=>{window.print();window.close();}</script>
@@ -121,9 +157,9 @@ const DailyReport: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-6 rounded-3xl bg-emerald-50 border border-emerald-100"><p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pemasukan</p><p className="text-2xl font-black text-emerald-700 mt-1">Rp{reports.reduce((s,i) => s+i.amount, 0).toLocaleString('id-ID')}</p></div>
-                <div className="p-6 rounded-3xl bg-rose-50 border border-rose-100"><p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Pengeluaran</p><p className="text-2xl font-black text-rose-700 mt-1">Rp{expenses.reduce((s,i) => s+i.amount, 0).toLocaleString('id-ID')}</p></div>
-                <div className="p-6 rounded-3xl bg-slate-100 border border-slate-200"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Netto</p><p className="text-2xl font-black text-slate-800 mt-1">Rp{(reports.reduce((s,i) => s+i.amount, 0) - expenses.reduce((s,i) => s+i.amount, 0)).toLocaleString('id-ID')}</p></div>
+                <div className="p-6 rounded-3xl bg-emerald-50 border border-emerald-100"><p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pemasukan</p><p className="text-2xl font-black text-emerald-700 mt-1">Rp{filteredReports.reduce((s,i) => s+i.amount, 0).toLocaleString('id-ID')}</p></div>
+                <div className="p-6 rounded-3xl bg-rose-50 border border-rose-100"><p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Pengeluaran</p><p className="text-2xl font-black text-rose-700 mt-1">Rp{filteredExpenses.reduce((s,i) => s+i.amount, 0).toLocaleString('id-ID')}</p></div>
+                <div className="p-6 rounded-3xl bg-slate-100 border border-slate-200"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Netto</p><p className="text-2xl font-black text-slate-800 mt-1">Rp{(filteredReports.reduce((s,i) => s+i.amount, 0) - filteredExpenses.reduce((s,i) => s+i.amount, 0)).toLocaleString('id-ID')}</p></div>
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
@@ -131,7 +167,7 @@ const DailyReport: React.FC = () => {
                     <thead><tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="p-5">Waktu</th><th className="p-5">Warga</th><th className="p-5">Petugas</th><th className="p-5 text-right">Nominal</th></tr></thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr> : 
-                        reports.map(r => (
+                        filteredReports.map(r => (
                             <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
                                 <td className="p-5 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
                                 <td className="p-5">
