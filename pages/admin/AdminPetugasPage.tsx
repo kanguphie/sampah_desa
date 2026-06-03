@@ -3,13 +3,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Petugas } from '@/types';
 import { getAllPetugas, createPetugas, updatePetugas, deletePetugas } from '@/services/api';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, CheckCircleIcon, XIcon, AlertCircleIcon } from '@/components/icons';
 
 const PetugasForm: React.FC<{
   petugas?: Petugas | null;
   onSave: (petugas: Omit<Petugas, 'id'> | Petugas) => void;
   onCancel: () => void;
-}> = ({ petugas, onSave, onCancel }) => {
+  onError: (msg: string) => void;
+}> = ({ petugas, onSave, onCancel, onError }) => {
   const [formData, setFormData] = useState({
     name: petugas?.name || '',
     phone: petugas?.phone || '',
@@ -19,7 +20,7 @@ const PetugasForm: React.FC<{
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.pin.length !== 6) {
-        alert("PIN harus tepat 6 digit angka.");
+        onError("PIN harus tepat 6 digit angka.");
         return;
     }
     onSave(petugas ? { ...petugas, ...formData } : formData);
@@ -54,9 +55,17 @@ const AdminPetugasPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedPetugas, setSelectedPetugas] = useState<Petugas | null>(null);
     const [petugasToDelete, setPetugasToDelete] = useState<Petugas | null>(null);
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const fetchData = useCallback(async () => {
         try {
@@ -84,20 +93,31 @@ const AdminPetugasPage: React.FC = () => {
 
 
     const handleSave = useCallback(async (petugas: Omit<Petugas, 'id'> | Petugas) => {
-        if ('id' in petugas) {
-            await updatePetugas(petugas.id, petugas);
-        } else {
-            await createPetugas(petugas);
+        try {
+            if ('id' in petugas) {
+                await updatePetugas(petugas.id, petugas);
+                setMessage({ type: 'success', text: 'Data petugas berhasil diperbarui.' });
+            } else {
+                await createPetugas(petugas);
+                setMessage({ type: 'success', text: 'Petugas baru berhasil ditambahkan.' });
+            }
+            fetchData();
+            setIsModalOpen(false);
+            setSelectedPetugas(null);
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Gagal menyimpan data petugas.' });
         }
-        fetchData();
-        setIsModalOpen(false);
-        setSelectedPetugas(null);
     }, [fetchData]);
 
     const handleDeleteConfirm = useCallback(async (id: string) => {
-        await deletePetugas(id);
-        fetchData();
-        setPetugasToDelete(null);
+        try {
+            await deletePetugas(id);
+            fetchData();
+            setPetugasToDelete(null);
+            setMessage({ type: 'success', text: 'Data petugas berhasil dihapus.' });
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Gagal menghapus petugas.' });
+        }
     }, [fetchData]);
 
     const openFormModal = useCallback((petugas: Petugas | null = null) => {
@@ -200,7 +220,7 @@ const AdminPetugasPage: React.FC = () => {
             </div>
 
             <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setSelectedPetugas(null); }} title={selectedPetugas ? 'Edit Data Petugas' : 'Tambah Petugas Baru'}>
-                <PetugasForm petugas={selectedPetugas} onSave={handleSave} onCancel={() => { setIsModalOpen(false); setSelectedPetugas(null); }} />
+                <PetugasForm petugas={selectedPetugas} onSave={handleSave} onCancel={() => { setIsModalOpen(false); setSelectedPetugas(null); }} onError={(m) => setMessage({ type: 'error', text: m })} />
             </Modal>
             
             <Modal isOpen={!!petugasToDelete} onClose={() => setPetugasToDelete(null)} title="Konfirmasi Hapus Data" size="md">
@@ -227,6 +247,21 @@ const AdminPetugasPage: React.FC = () => {
                     </div>
                 )}
             </Modal>
+
+            {/* NOTIFICATION TOAST */}
+            {message && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10000] animate-slide-in-up">
+                    <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${
+                        message.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-rose-50 border-rose-100 text-rose-800'
+                    }`}>
+                        {message.type === 'success' ? <CheckCircleIcon className="text-xl text-emerald-500" /> : <AlertCircleIcon className="text-xl text-rose-500" />}
+                        <p className="text-xs font-black uppercase tracking-tight">{message.text}</p>
+                        <button onClick={() => setMessage(null)} className="ml-2 text-slate-400 hover:text-slate-600">
+                            <XIcon className="text-lg" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

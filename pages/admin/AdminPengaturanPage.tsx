@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getSchedule, updateSchedule, getAllDukuh, markDayAsSkipped, getVillageProfile, updateVillageProfile, exportFullBackup, importFullBackup, recalculateDebt } from '@/services/api';
 import Modal from '@/components/Modal';
-import { PencilIcon, HomeIcon, ClockIcon, XIcon, CheckCircleIcon, PhoneIcon, EnvelopeIcon, DatabaseIcon, DownloadIcon, UploadIcon, ScaleBalancedIcon } from '@/components/icons';
+import { PencilIcon, HomeIcon, ClockIcon, XIcon, CheckCircleIcon, PhoneIcon, EnvelopeIcon, DatabaseIcon, DownloadIcon, UploadIcon, ScaleBalancedIcon, InfoIcon, AlertCircleIcon } from '@/components/icons';
 import type { Dukuh, VillageProfile } from '@/types';
 
 type Schedule = Record<string, number[] | 'libur'>;
@@ -169,9 +169,11 @@ const VillageProfileForm: React.FC = () => {
     );
 };
 
-const DatabaseManager: React.FC = () => {
+const DatabaseManager: React.FC<{
+    onNotify: (type: 'success' | 'error', text: string) => void;
+    onConfirm: (title: string, text: string, action: () => void) => void;
+}> = ({ onNotify, onConfirm }) => {
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const handleDownload = async () => {
         setLoading(true);
@@ -186,9 +188,9 @@ const DatabaseManager: React.FC = () => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            setMessage({ type: 'success', text: 'Backup berhasil diunduh!' });
+            onNotify('success', 'Backup berhasil diunduh!');
         } catch (err) {
-            setMessage({ type: 'error', text: 'Gagal membuat backup data.' });
+            onNotify('error', 'Gagal membuat backup data.');
         } finally {
             setLoading(false);
         }
@@ -198,45 +200,38 @@ const DatabaseManager: React.FC = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!window.confirm("PERINGATAN: Restore data akan memperbarui database dengan data dari file JSON. Lanjutkan?")) {
-            e.target.value = '';
-            return;
-        }
-
-        setLoading(true);
-        setMessage(null);
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const json = JSON.parse(event.target?.result as string);
-                const result = await importFullBackup(json);
-                
-                if (result.errors.length === 0) {
-                    setMessage({ type: 'success', text: `Restore berhasil! ${result.success.length} tabel diperbarui.` });
-                } else {
-                    setMessage({ type: 'error', text: `Gagal memulihkan ${result.errors.length} tabel. Periksa konsol.` });
-                    console.error("Restore Errors:", result.errors);
-                }
-            } catch (err) {
-                setMessage({ type: 'error', text: 'File JSON tidak valid atau rusak.' });
-            } finally {
-                setLoading(false);
-                e.target.value = '';
+        const input = e.target;
+        onConfirm(
+            "Konfirmasi Restore",
+            "PERINGATAN: Restore data akan memperbarui database dengan data dari file JSON. Lanjutkan?",
+            async () => {
+                setLoading(true);
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const json = JSON.parse(event.target?.result as string);
+                        const result = await importFullBackup(json);
+                        
+                        if (result.errors.length === 0) {
+                            onNotify('success', `Restore berhasil! ${result.success.length} tabel diperbarui.`);
+                        } else {
+                            onNotify('error', `Gagal memulihkan ${result.errors.length} tabel. Periksa konsol.`);
+                            console.error("Restore Errors:", result.errors);
+                        }
+                    } catch (err) {
+                        onNotify('error', 'File JSON tidak valid atau rusak.');
+                    } finally {
+                        setLoading(false);
+                        input.value = '';
+                    }
+                };
+                reader.readAsText(file);
             }
-        };
-        reader.readAsText(file);
+        );
     };
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 py-4">
-             {message && (
-                <div className={`p-4 rounded-2xl flex items-center gap-3 font-bold text-sm animate-fade-in ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
-                    {message.type === 'success' ? <CheckCircleIcon /> : <XIcon />}
-                    {message.text}
-                </div>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Backup Card */}
                 <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 flex flex-col justify-between items-start gap-6">
@@ -291,18 +286,22 @@ const DatabaseManager: React.FC = () => {
                         </div>
                     </div>
                     <button 
-                        onClick={async () => {
-                            if (window.confirm("Kalkulasi ulang seluruh saldo tunggakan warga?")) {
-                                setLoading(true);
-                                try {
-                                    await recalculateDebt();
-                                    setMessage({ type: 'success', text: 'Sinkronisasi tunggakan berhasil!' });
-                                } catch (e) {
-                                    setMessage({ type: 'error', text: 'Gagal melakukan sinkronisasi.' });
-                                } finally {
-                                    setLoading(false);
+                        onClick={() => {
+                            onConfirm(
+                                "Sinkronisasi Tunggakan",
+                                "Kalkulasi ulang seluruh saldo tunggakan warga berdasarkan riwayat transaksi? Data saldo akan dikoreksi otomatis.",
+                                async () => {
+                                    setLoading(true);
+                                    try {
+                                        await recalculateDebt();
+                                        onNotify('success', 'Sinkronisasi tunggakan berhasil!');
+                                    } catch (e) {
+                                        onNotify('error', 'Gagal melakukan sinkronisasi.');
+                                    } finally {
+                                        setLoading(false);
+                                    }
                                 }
-                            }
+                            );
                         }}
                         disabled={loading}
                         className="px-8 py-3.5 bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all uppercase tracking-widest text-[10px] whitespace-nowrap"
@@ -336,6 +335,17 @@ const AdminPengaturanPage: React.FC = () => {
     const [dayToEdit, setDayToEdit] = useState<{ day: string; schedule: number[] | 'libur' } | null>(null);
     const [isSkipping, setIsSkipping] = useState(false);
 
+    // Global Message & Confirm States
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [confirm, setConfirm] = useState<{ title: string, text: string, onConfirm: () => void } | null>(null);
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
+
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -357,6 +367,7 @@ const AdminPengaturanPage: React.FC = () => {
         await updateSchedule(day, newSchedule);
         fetchData();
         setIsModalOpen(false);
+        setMessage({ type: 'success', text: `Jadwal ${day} berhasil diperbarui.` });
     };
 
     const openFormModal = (day: string, currentSchedule: number[] | 'libur') => {
@@ -371,21 +382,26 @@ const AdminPengaturanPage: React.FC = () => {
         const currentSched = (schedule as any)[todayName];
 
         if (currentSched === 'libur' || !currentSched || !currentSched.length) {
-            alert("Hari ini adalah hari libur.");
+            setMessage({ type: 'error', text: 'Hari ini adalah hari libur, tidak ada pengambilan yang bisa dibatalkan.' });
             return;
         }
 
-        if (window.confirm(`Batalkan pengambilan hari ini? Iuran warga di wilayah terjadwal akan otomatis ditambahkan ke tunggakan (Hutang).`)) {
-            setIsSkipping(true);
-            try {
-                await markDayAsSkipped(currentSched);
-                alert("Berhasil! Iuran warga hari ini telah dialihkan ke tunggakan.");
-            } catch (err) {
-                alert("Gagal memproses data.");
-            } finally {
-                setIsSkipping(false);
+        setConfirm({
+            title: "Batalkan Pengambilan",
+            text: `Batalkan pengambilan iuran hari ini (${todayName})? Seluruh warga di wilayah terjadwal akan otomatis dicatat sebagai tunggakan (Hutang).`,
+            onConfirm: async () => {
+                setConfirm(null);
+                setIsSkipping(true);
+                try {
+                    await markDayAsSkipped(currentSched);
+                    setMessage({ type: 'success', text: 'Berhasil! Iuran hari ini dialihkan ke tunggakan.' });
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Gagal memproses data.' });
+                } finally {
+                    setIsSkipping(false);
+                }
             }
-        }
+        });
     };
 
     const getScheduleDisplay = (scheduleData: number[] | 'libur') => {
@@ -462,7 +478,10 @@ const AdminPengaturanPage: React.FC = () => {
                     ) : activeTab === 'profil' ? (
                         <VillageProfileForm />
                     ) : (
-                        <DatabaseManager />
+                        <DatabaseManager 
+                            onNotify={(type, text) => setMessage({ type, text })}
+                            onConfirm={(title, text, action) => setConfirm({ title, text, onConfirm: action })}
+                        />
                     )}
                 </div>
             </div>
@@ -478,6 +497,47 @@ const AdminPengaturanPage: React.FC = () => {
                     />
                 )}
             </Modal>
+
+            {/* CONFIRM MODAL */}
+            <Modal isOpen={!!confirm} onClose={() => setConfirm(null)} title={confirm?.title || 'Konfirmasi'}>
+                <div className="space-y-6">
+                    <div className="flex gap-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 mt-2">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-sm text-amber-500">
+                            <InfoIcon className="text-xl" />
+                        </div>
+                        <p className="text-sm text-amber-900 font-medium leading-relaxed">{confirm?.text}</p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setConfirm(null)}
+                            className="flex-1 px-6 py-3.5 bg-slate-100 text-slate-600 font-black rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-[10px]"
+                        >
+                            Batal
+                        </button>
+                        <button 
+                            onClick={() => confirm?.onConfirm()}
+                            className="flex-1 px-6 py-3.5 bg-rose-500 text-white font-black rounded-2xl shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all uppercase tracking-widest text-[10px]"
+                        >
+                            Konfirmasi
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* NOTIFICATION TOAST */}
+            {message && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10000] animate-slide-in-up">
+                    <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${
+                        message.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-rose-50 border-rose-100 text-rose-800'
+                    }`}>
+                        {message.type === 'success' ? <CheckCircleIcon className="text-xl text-emerald-500" /> : <AlertCircleIcon className="text-xl text-rose-500" />}
+                        <p className="text-xs font-black uppercase tracking-tight">{message.text}</p>
+                        <button onClick={() => setMessage(null)} className="ml-2 text-slate-400 hover:text-slate-600">
+                            <XIcon className="text-lg" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

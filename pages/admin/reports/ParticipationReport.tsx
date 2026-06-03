@@ -21,13 +21,14 @@ const ParticipationReport: React.FC = () => {
     useEffect(() => {
         const fetch = async () => {
             setLoading(true);
-            const start = new Date(year, month - 1, 1);
-            const end = new Date(year, month, 0);
+            const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, month, 0).getDate();
+            const endStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
             const [w, d, r, txs] = await Promise.all([
                 getAllWarga(),
                 getAllDukuh(),
                 getAllRT(),
-                getReports({ startDate: start, endDate: end })
+                getReports({ startDate: startStr, endDate: endStr })
             ]);
             setWargaList(w);
             setDukuhList(d);

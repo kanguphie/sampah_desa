@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { getPetugasDailySummary } from '@/services/api';
-import { CollectionIcon, QrCodeIcon, CurrencyDollarIcon, UsersIcon } from '@/components/icons';
+import { CollectionIcon, QrCodeIcon, CurrencyDollarIcon, UsersIcon, AlertCircleIcon } from '@/components/icons';
 
 const PetugasDashboardPage: React.FC = () => {
     const { petugas } = useAuth();
     const navigate = useNavigate();
     const [summary, setSummary] = useState({ total: 0, count: 0 });
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
 
     useEffect(() => {
@@ -22,11 +23,14 @@ const PetugasDashboardPage: React.FC = () => {
     useEffect(() => {
         const fetchSummary = async () => {
             if (petugas) {
+                setLoading(true);
+                setError(null);
                 try {
                     const data = await getPetugasDailySummary(petugas.id);
                     setSummary(data);
-                } catch (error) {
+                } catch (error: any) {
                     console.error("Failed to fetch summary", error);
+                    setError(error.message || "Gagal mengambil ringkasan harian.");
                 } finally {
                     setLoading(false);
                 }
@@ -36,7 +40,11 @@ const PetugasDashboardPage: React.FC = () => {
     }, [petugas]);
 
     if (loading && !petugas) {
-        return <div className="p-4 text-center">Loading...</div>;
+        return (
+            <div className="h-screen flex items-center justify-center">
+                 <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
     }
 
     return (
@@ -45,6 +53,13 @@ const PetugasDashboardPage: React.FC = () => {
                 <h1 className="text-3xl font-bold font-display text-slate-800">Halo, {petugas?.name}</h1>
                 <p className="text-slate-500">{currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} - {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
             </div>
+            
+            {error && (
+                <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-800 animate-slide-in-up">
+                    <AlertCircleIcon className="text-xl text-rose-500" />
+                    <p className="text-xs font-bold uppercase tracking-tight">{error}</p>
+                </div>
+            )}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">

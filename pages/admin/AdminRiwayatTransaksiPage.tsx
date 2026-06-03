@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getReports, deleteTransaksi, getAllDukuh, getAllRT } from '@/services/api';
 import type { Transaksi, Dukuh, RT } from '@/types';
-import { SearchIcon, TrashIcon, ChevronDownIcon, DownloadIcon, BanknotesIcon, CurrencyDollarIcon } from '@/components/icons';
+import { SearchIcon, TrashIcon, ChevronDownIcon, DownloadIcon, BanknotesIcon, CurrencyDollarIcon, CheckCircleIcon, AlertCircleIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 
 interface ReportRow extends Transaksi {
@@ -14,16 +14,93 @@ interface ReportRow extends Transaksi {
     wargaRtId?: number;
 }
 
+const toLocalDateString = (d: Date | string | null | undefined): string => {
+    if (!d) return '';
+    let dateObj: Date;
+    if (d instanceof Date) {
+        dateObj = d;
+    } else if (typeof d === 'string') {
+        if (d.includes(' ')) {
+            const [datePart, timePart] = d.split(' ');
+            const [year, month, day] = datePart.split('-').map(Number);
+            if (timePart) {
+                const [hour, minute, second] = timePart.split(':').map(Number);
+                dateObj = new Date(year, month - 1, day, hour || 0, minute || 0, second || 0);
+            } else {
+                dateObj = new Date(year, month - 1, day);
+            }
+        } else {
+            dateObj = new Date(d);
+        }
+    } else {
+        dateObj = new Date(d);
+    }
+
+    if (isNaN(dateObj.getTime())) return '';
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const displayLocalDate = (timestamp: any) => {
+    if (!timestamp) return 'N/A';
+    if (typeof timestamp === 'string') {
+        const parts = timestamp.split(' ');
+        if (parts.length >= 1) {
+            const dateParts = parts[0].split('-');
+            if (dateParts.length === 3) {
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                const monthIdx = parseInt(dateParts[1]) - 1;
+                const month = monthNames[monthIdx] || dateParts[1];
+                const day = dateParts[2];
+                return `${day} ${month}`;
+            }
+        }
+    }
+    try {
+        return new Date(timestamp).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+    } catch {
+        return 'N/A';
+    }
+};
+
+const displayLocalTime = (timestamp: any) => {
+    if (!timestamp) return '--:--';
+    if (typeof timestamp === 'string') {
+        const parts = timestamp.split(' ');
+        if (parts.length >= 2) {
+            const timeParts = parts[1].split(':');
+            if (timeParts.length >= 2) {
+                return `${timeParts[0]}.${timeParts[1]}`;
+            }
+        }
+    }
+    try {
+        return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return '--:--';
+    }
+};
+
 const AdminRiwayatTransaksiPage: React.FC = () => {
     const [transactions, setTransactions] = useState<ReportRow[]>([]);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [transactionToDelete, setTransactionToDelete] = useState<ReportRow | null>(null);
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
     
     const [filters, setFilters] = useState({
-        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0],
+        startDate: toLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+        endDate: toLocalDateString(new Date()),
         search: '',
         dukuhId: 'all',
         rtId: 'all',
@@ -34,11 +111,24 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
     const [currentPage, setCurrentPage] = useState(1);
 
+    const getWilayahText = useCallback((tx: ReportRow) => {
+        const rtId = tx.wargaRtId;
+        const dukuhId = tx.wargaDukuhId;
+        
+        const rtObj = rtList.find(r => r.id === Number(rtId));
+        const rtText = rtObj ? `RT ${rtObj.number}` : (tx.rtNumber ? `RT ${tx.rtNumber}` : 'RT ?');
+        
+        const dObj = dukuhList.find(d => d.id === Number(dukuhId));
+        const dukuhText = dObj ? dObj.name : (tx.dukuhName || 'N/A');
+        
+        return `${rtText}, ${dukuhText}`;
+    }, [rtList, dukuhList]);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [data, d, r] = await Promise.all([
-                getReports({ startDate: new Date(filters.startDate), endDate: new Date(filters.endDate) }),
+                getReports({ startDate: filters.startDate, endDate: filters.endDate }),
                 getAllDukuh(),
                 getAllRT()
             ]);
@@ -73,7 +163,14 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
             const matchRT = filters.rtId === 'all' || String(tx.wargaRtId) === String(filters.rtId);
             const matchCategory = filters.category === 'all' || tx.category === filters.category;
             
-            return matchSearch && matchDukuh && matchRT && matchCategory;
+            // Client-side local date matching for timezone compatibility
+            let matchDate = true;
+            if (tx.timestamp) {
+                const txDateStr = toLocalDateString(tx.timestamp);
+                matchDate = txDateStr >= filters.startDate && txDateStr <= filters.endDate;
+            }
+            
+            return matchSearch && matchDukuh && matchRT && matchCategory && matchDate;
         });
 
         items.sort((a, b) => {
@@ -83,15 +180,15 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                 case 'petugas': aVal = (a.petugasName || ''); bVal = (b.petugasName || ''); break;
                 case 'amount': aVal = (a.amount || 0); bVal = (b.amount || 0); break;
                 case 'category': aVal = (a.category || ''); bVal = (b.category || ''); break;
-                case 'wilayah': aVal = (a.dukuhName || '') + (a.rtNumber || ''); bVal = (b.dukuhName || '') + (b.rtNumber || ''); break;
-                default: aVal = a.timestamp ? new Date(a.timestamp).getTime() : 0; bVal = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                case 'wilayah': aVal = getWilayahText(a); bVal = getWilayahText(b); break;
+                default: aVal = a.timestamp ? (typeof a.timestamp === 'string' ? a.timestamp : new Date(a.timestamp).toISOString()) : ''; bVal = b.timestamp ? (typeof b.timestamp === 'string' ? b.timestamp : new Date(b.timestamp).toISOString()) : '';
             }
             if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
             if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
         return items;
-    }, [transactions, filters, sortConfig]);
+    }, [transactions, filters, sortConfig, getWilayahText]);
 
     const paginatedTx = useMemo(() => {
         if (itemsPerPage === 'all') return sortedAndFilteredTx;
@@ -104,11 +201,30 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
+
+        const formatDateForPrint = (ts: any) => {
+            if (!ts) return 'N/A';
+            if (typeof ts === 'string') {
+                const parts = ts.split(' ');
+                if (parts.length >= 1) {
+                    const dateParts = parts[0].split('-');
+                    if (dateParts.length === 3) {
+                        return `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+                    }
+                }
+            }
+            try {
+                return new Date(ts).toLocaleDateString('id-ID');
+            } catch {
+                return 'N/A';
+            }
+        };
+
         const rows = sortedAndFilteredTx.map(tx => `
             <tr>
-                <td>${tx.timestamp ? new Date(tx.timestamp).toLocaleDateString('id-ID') : 'N/A'}</td>
+                <td>${formatDateForPrint(tx.timestamp)}</td>
                 <td><div style="font-weight:700;">${tx.wargaName || 'Warga Terhapus'}</div><div style="font-size:7pt; color:#64748b;">ID: ${tx.wargaId || 'N/A'}</div></td>
-                <td>RT ${tx.rtNumber || '?'}, ${tx.dukuhName || 'N/A'}</td>
+                <td>${getWilayahText(tx)}</td>
                 <td><span style="font-size:8pt; font-weight:800; color:${tx.category === 'TUNGGAKAN' ? '#6366f1' : '#10b981'}">${tx.category || 'IURAN'}</span></td>
                 <td>${tx.petugasName || 'N/A'}</td>
                 <td style="text-align:right; font-weight:700;">Rp${(tx.amount || 0).toLocaleString('id-ID')}</td>
@@ -251,8 +367,8 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                             paginatedTx.map(tx => (
                                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-4 text-xs font-medium text-slate-500">
-                                        <div className="font-bold text-slate-700">{tx.timestamp ? new Date(tx.timestamp).toLocaleDateString('id-ID', { day:'2-digit', month:'short' }) : 'N/A'}</div>
-                                        <div className="text-[10px] text-slate-400 font-mono">{tx.timestamp ? new Date(tx.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '--:--'}</div>
+                                        <div className="font-bold text-slate-700">{displayLocalDate(tx.timestamp)}</div>
+                                        <div className="text-[10px] text-slate-400 font-mono">{displayLocalTime(tx.timestamp)}</div>
                                     </td>
                                     <td className="p-4">
                                         <div className="font-bold text-slate-700 group-hover:text-primary transition-colors">{(tx.wargaName || 'Warga Terhapus')}</div>
@@ -269,7 +385,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                             </span>
                                         )}
                                     </td>
-                                    <td className="p-4 text-xs text-slate-500 font-medium">RT {(tx.rtNumber || '?')}, {(tx.dukuhName || 'N/A')}</td>
+                                    <td className="p-4 text-xs text-slate-500 font-medium">{getWilayahText(tx)}</td>
                                     <td className="p-4 text-slate-600 font-medium text-[10px] uppercase tracking-wider">{(tx.petugasName || 'N/A')}</td>
                                     <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp{(tx.amount || 0).toLocaleString('id-ID')}</td>
                                     <td className="p-4 text-center">
@@ -306,11 +422,30 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                         <p className="text-xs text-slate-400 mt-2 px-6">Tindakan ini akan mempengaruhi laporan saldo keuangan desa secara permanen.</p>
                         <div className="mt-8 flex gap-3">
                             <button onClick={() => setTransactionToDelete(null)} className="flex-1 py-4 font-bold text-slate-500 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all">Batal</button>
-                            <button onClick={async () => { await deleteTransaksi(transactionToDelete.id); fetchData(); setTransactionToDelete(null); }} className="flex-1 py-4 font-bold bg-rose-500 text-white rounded-2xl shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all">Ya, Hapus</button>
+                            <button onClick={async () => { 
+                                try {
+                                    await deleteTransaksi(transactionToDelete.id); 
+                                    setMessage({ type: 'success', text: 'Berhasil menghapus transaksi' });
+                                    fetchData(); 
+                                    setTransactionToDelete(null); 
+                                } catch (error: any) {
+                                    setMessage({ type: 'error', text: 'Gagal menghapus: ' + (error.message || 'Error server') });
+                                }
+                            }} className="flex-1 py-4 font-bold bg-rose-500 text-white rounded-2xl shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all">Ya, Hapus</button>
                         </div>
                     </div>
                 )}
             </Modal>
+
+            {/* Notification Toast */}
+            {message && (
+                <div className={`fixed top-4 right-4 z-[9999] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl transition-all animate-slide-in-right ${
+                    message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                }`}>
+                    {message.type === 'success' ? <CheckCircleIcon className="text-xl" /> : <AlertCircleIcon className="text-xl" />}
+                    <p className="font-bold text-sm tracking-tight">{message.text}</p>
+                </div>
+            )}
         </div>
     );
 };

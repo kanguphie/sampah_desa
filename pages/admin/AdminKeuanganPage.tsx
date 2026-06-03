@@ -5,13 +5,20 @@ import { getPengeluaran, createPengeluaran, updatePengeluaran, deletePengeluaran
 import Modal from '@/components/Modal';
 import { TrashIcon, PencilIcon, BanknotesIcon, SearchIcon, DownloadIcon, ScaleBalancedIcon, CurrencyDollarIcon, XIcon } from '@/components/icons';
 
+const toLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const PengeluaranForm: React.FC<{
   pengeluaran?: Pengeluaran | null;
   onSave: (p: Omit<Pengeluaran, 'id'> | Pengeluaran) => void;
   onCancel: () => void;
 }> = ({ pengeluaran, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
-    date: pengeluaran?.date ? new Date(pengeluaran.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    date: pengeluaran?.date ? toLocalDateString(new Date(pengeluaran.date)) : toLocalDateString(new Date()),
     description: pengeluaran?.description || '',
     amount: pengeluaran?.amount || 0,
   });
@@ -68,8 +75,8 @@ const AdminKeuanganPage: React.FC = () => {
     // Filters State
     const [filters, setFilters] = useState({ 
         search: '',
-        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0]
+        startDate: toLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+        endDate: toLocalDateString(new Date())
     });
 
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
@@ -83,7 +90,7 @@ const AdminKeuanganPage: React.FC = () => {
         setLoading(true);
         try {
             const [data, s] = await Promise.all([
-                getPengeluaran({ startDate: new Date(filters.startDate), endDate: new Date(filters.endDate) }),
+                getPengeluaran({ startDate: filters.startDate, endDate: filters.endDate }),
                 getAdminDashboardStats()
             ]);
             setList(data);

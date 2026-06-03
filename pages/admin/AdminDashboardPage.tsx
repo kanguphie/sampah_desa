@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { getAdminDashboardStats, getReports } from '@/services/api';
-import { UsersIcon, CurrencyDollarIcon, BanknotesIcon, ScaleBalancedIcon, ChartBarIcon } from '@/components/icons';
+import { UsersIcon, CurrencyDollarIcon, BanknotesIcon, ScaleBalancedIcon, ChartBarIcon, AlertCircleIcon } from '@/components/icons';
 import { useAuth } from '@/context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -19,18 +19,27 @@ const StatCard: React.FC<{ title: string; value: string; icon: any; theme: strin
     </div>
 );
 
+const toLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const AdminDashboardPage: React.FC = () => {
     const { admin } = useAuth();
     const [stats, setStats] = useState<any>(null);
     const [dailyData, setDailyData] = useState<any[]>([]);
     const [monthlyData, setMonthlyData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [isChartReady, setIsChartReady] = useState(false);
     const [activeTab, setActiveTab] = useState<'daily' | 'monthly'>('daily');
 
     useEffect(() => {
         const loadDashboardData = async () => {
             setLoading(true);
+            setError(null);
             try {
                 // 1. Ambil Statistik Utama
                 const dashboardStats = await getAdminDashboardStats();
@@ -42,7 +51,10 @@ const AdminDashboardPage: React.FC = () => {
                 // Data 7 Hari Terakhir
                 const startDaily = new Date();
                 startDaily.setDate(startDaily.getDate() - 6);
-                const dailyReports = await getReports({ startDate: startDaily, endDate: now });
+                const dailyReports = await getReports({ 
+                    startDate: toLocalDateString(startDaily), 
+                    endDate: toLocalDateString(now) 
+                });
                 
                 const days = [];
                 for (let i = 0; i <= 6; i++) {
@@ -67,8 +79,8 @@ const AdminDashboardPage: React.FC = () => {
                 // Data Bulanan (Tahun Berjalan)
                 const currentYear = now.getFullYear();
                 const yearReports = await getReports({ 
-                    startDate: new Date(currentYear, 0, 1), 
-                    endDate: new Date(currentYear, 11, 31) 
+                    startDate: `${currentYear}-01-01`, 
+                    endDate: `${currentYear}-12-31` 
                 });
                 
                 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -89,14 +101,34 @@ const AdminDashboardPage: React.FC = () => {
                     setIsChartReady(true);
                     window.dispatchEvent(new Event('resize')); 
                 }, 1000);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Dashboard error:", err);
+                setError(err.message || "Gagal mengambil data dashboard.");
             } finally {
                 setLoading(false);
             }
         };
         loadDashboardData();
     }, []);
+
+    // Error State
+    if (error && !stats) return (
+        <div className="h-96 flex flex-col items-center justify-center space-y-6 text-center px-4">
+            <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-500 mb-2">
+                <AlertCircleIcon className="text-4xl" />
+            </div>
+            <div>
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">Opps! Terjadi Kesalahan</h3>
+                <p className="text-slate-500 max-w-sm mx-auto mt-2 text-sm font-medium">{error}</p>
+            </div>
+            <button 
+                onClick={() => window.location.reload()} 
+                className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-900/20 hover:bg-black transition-all"
+            >
+                Coba Lagi
+            </button>
+        </div>
+    );
 
     // Loader Utama Halaman
     if (loading && !stats) return (

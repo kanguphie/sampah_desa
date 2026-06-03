@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllWarga, getAllDukuh, getAllRT, getTransactionsByWargaId, deleteTransaksi, recalculateDebt } from '@/services/api';
 import type { Warga, Dukuh, RT, Transaksi } from '@/types';
-import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon, TrashIcon, XIcon, InfoIcon, ScaleBalancedIcon } from '@/components/icons';
+import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon, TrashIcon, XIcon, InfoIcon, ScaleBalancedIcon, CheckCircleIcon, AlertCircleIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 
 const UnpaidReport: React.FC = () => {
@@ -15,7 +15,9 @@ const UnpaidReport: React.FC = () => {
     const [syncing, setSyncing] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     
-    // Modal states
+    // Status & Modal states
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [confirm, setConfirm] = useState<{ title: string, text: string, onConfirm: () => void } | null>(null);
     const [detailWarga, setDetailWarga] = useState<Warga | null>(null);
     const [wargaTransactions, setWargaTransactions] = useState<Transaksi[]>([]);
     const [loadingTransactions, setLoadingTransactions] = useState(false);
@@ -25,6 +27,13 @@ const UnpaidReport: React.FC = () => {
         dukuhId: 'all',
         rtId: 'all'
     });
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -53,40 +62,37 @@ const UnpaidReport: React.FC = () => {
         }
         
         console.log("[Sync] Button clicked");
-        if (!window.confirm("Kalkulasi ulang saldo tunggakan seluruh warga berdasarkan riwayat transaksi?")) {
-            console.log("[Sync] Cancelled by user");
-            return;
-        }
-        
-        setSyncing(true);
-        try {
-            console.log("[Sync] Sending request to server...");
-            const res = await recalculateDebt();
-            console.log("[Sync] Server responded:", res);
-            
-            console.log("[Sync] Fetching fresh data...");
-            await fetchData();
-            
-            // Also update detailWarga if it's open
-            if (detailWarga) {
-                const refreshedWargas = await getAllWarga();
-                const updated = refreshedWargas.find(w => w.id === detailWarga.id);
-                if (updated) {
-                    if (updated.totalDebt <= 0) setDetailWarga(null);
-                    else setDetailWarga(updated);
+        setConfirm({
+            title: "Sinkronisasi Saldo",
+            text: "Kalkulasi ulang saldo tunggakan seluruh warga berdasarkan riwayat transaksi? Ini akan mengoreksi data jika ada ketidaksesuaian.",
+            onConfirm: async () => {
+                setConfirm(null);
+                setSyncing(true);
+                try {
+                    console.log("[Sync] Sending request to server...");
+                    const res = await recalculateDebt();
+                    console.log("[Sync] Server responded:", res);
+                    
+                    console.log("[Sync] Fetching fresh data...");
+                    await fetchData();
+                    
+                    if (detailWarga) {
+                        const refreshedWargas = await getAllWarga();
+                        const updated = refreshedWargas.find(w => w.id === detailWarga.id);
+                        if (updated) {
+                            if (updated.totalDebt <= 0) setDetailWarga(null);
+                            else setDetailWarga(updated);
+                        }
+                    }
+                    
+                    setMessage({ type: 'success', text: 'Sinkronisasi berhasil! Saldo warga telah dikoreksi.' });
+                } catch (error: any) {
+                    setMessage({ type: 'error', text: 'Gagal sinkronisasi: ' + (error.message || 'Error server') });
+                } finally {
+                    setSyncing(false);
                 }
             }
-            
-            console.log("[Sync] Data fetched successfully");
-            
-            alert("Sinkronisasi berhasil! Saldo warga telah dikoreksi berdasarkan riwayat transaksi.");
-        } catch (error: any) {
-            console.error("[Sync] Error during sync:", error);
-            alert("Gagal melakukan sinkronisasi: " + (error.message || "Kesalahan server"));
-        } finally {
-            setSyncing(false);
-            console.log("[Sync] Process finished");
-        }
+        });
     };
 
     const openDetail = async (warga: Warga) => {
@@ -105,32 +111,35 @@ const UnpaidReport: React.FC = () => {
     };
 
     const handleDeleteTx = async (txId: string) => {
-        if (!window.confirm("Hapus catatan tunggakan ini? Tindakan ini akan mengoreksi saldo saldo warga.")) return;
-        
-        try {
-            await deleteTransaksi(txId);
-            // Refresh main list first to update totalDebt in UI
-            await fetchData();
-            
-            // Refresh detail
-            if (detailWarga) {
-                const txs = await getTransactionsByWargaId(detailWarga.id);
-                const unpaidTxs = txs.filter((t: Transaksi) => t.status.toLowerCase() === 'unpaid' || t.status === 'HUTANG');
-                setWargaTransactions(unpaidTxs);
-                
-                // Update current detailWarga info from the freshly fetched list
-                const updatedWarga = (await getAllWarga()).find(w => w.id === detailWarga.id);
-                if (updatedWarga) {
-                    if (updatedWarga.totalDebt <= 0) {
-                        setDetailWarga(null);
-                    } else {
-                        setDetailWarga(updatedWarga);
+        setConfirm({
+            title: "Hapus Tunggakan",
+            text: "Hapus catatan tunggakan ini? Tindakan ini akan mengoreksi saldo warga secara otomatis.",
+            onConfirm: async () => {
+                setConfirm(null);
+                try {
+                    await deleteTransaksi(txId);
+                    await fetchData();
+                    
+                    if (detailWarga) {
+                        const txs = await getTransactionsByWargaId(detailWarga.id);
+                        const unpaidTxs = txs.filter((t: Transaksi) => t.status.toLowerCase() === 'unpaid' || t.status === 'HUTANG');
+                        setWargaTransactions(unpaidTxs);
+                        
+                        const updatedWarga = (await getAllWarga()).find(w => w.id === detailWarga.id);
+                        if (updatedWarga) {
+                            if (updatedWarga.totalDebt <= 0) {
+                                setDetailWarga(null);
+                            } else {
+                                setDetailWarga(updatedWarga);
+                            }
+                        }
                     }
+                    setMessage({ type: 'success', text: 'Tunggakan berhasil dihapus.' });
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Gagal menghapus transaksi.' });
                 }
             }
-        } catch (error) {
-            alert("Gagal menghapus transaksi.");
-        }
+        });
     };
 
     const filteredList = useMemo(() => {
@@ -485,6 +494,47 @@ const UnpaidReport: React.FC = () => {
                     </div>
                 )}
             </Modal>
+
+            {/* CONFIRM MODAL */}
+            <Modal isOpen={!!confirm} onClose={() => setConfirm(null)} title={confirm?.title || 'Konfirmasi'}>
+                <div className="space-y-6">
+                    <div className="flex gap-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 mt-2">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-sm text-amber-500">
+                            <InfoIcon className="text-xl" />
+                        </div>
+                        <p className="text-sm text-amber-900 font-medium leading-relaxed">{confirm?.text}</p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setConfirm(null)}
+                            className="flex-1 px-6 py-3.5 bg-slate-100 text-slate-600 font-black rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-[10px]"
+                        >
+                            Batal
+                        </button>
+                        <button 
+                            onClick={() => confirm?.onConfirm()}
+                            className="flex-1 px-6 py-3.5 bg-rose-500 text-white font-black rounded-2xl shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all uppercase tracking-widest text-[10px]"
+                        >
+                            Konfirmasi
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* NOTIFICATION TOAST */}
+            {message && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10000] animate-slide-in-up">
+                    <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${
+                        message.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-rose-50 border-rose-100 text-rose-800'
+                    }`}>
+                        {message.type === 'success' ? <CheckCircleIcon className="text-xl text-emerald-500" /> : <AlertCircleIcon className="text-xl text-rose-500" />}
+                        <p className="text-xs font-black uppercase tracking-tight">{message.text}</p>
+                        <button onClick={() => setMessage(null)} className="ml-2 text-slate-400 hover:text-slate-600">
+                            <XIcon className="text-lg" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

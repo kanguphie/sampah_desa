@@ -30,6 +30,29 @@ const getPaths = () => {
 
 const { filename: _filename, dirname: _dirname } = getPaths();
 
+const getWIBDateString = () => {
+  const d = new Date();
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const wib = new Date(utc + (3600000 * 7));
+  const year = wib.getFullYear();
+  const month = String(wib.getMonth() + 1).padStart(2, '0');
+  const day = String(wib.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getWIBDateTimeString = () => {
+  const d = new Date();
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const wib = new Date(utc + (3600000 * 7));
+  const year = wib.getFullYear();
+  const month = String(wib.getMonth() + 1).padStart(2, '0');
+  const day = String(wib.getDate()).padStart(2, '0');
+  const hours = String(wib.getHours()).padStart(2, '0');
+  const minutes = String(wib.getMinutes()).padStart(2, '0');
+  const seconds = String(wib.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -142,7 +165,23 @@ async function startServer() {
     }
   });
 
-  // Healthcheck for Docker
+  // API routes FIRST
+  app.get('/api/diagnostic-db', async (req, res) => {
+    try {
+        const db = await getDB();
+        const [tz] = await db.execute('SELECT @@global.time_zone as global_tz, @@session.time_zone as session_tz, NOW() as db_now_val');
+        const [rows] = await db.execute('SELECT id, amount, status, category, timestamp, DATE(timestamp) as date_val, UNIX_TIMESTAMP(timestamp) as unix_ts FROM transactions ORDER BY timestamp DESC LIMIT 5');
+        res.json({
+            tz,
+            rows,
+            server_time: new Date().toISOString(),
+            process_env_tz: process.env.TZ
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
@@ -236,6 +275,38 @@ async function startServer() {
             balance: balance
         });
     } catch (err: any) {
+        console.error(`[API Error] stats/admin:`, err.message);
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/stats/petugas/:petugasId', async (req, res) => {
+    try {
+        const { petugasId } = req.params;
+        const db = await getDB();
+        
+        // Define 'today' in WIB (UTC+7) manually to ensure consistency with DB 
+        // even if system clock or mysql driver has offset issues
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const wib = new Date(utc + (3600000 * 7));
+        const todayStr = wib.toISOString().split('T')[0];
+        
+        console.log(`[API] Fetching stats for petugas ${petugasId} for date ${todayStr}`);
+
+        const [revenue]: any = await db.execute(
+            'SELECT SUM(amount) as total FROM transactions WHERE petugasId = ? AND DATE(timestamp) = ? AND status = "paid"', 
+            [petugasId, todayStr]
+        );
+        
+        const [wargaCount]: any = await db.execute('SELECT COUNT(*) as total FROM wargas');
+
+        res.json({
+            total: Number(revenue[0].total || 0),
+            count: Number(wargaCount[0].total || 0)
+        });
+    } catch (err: any) {
+        console.error(`[API Error] stats/petugas/${req.params.petugasId}:`, err.message);
         res.status(500).json({ error: err.message });
     }
   });
@@ -294,7 +365,7 @@ async function startServer() {
         const { wargaId, petugasId, amount } = req.body;
         const db = await getDB();
         const id = `tr-${Date.now()}`;
-        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", NOW())', [id, wargaId, petugasId, amount]);
+        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", ?)', [id, wargaId, petugasId, amount, getWIBDateTimeString()]);
         await db.execute('UPDATE wargas SET totalDebt = totalDebt - ? WHERE id = ?', [amount, wargaId]);
         res.json({ success: true, id });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -304,12 +375,12 @@ async function startServer() {
     try {
         const { wargaId } = req.params;
         const db = await getDB();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWIBDateString();
         const [warga]: any = await db.execute('SELECT * FROM wargas WHERE id = ?', [wargaId]);
         if (warga.length === 0) throw new Error('Warga not found');
         const amount = warga[0].dailyFee;
         const id = `tr-debt-${Date.now()}`;
-        await db.execute('INSERT INTO transactions (id, wargaId, status, amount, category, timestamp) VALUES (?, ?, "unpaid", ?, "harian", NOW())', [id, wargaId, amount]);
+        await db.execute('INSERT INTO transactions (id, wargaId, status, amount, category, timestamp) VALUES (?, ?, "unpaid", ?, "harian", ?)', [id, wargaId, amount, getWIBDateTimeString()]);
         await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, wargaId]);
         res.json({ success: true });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -319,7 +390,7 @@ async function startServer() {
     try {
         const { wargaId } = req.params;
         const db = await getDB();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWIBDateString();
         const [rows]: any = await db.execute('SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? AND status = "paid" LIMIT 1', [wargaId, today]);
         res.json({ paid: rows.length > 0 });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -329,7 +400,7 @@ async function startServer() {
     try {
         const { wargaId } = req.params;
         const db = await getDB();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWIBDateString();
         const [rows]: any = await db.execute('SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? LIMIT 1', [wargaId, today]);
         res.json(rows[0] || null);
     } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -348,25 +419,122 @@ async function startServer() {
     try {
         const { startDate, endDate, dukuhId, status } = req.body;
         const db = await getDB();
-        // Use LEFT JOIN to ensure we don't lose transactions if warga data is missing
-        let query = 'SELECT t.*, w.name as wargaName FROM transactions t LEFT JOIN wargas w ON t.wargaId = w.id WHERE 1=1';
+        
+        console.log('[REPORTS] Raw filter input:', { startDate, endDate, dukuhId, status });
+
+        // Use LEFT JOIN to ensure we don't lose transactions if related data is missing
+        let query = `
+            SELECT 
+                t.*, 
+                DATE_FORMAT(t.timestamp, '%Y-%m-%d %H:%i:%s') as timestamp,
+                w.name as wargaName, 
+                w.dukuhId as wargaDukuhId, 
+                w.rtId as wargaRtId,
+                p.name as petugasName, 
+                d.name as dukuhName, 
+                r.number as rtNumber
+            FROM transactions t 
+            LEFT JOIN wargas w ON t.wargaId = w.id 
+            LEFT JOIN petugases p ON t.petugasId = p.id
+            LEFT JOIN dukuhs d ON w.dukuhId = d.id
+            LEFT JOIN rts r ON w.rtId = r.id
+            WHERE 1=1
+        `;
         const params = [];
-        if (startDate) { query += ' AND t.timestamp >= ?'; params.push(startDate); }
-        if (endDate) { query += ' AND t.timestamp <= ?'; params.push(endDate); }
+        if (startDate) { 
+            let adjustedStartDate = startDate;
+            if (typeof startDate === 'string' && startDate.includes('T')) {
+                adjustedStartDate = startDate.split('T')[0];
+            }
+            if (typeof adjustedStartDate === 'string' && adjustedStartDate.length === 10) {
+                // To support transactions that may be timezone-shifted (e.g. UTC vs WIB),
+                // we subtract 1 day from the start filter safely.
+                try {
+                    const dateParts = adjustedStartDate.split('-');
+                    if (dateParts.length === 3) {
+                        const year = parseInt(dateParts[0]);
+                        const month = parseInt(dateParts[1]) - 1;
+                        const day = parseInt(dateParts[2]);
+                        const d = new Date(year, month, day);
+                        d.setDate(d.getDate() - 1);
+                        const prevYear = d.getFullYear();
+                        const prevMonth = String(d.getMonth() + 1).padStart(2, '0');
+                        const prevDay = String(d.getDate()).padStart(2, '0');
+                        adjustedStartDate = `${prevYear}-${prevMonth}-${prevDay} 00:00:00`;
+                    } else {
+                        adjustedStartDate = adjustedStartDate + ' 00:00:00';
+                    }
+                } catch (e) {
+                    adjustedStartDate = adjustedStartDate + ' 00:00:00';
+                }
+            }
+            query += ' AND t.timestamp >= ?'; 
+            params.push(adjustedStartDate); 
+        }
+        if (endDate) { 
+            let adjustedEndDate = endDate;
+            if (typeof endDate === 'string' && endDate.includes('T')) {
+                adjustedEndDate = endDate.split('T')[0];
+            }
+            if (typeof adjustedEndDate === 'string' && adjustedEndDate.length === 10) {
+                // To support transactions that may be timezone-shifted,
+                // we add 1 day to the end filter safely.
+                try {
+                    const dateParts = adjustedEndDate.split('-');
+                    if (dateParts.length === 3) {
+                        const year = parseInt(dateParts[0]);
+                        const month = parseInt(dateParts[1]) - 1;
+                        const day = parseInt(dateParts[2]);
+                        const d = new Date(year, month, day);
+                        d.setDate(d.getDate() + 1);
+                        const nextYear = d.getFullYear();
+                        const nextMonth = String(d.getMonth() + 1).padStart(2, '0');
+                        const nextDay = String(d.getDate()).padStart(2, '0');
+                        adjustedEndDate = `${nextYear}-${nextMonth}-${nextDay} 23:59:59`;
+                    } else {
+                        adjustedEndDate = adjustedEndDate + ' 23:59:59';
+                    }
+                } catch (e) {
+                    adjustedEndDate = adjustedEndDate + ' 23:59:59';
+                }
+            }
+            query += ' AND t.timestamp <= ?'; 
+            params.push(adjustedEndDate); 
+        }
         if (dukuhId) { query += ' AND w.dukuhId = ?'; params.push(dukuhId); }
         if (status) { query += ' AND t.status = ?'; params.push(status); }
         query += ' ORDER BY t.timestamp DESC';
-        const [rows] = await db.execute(query, params);
+
+        console.log('[REPORTS] Executing query parameters:', params);
+
+        const [rows]: any = await db.execute(query, params);
+
+        console.log('[REPORTS] Found records:', rows.length);
+        if (rows.length > 0) {
+            console.log('[REPORTS] First row sample:', {
+                id: rows[0].id,
+                amount: rows[0].amount,
+                timestamp: rows[0].timestamp,
+                typeofTimestamp: typeof rows[0].timestamp
+            });
+        }
+
         res.json(rows);
-    } catch (err: any) { res.status(500).json({ error: err.message }); }
+    } catch (err: any) { 
+        console.error('[REPORTS] Error loading reports:', err.message);
+        res.status(500).json({ error: err.message }); 
+    }
   });
 
   app.get('/api/unpaid-today', async (req, res) => {
     try {
         const db = await getDB();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWIBDateString();
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const wib = new Date(utc + (3600000 * 7));
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const dayName = days[new Date().getDay()];
+        const dayName = days[wib.getDay()];
         const [schedule]: any = await db.execute('SELECT * FROM schedules WHERE day = ?', [dayName]);
         const dukuhIds = schedule.length > 0 ? schedule[0].dukuhIds : [];
         if (!Array.isArray(dukuhIds) || dukuhIds.length === 0) return res.json([]);
@@ -508,8 +676,22 @@ async function startServer() {
             // It's a filter request
             let query = 'SELECT * FROM pengeluarans WHERE 1=1';
             const params = [];
-            if (data.startDate) { query += ' AND date >= ?'; params.push(data.startDate); }
-            if (data.endDate) { query += ' AND date <= ?'; params.push(data.endDate); }
+            if (data.startDate) { 
+                let adjustedStartDate = data.startDate;
+                if (typeof adjustedStartDate === 'string' && adjustedStartDate.includes('T')) {
+                    adjustedStartDate = adjustedStartDate.split('T')[0];
+                }
+                query += ' AND date >= ?'; 
+                params.push(adjustedStartDate); 
+            }
+            if (data.endDate) { 
+                let adjustedEndDate = data.endDate;
+                if (typeof adjustedEndDate === 'string' && adjustedEndDate.includes('T')) {
+                    adjustedEndDate = adjustedEndDate.split('T')[0];
+                }
+                query += ' AND date <= ?'; 
+                params.push(adjustedEndDate); 
+            }
             if (data.category) { query += ' AND category = ?'; params.push(data.category); }
             query += ' ORDER BY date DESC';
             const [rows] = await db.execute(query, params);
@@ -799,7 +981,7 @@ async function startServer() {
         // Standardize category: TUNGGAKAN/tunggakan -> tunggakan, IURAN/harian -> harian
         const finalCategory = (category === 'TUNGGAKAN' || category === 'tunggakan') ? 'tunggakan' : 'harian';
 
-        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, ?, ?, NOW())', [id, wargaId, petugasId || null, amount, finalStatus, finalCategory]);
+        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, wargaId, petugasId || null, amount, finalStatus, finalCategory, getWIBDateTimeString()]);
 
         // Effect on totalDebt
         if (finalStatus === 'unpaid') {

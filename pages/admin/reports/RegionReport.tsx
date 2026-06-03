@@ -16,9 +16,12 @@ const RegionReport: React.FC = () => {
             const d = await getAllDukuh();
             setDukuhs(d);
             
-            const start = new Date();
-            start.setDate(1); // Mulai awal bulan ini
-            const r = await getReports({ startDate: start, endDate: new Date() });
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const startStr = `${year}-${month}-01`;
+            const endStr = `${year}-${month}-${String(now.getDate()).padStart(2, '0')}`;
+            const r = await getReports({ startDate: startStr, endDate: endStr });
             
             // Group by Region
             const grouped = d.map(dukuh => {

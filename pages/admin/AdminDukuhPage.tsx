@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Dukuh, RT } from '@/types';
 import { getAllDukuh, createDukuh, updateDukuh, deleteDukuh, getAllRT, createRT, updateRT, deleteRT } from '@/services/api';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon, ChevronDownIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, ChevronDownIcon, CheckCircleIcon, AlertCircleIcon } from '@/components/icons';
 
 // --- COMPONENTS: Forms ---
 
@@ -86,6 +86,14 @@ const AdminWilayahPage: React.FC = () => {
     const [rtLimit, setRtLimit] = useState<number | 'all'>(10);
 
     const [loading, setLoading] = useState(true);
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const fetchData = async () => {
         try {
@@ -123,20 +131,31 @@ const AdminWilayahPage: React.FC = () => {
 
     // --- Handlers: Dukuh ---
     const handleSaveDukuh = async (dukuh: Omit<Dukuh, 'id'> | Dukuh) => {
-        if ('id' in dukuh) {
-            await updateDukuh(dukuh.id, dukuh);
-        } else {
-            await createDukuh(dukuh);
+        try {
+            if ('id' in dukuh) {
+                await updateDukuh(dukuh.id, dukuh);
+                setMessage({ type: 'success', text: 'Berhasil memperbarui data dukuh' });
+            } else {
+                await createDukuh(dukuh);
+                setMessage({ type: 'success', text: 'Berhasil menambah dukuh baru' });
+            }
+            fetchData();
+            setIsDukuhModalOpen(false);
+            setSelectedDukuh(null);
+        } catch (error: any) {
+            setMessage({ type: 'error', text: 'Gagal menyimpan data: ' + (error.message || 'Error server') });
         }
-        fetchData();
-        setIsDukuhModalOpen(false);
-        setSelectedDukuh(null);
     };
 
     const handleDeleteDukuhConfirm = async (id: number) => {
-        await deleteDukuh(id);
-        fetchData();
-        setDukuhToDelete(null);
+        try {
+            await deleteDukuh(id);
+            setMessage({ type: 'success', text: 'Dukuh berhasil dihapus' });
+            fetchData();
+            setDukuhToDelete(null);
+        } catch (error: any) {
+            setMessage({ type: 'error', text: 'Gagal menghapus: ' + (error.message || 'Error server') });
+        }
     };
 
     const openDukuhModal = (dukuh: Dukuh | null = null) => {
@@ -146,20 +165,31 @@ const AdminWilayahPage: React.FC = () => {
 
     // --- Handlers: RT ---
     const handleSaveRT = async (rt: Omit<RT, 'id'> | RT) => {
-        if ('id' in rt) {
-            await updateRT(rt.id, rt);
-        } else {
-            await createRT(rt);
+        try {
+            if ('id' in rt) {
+                await updateRT(rt.id, rt);
+                setMessage({ type: 'success', text: 'Berhasil memperbarui data RT' });
+            } else {
+                await createRT(rt);
+                setMessage({ type: 'success', text: 'Berhasil menambah RT baru' });
+            }
+            fetchData();
+            setIsRtModalOpen(false);
+            setSelectedRT(null);
+        } catch (error: any) {
+            setMessage({ type: 'error', text: 'Gagal menyimpan data: ' + (error.message || 'Error server') });
         }
-        fetchData();
-        setIsRtModalOpen(false);
-        setSelectedRT(null);
     };
 
     const handleDeleteRTConfirm = async (id: number) => {
-        await deleteRT(id);
-        fetchData();
-        setRtToDelete(null);
+        try {
+            await deleteRT(id);
+            setMessage({ type: 'success', text: 'Data RT berhasil dihapus' });
+            fetchData();
+            setRtToDelete(null);
+        } catch (error: any) {
+            setMessage({ type: 'error', text: 'Gagal menghapus: ' + (error.message || 'Error server') });
+        }
     };
 
     const openRtModal = (rt: RT | null = null) => {
@@ -169,6 +199,16 @@ const AdminWilayahPage: React.FC = () => {
     
     return (
         <div className="space-y-6">
+            {/* Notification Toast */}
+            {message && (
+                <div className={`fixed top-4 right-4 z-[9999] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl transition-all animate-slide-in-right ${
+                    message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                }`}>
+                    {message.type === 'success' ? <CheckCircleIcon className="text-xl" /> : <AlertCircleIcon className="text-xl" />}
+                    <p className="font-bold text-sm tracking-tight">{message.text}</p>
+                </div>
+            )}
+
             <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
                  <div className="flex justify-between items-center">
                     <div>

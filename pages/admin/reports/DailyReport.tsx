@@ -4,8 +4,15 @@ import { getReports, getPengeluaran } from '@/services/api';
 import type { Pengeluaran } from '@/types';
 import { DownloadIcon } from '@/components/icons';
 
+const toLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const DailyReport: React.FC = () => {
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(toLocalDateString(new Date()));
     const [reports, setReports] = useState<any[]>([]);
     const [expenses, setExpenses] = useState<Pengeluaran[]>([]);
     const [loading, setLoading] = useState(false);
@@ -13,8 +20,7 @@ const DailyReport: React.FC = () => {
     useEffect(() => {
         const fetch = async () => {
             setLoading(true);
-            const d = new Date(date);
-            const [r, e] = await Promise.all([getReports({ startDate: d, endDate: d }), getPengeluaran({ startDate: d, endDate: d })]);
+            const [r, e] = await Promise.all([getReports({ startDate: date, endDate: date }), getPengeluaran({ startDate: date, endDate: date })]);
             setReports(r);
             setExpenses(e);
             setLoading(false);

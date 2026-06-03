@@ -13,9 +13,9 @@ const YearlyReport: React.FC = () => {
     useEffect(() => {
         const fetch = async () => {
             setLoading(true);
-            const start = new Date(year, 0, 1);
-            const end = new Date(year, 11, 31);
-            const [r, e] = await Promise.all([getReports({ startDate: start, endDate: end }), getPengeluaran({ startDate: start, endDate: end })]);
+            const startStr = `${year}-01-01`;
+            const endStr = `${year}-12-31`;
+            const [r, e] = await Promise.all([getReports({ startDate: startStr, endDate: endStr }), getPengeluaran({ startDate: startStr, endDate: endStr })]);
             setReports(r);
             setExpenses(e);
             setLoading(false);

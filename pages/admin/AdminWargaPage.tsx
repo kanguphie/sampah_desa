@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga, bulkCreateWarga } from '@/services/api';
 import Modal from '@/components/Modal';
-import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, DownloadIcon, UploadIcon, FileExcelIcon, CheckCircleIcon, XIcon } from '@/components/icons';
+import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, DownloadIcon, UploadIcon, FileExcelIcon, CheckCircleIcon, XIcon, AlertCircleIcon } from '@/components/icons';
 import { QRCodeSVG } from 'qrcode.react';
 import { exportToExcel, readWargaExcel } from '@/services/excel';
 
@@ -80,8 +80,16 @@ const AdminWargaPage: React.FC = () => {
     const [selectedWarga, setSelectedWarga] = useState<Warga | null>(null);
     const [qrToShow, setQrToShow] = useState<Warga | null>(null);
     const [wargaToDelete, setWargaToDelete] = useState<Warga | null>(null);
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -192,7 +200,7 @@ const AdminWargaPage: React.FC = () => {
             });
         } catch (err: any) { 
             const errorMsg = err instanceof Error ? err.message : String(err);
-            alert("Gagal membaca Excel: " + errorMsg); 
+            setMessage({ type: 'error', text: "Gagal membaca Excel: " + errorMsg }); 
         } finally { 
             setImportLoading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -206,13 +214,13 @@ const AdminWargaPage: React.FC = () => {
         try {
             await bulkCreateWarga(importReview.valid);
             await fetchData();
-            alert(`Berhasil mengimpor ${importReview.valid.length} warga.`);
+            setMessage({ type: 'success', text: `Berhasil mengimpor ${importReview.valid.length} warga.` });
             setImportReview(null);
         } catch (err: any) {
             console.error("Confirm Import Error:", err);
             // Pastikan error dikonversi ke string agar tidak tampil [object Object]
             const msg = err instanceof Error ? err.message : (typeof err === 'string' ? err : JSON.stringify(err));
-            alert("Gagal menyimpan ke database:\n" + msg);
+            setMessage({ type: 'error', text: "Gagal menyimpan ke database:\n" + msg });
         } finally {
             setImportLoading(false);
         }
@@ -412,11 +420,26 @@ const AdminWargaPage: React.FC = () => {
                         <p className="font-bold text-slate-800 text-lg px-4">Hapus warga <span className="text-rose-600">"{(wargaToDelete.name || 'Warga Terpilih')}"</span>?</p>
                         <div className="mt-10 flex gap-3 px-2">
                             <button onClick={() => setWargaToDelete(null)} className="flex-1 py-4 rounded-2xl text-slate-500 font-bold hover:bg-slate-100">Batal</button>
-                            <button onClick={async () => { await deleteWarga(wargaToDelete.id); fetchData(); setWargaToDelete(null); }} className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-bold shadow-lg shadow-rose-500/20">Hapus</button>
+                            <button onClick={async () => { await deleteWarga(wargaToDelete.id); fetchData(); setWargaToDelete(null); setMessage({ type: 'success', text: 'Data warga berhasil dihapus.' }); }} className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-bold shadow-lg shadow-rose-500/20">Hapus</button>
                         </div>
                     </div>
                 )}
             </Modal>
+
+            {/* NOTIFICATION TOAST */}
+            {message && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10000] animate-slide-in-up">
+                    <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${
+                        message.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-rose-50 border-rose-100 text-rose-800'
+                    }`}>
+                        {message.type === 'success' ? <CheckCircleIcon className="text-xl text-emerald-500" /> : <AlertCircleIcon className="text-xl text-rose-500" />}
+                        <p className="text-xs font-black uppercase tracking-tight">{message.text}</p>
+                        <button onClick={() => setMessage(null)} className="ml-2 text-slate-400 hover:text-slate-600">
+                            <XIcon className="text-lg" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
