@@ -47,7 +47,7 @@ async function fetchLocal(endpoint: string, options: any = {}) {
 
         if (!res.ok) {
             const error = await res.json().catch(() => ({ message: 'Server Error' }));
-            throw new Error(error.message || `Server Error (${res.status})`);
+            throw new Error(error.message || error.error || `Server Error (${res.status})`);
         }
 
         const data = await res.json();

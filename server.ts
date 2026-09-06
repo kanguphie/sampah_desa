@@ -58,7 +58,8 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Database Connection Pool
   let pool: mysql.Pool | null = null;
@@ -970,6 +971,21 @@ async function startServer() {
     }
   });
 
+  // Helper to generate next numeric warga ID safely
+  async function getNextWargaId(db: any): Promise<number> {
+    const [rows]: any = await db.execute(
+      'SELECT id FROM wargas WHERE id REGEXP "^[0-9]+$" ORDER BY CAST(id AS UNSIGNED) DESC LIMIT 1'
+    );
+    if (rows && rows.length > 0 && rows[0]?.id) {
+      const parsed = parseInt(rows[0].id, 10);
+      if (!isNaN(parsed) && parsed >= 100000) {
+        return parsed + 1;
+      }
+    }
+    const [countRows]: any = await db.execute('SELECT COUNT(*) as total FROM wargas');
+    return 100001 + ((countRows && countRows[0]?.total) || 0);
+  }
+
   app.post('/api/data/:table/bulk', async (req, res) => {
     try {
         const { table } = req.params;
@@ -980,17 +996,99 @@ async function startServer() {
             return res.json({ success: true, count: 0 });
         }
 
-        const cols = Object.keys(items[0]).map(c => `\`${c}\``).join(', ');
-        const q = Object.keys(items[0]).map(() => '?').join(', ');
+        if (table === 'wargas') {
+            // Bulk insert/update specifically optimized for wargas
+            const [existingRows]: any = await db.execute('SELECT id, name, dukuhId, rtId, totalDebt FROM wargas');
+            const existingById = new Map<string, any>();
+            const existingByNameAndLoc = new Map<string, any>();
+            for (const row of existingRows) {
+                if (row.id) existingById.set(String(row.id).trim(), row);
+                const key = `${String(row.name || '').trim().toLowerCase()}_${row.dukuhId}_${row.rtId}`;
+                existingByNameAndLoc.set(key, row);
+            }
+
+            let nextNumericId = await getNextWargaId(db);
+
+            const preparedRows = [];
+            for (const item of items) {
+                const cleanName = String(item.name || '').trim();
+                if (!cleanName) continue;
+
+                const dId = Number(item.dukuhId) || 0;
+                const rId = Number(item.rtId) || 0;
+                const locKey = `${cleanName.toLowerCase()}_${dId}_${rId}`;
+                
+                const matched = (item.id && existingById.get(String(item.id).trim())) || existingByNameAndLoc.get(locKey);
+
+                let id: string;
+                if (item.id && String(item.id).trim().length > 0) {
+                    id = String(item.id).trim();
+                } else if (matched && matched.id) {
+                    id = String(matched.id);
+                } else {
+                    id = String(nextNumericId++);
+                }
+
+                let totalDebt = 0;
+                if (item.totalDebt !== undefined && !isNaN(Number(item.totalDebt))) {
+                    totalDebt = Number(item.totalDebt);
+                } else if (matched && matched.totalDebt !== undefined) {
+                    totalDebt = Number(matched.totalDebt);
+                }
+
+                const billingType = String(item.billingType || '').toUpperCase().includes('BULAN') ? 'BULANAN' : 'HARIAN';
+                const dailyFee = (!isNaN(Number(item.dailyFee)) && Number(item.dailyFee) >= 0) ? Number(item.dailyFee) : 2000;
+                const monthlyFee = (!isNaN(Number(item.monthlyFee)) && Number(item.monthlyFee) >= 0) 
+                    ? Number(item.monthlyFee) 
+                    : (billingType === 'BULANAN' ? 25000 : 0);
+                const address = item.address ? String(item.address).trim() : null;
+                const phone = item.phone ? String(item.phone).trim() : null;
+
+                preparedRows.push({
+                    id,
+                    name: cleanName,
+                    address,
+                    dukuhId: dId,
+                    rtId: rId,
+                    phone,
+                    dailyFee,
+                    billingType,
+                    monthlyFee,
+                    totalDebt
+                });
+            }
+
+            // Batch multi-row REPLACE INTO (safe against re-uploads & duplicate entries)
+            const chunkSize = 200;
+            for (let i = 0; i < preparedRows.length; i += chunkSize) {
+                const chunk = preparedRows.slice(i, i + chunkSize);
+                const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+                const flatValues = chunk.flatMap(r => [
+                    r.id, r.name, r.address, r.dukuhId, r.rtId, r.phone, r.dailyFee, r.billingType, r.monthlyFee, r.totalDebt
+                ]);
+                await db.execute(
+                    `REPLACE INTO \`wargas\` (\`id\`, \`name\`, \`address\`, \`dukuhId\`, \`rtId\`, \`phone\`, \`dailyFee\`, \`billingType\`, \`monthlyFee\`, \`totalDebt\`) VALUES ${placeholders}`,
+                    flatValues
+                );
+            }
+
+            return res.json({ success: true, count: preparedRows.length });
+        }
+
+        // Generic fallback for other tables
+        const keys = Object.keys(items[0]);
+        const cols = keys.map(c => `\`${c}\``).join(', ');
+        const q = keys.map(() => '?').join(', ');
         
         for (const item of items) {
-            const vals = Object.values(item);
+            const vals = keys.map(k => (item[k] === undefined ? null : item[k]));
             await db.execute(`INSERT INTO \`${table}\` (${cols}) VALUES (${q})`, vals);
         }
         
         res.json({ success: true, count: items.length });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        console.error('Bulk Insert Error:', err);
+        res.status(500).json({ error: err.message, message: err.message });
     }
   });
 
@@ -1000,14 +1098,36 @@ async function startServer() {
         const data = req.body;
         const db = await getDB();
         
-        const cols = Object.keys(data).map(c => `\`${c}\``).join(', ');
-        const q = Object.keys(data).map(() => '?').join(', ');
-        const vals = Object.values(data);
+        if (table === 'wargas') {
+            if (!data.id) {
+                data.id = String(await getNextWargaId(db));
+            }
+            if (data.totalDebt === undefined) {
+                data.totalDebt = 0;
+            }
+            if (!data.billingType) {
+                data.billingType = 'HARIAN';
+            }
+        } else if (table === 'petugases' && !data.id) {
+            data.id = `petugas-${Date.now()}`;
+        } else if (table === 'admins' && !data.id) {
+            data.id = `admin-${Date.now()}`;
+        }
+
+        const cleanData: any = {};
+        for (const [k, v] of Object.entries(data)) {
+            cleanData[k] = v === undefined ? null : v;
+        }
+
+        const cols = Object.keys(cleanData).map(c => `\`${c}\``).join(', ');
+        const q = Object.keys(cleanData).map(() => '?').join(', ');
+        const vals = Object.values(cleanData);
         
         const [result]: any = await db.execute(`INSERT INTO \`${table}\` (${cols}) VALUES (${q})`, vals);
-        res.json({ id: result.insertId, ...data });
+        res.json({ id: cleanData.id || result.insertId, ...cleanData });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        console.error('Data Insert Error:', err);
+        res.status(500).json({ error: err.message, message: err.message });
     }
   });
 

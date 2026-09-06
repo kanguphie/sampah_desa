@@ -109,7 +109,7 @@ const AdminWargaPage: React.FC = () => {
     // States for Import Modal
     const [importLoading, setImportLoading] = useState(false);
     const [importReview, setImportReview] = useState<{
-        valid: Omit<Warga, 'id' | 'totalDebt'>[],
+        valid: Partial<Warga>[],
         invalidCount: number,
         total: number,
         idErrors: boolean
@@ -269,7 +269,7 @@ const AdminWargaPage: React.FC = () => {
         try {
             const rawData = await readWargaExcel(file);
             
-            const valid: Omit<Warga, 'id' | 'totalDebt'>[] = [];
+            const valid: Partial<Warga>[] = [];
             let invalidCount = 0;
             let foundIdErrors = false;
 
