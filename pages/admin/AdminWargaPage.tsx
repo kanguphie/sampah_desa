@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Warga, Dukuh, RT } from '@/types';
-import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga, bulkCreateWarga } from '@/services/api';
+import { getAllWarga, getAllDukuh, getAllRT, createWarga, updateWarga, deleteWarga, bulkCreateWarga, bulkDeleteWarga } from '@/services/api';
 import Modal from '@/components/Modal';
 import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, DownloadIcon, UploadIcon, FileExcelIcon, CheckCircleIcon, XIcon, AlertCircleIcon } from '@/components/icons';
 import { QRCodeSVG } from 'qrcode.react';
@@ -125,6 +125,12 @@ const AdminWargaPage: React.FC = () => {
     const [qrToShow, setQrToShow] = useState<Warga | null>(null);
     const [wargaToDelete, setWargaToDelete] = useState<Warga | null>(null);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    // Multi-selection & Bulk Delete states
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+    const [bulkDeleting, setBulkDeleting] = useState(false);
+    const headerCheckboxRef = useRef<HTMLInputElement>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -192,6 +198,58 @@ const AdminWargaPage: React.FC = () => {
     }, [sortedAndFilteredWarga, itemsPerPage, currentPage]);
 
     const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / (itemsPerPage as number));
+
+    // --- SELECTION & BULK ACTIONS LOGIC ---
+    const isAllPageSelected = paginatedWarga.length > 0 && paginatedWarga.every(w => selectedIds.includes(w.id));
+    const isSomePageSelected = paginatedWarga.some(w => selectedIds.includes(w.id)) && !isAllPageSelected;
+
+    useEffect(() => {
+        if (headerCheckboxRef.current) {
+            headerCheckboxRef.current.indeterminate = isSomePageSelected;
+        }
+    }, [isSomePageSelected]);
+
+    const handleToggleSelectPage = () => {
+        if (isAllPageSelected) {
+            const pageIds = new Set(paginatedWarga.map(w => w.id));
+            setSelectedIds(prev => prev.filter(id => !pageIds.has(id)));
+        } else {
+            const pageIds = paginatedWarga.map(w => w.id);
+            setSelectedIds(prev => Array.from(new Set([...prev, ...pageIds])));
+        }
+    };
+
+    const handleToggleSelectOne = (id: string) => {
+        setSelectedIds(prev => 
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
+    const handleSelectAllFiltered = () => {
+        setSelectedIds(sortedAndFilteredWarga.map(w => w.id));
+    };
+
+    const handleClearSelection = () => {
+        setSelectedIds([]);
+    };
+
+    const handleConfirmBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+        setBulkDeleting(true);
+        try {
+            await bulkDeleteWarga(selectedIds);
+            const count = selectedIds.length;
+            setSelectedIds([]);
+            setIsBulkDeleteModalOpen(false);
+            setMessage({ type: 'success', text: `${count} data warga berhasil dihapus massal.` });
+            await fetchData();
+        } catch (err: any) {
+            console.error("Gagal hapus massal warga", err);
+            setMessage({ type: 'error', text: 'Gagal menghapus data warga secara massal.' });
+        } finally {
+            setBulkDeleting(false);
+        }
+    };
 
     // --- IMPORT LOGIC ---
 
@@ -287,6 +345,14 @@ const AdminWargaPage: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap gap-2 w-full md:w-auto">
                     <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".xlsx, .xls" className="hidden" />
+                    {selectedIds.length > 0 && (
+                        <button 
+                            onClick={() => setIsBulkDeleteModalOpen(true)} 
+                            className="flex-1 md:flex-none bg-rose-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-rose-700 transition-all flex items-center justify-center gap-2 text-xs shadow-lg shadow-rose-600/20 animate-slide-in-up"
+                        >
+                            <TrashIcon /> Hapus Massal ({selectedIds.length})
+                        </button>
+                    )}
                     <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2 border border-slate-200 text-xs">
                         <FileExcelIcon className="text-emerald-500" /> Template
                     </button>
@@ -331,11 +397,71 @@ const AdminWargaPage: React.FC = () => {
                 </div>
             </div>
 
+            {/* BULK SELECTION ACTION BAR */}
+            {selectedIds.length > 0 && (
+                <div className="bg-slate-900 text-white p-4 px-6 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl shadow-slate-900/10 border border-slate-800 animate-slide-in-up">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <span className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-black text-xs">
+                            {selectedIds.length}
+                        </span>
+                        <div>
+                            <p className="text-xs font-black text-white uppercase tracking-wider">
+                                {selectedIds.length} Warga Dipilih
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                                {selectedIds.length === sortedAndFilteredWarga.length 
+                                    ? 'Semua data hasil filter telah dipilih' 
+                                    : `${selectedIds.length} dari ${sortedAndFilteredWarga.length} warga hasil filter dipilih`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+                        {selectedIds.length < sortedAndFilteredWarga.length && (
+                            <button
+                                type="button"
+                                onClick={handleSelectAllFiltered}
+                                className="text-xs font-bold text-slate-300 hover:text-white px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 transition-all"
+                            >
+                                Pilih Semua ({sortedAndFilteredWarga.length} Warga)
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={handleClearSelection}
+                            className="text-xs font-bold text-slate-400 hover:text-slate-200 px-3 py-2 rounded-xl hover:bg-slate-800 transition-all"
+                        >
+                            Batal Pilih
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsBulkDeleteModalOpen(true)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-rose-600/30 transition-all"
+                        >
+                            <TrashIcon className="text-sm" />
+                            Hapus Massal ({selectedIds.length})
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-100 font-bold text-slate-400 uppercase text-[10px] tracking-widest">
+                                <th className="p-5 w-12 text-center">
+                                    <div className="flex items-center justify-center">
+                                        <input 
+                                            ref={headerCheckboxRef}
+                                            type="checkbox"
+                                            checked={isAllPageSelected}
+                                            onChange={handleToggleSelectPage}
+                                            title={isAllPageSelected ? 'Batal pilih semua di halaman ini' : 'Pilih semua di halaman ini'}
+                                            className="w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500 focus:ring-2 cursor-pointer transition-all accent-emerald-600"
+                                        />
+                                    </div>
+                                </th>
                                 <th onClick={() => handleSort('id')} className="p-5 cursor-pointer hover:text-primary transition-colors whitespace-nowrap">ID <SortIcon col="id" /></th>
                                 <th onClick={() => handleSort('name')} className="p-5 cursor-pointer hover:text-primary transition-colors">Nama Lengkap <SortIcon col="name" /></th>
                                 <th onClick={() => handleSort('address')} className="p-5 cursor-pointer hover:text-primary transition-colors">Wilayah (RT/Dukuh) <SortIcon col="address" /></th>
@@ -344,11 +470,25 @@ const AdminWargaPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {loading ? <tr><td colSpan={5} className="p-10 text-center animate-pulse font-bold text-slate-300 uppercase tracking-widest text-xs">Memuat data Warga...</td></tr> : 
+                            {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse font-bold text-slate-300 uppercase tracking-widest text-xs">Memuat data Warga...</td></tr> : 
+                            paginatedWarga.length === 0 ? (
+                                <tr><td colSpan={6} className="p-10 text-center font-bold text-slate-400 text-xs italic">Tidak ada data warga yang cocok dengan filter.</td></tr>
+                            ) :
                             paginatedWarga.map(w => {
                                 const isBulanan = w.billingType === 'BULANAN';
+                                const isSelected = selectedIds.includes(w.id);
                                 return (
-                                    <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <tr key={w.id} className={`transition-colors ${isSelected ? 'bg-emerald-50/50 hover:bg-emerald-50/80' : 'hover:bg-slate-50/50'}`}>
+                                        <td className="p-5 w-12 text-center" onClick={e => e.stopPropagation()}>
+                                            <div className="flex items-center justify-center">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => handleToggleSelectOne(w.id)}
+                                                    className="w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500 focus:ring-2 cursor-pointer transition-all accent-emerald-600"
+                                                />
+                                            </div>
+                                        </td>
                                         <td className="p-5 text-xs font-bold text-slate-400 font-mono tracking-tighter">{(w.id || 'N/A')}</td>
                                         <td className="p-5">
                                             <p className="font-bold text-slate-800">{(w.name || 'Warga Tanpa Nama')}</p>
@@ -498,12 +638,86 @@ const AdminWargaPage: React.FC = () => {
                     <div className="text-center py-4">
                         <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-6"><TrashIcon className="text-4xl text-rose-500" /></div>
                         <p className="font-bold text-slate-800 text-lg px-4">Hapus warga <span className="text-rose-600">"{(wargaToDelete.name || 'Warga Terpilih')}"</span>?</p>
-                        <div className="mt-10 flex gap-3 px-2">
-                            <button onClick={() => setWargaToDelete(null)} className="flex-1 py-4 rounded-2xl text-slate-500 font-bold hover:bg-slate-100">Batal</button>
-                            <button onClick={async () => { await deleteWarga(wargaToDelete.id); fetchData(); setWargaToDelete(null); setMessage({ type: 'success', text: 'Data warga berhasil dihapus.' }); }} className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-bold shadow-lg shadow-rose-500/20">Hapus</button>
+                        <p className="text-xs text-slate-400 mt-2">Data warga dan riwayat transaksinya akan dihapus dari sistem.</p>
+                        <div className="mt-8 flex gap-3 px-2">
+                            <button onClick={() => setWargaToDelete(null)} className="flex-1 py-4 rounded-2xl text-slate-500 font-bold hover:bg-slate-100 transition-all text-sm">Batal</button>
+                            <button onClick={async () => { 
+                                await deleteWarga(wargaToDelete.id); 
+                                setSelectedIds(prev => prev.filter(id => id !== wargaToDelete.id));
+                                fetchData(); 
+                                setWargaToDelete(null); 
+                                setMessage({ type: 'success', text: 'Data warga berhasil dihapus.' }); 
+                            }} className="flex-1 py-4 rounded-2xl bg-rose-500 text-white font-bold shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all text-sm">Hapus</button>
                         </div>
                     </div>
                 )}
+            </Modal>
+
+            {/* MODAL: HAPUS MASSAL (BULK DELETE) */}
+            <Modal isOpen={isBulkDeleteModalOpen} onClose={() => !bulkDeleting && setIsBulkDeleteModalOpen(false)} title="Hapus Massal Warga" size="md">
+                <div className="text-center py-2 space-y-4">
+                    <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto border border-rose-100">
+                        <TrashIcon className="text-4xl text-rose-500" />
+                    </div>
+                    
+                    <div>
+                        <h3 className="font-black text-slate-800 text-lg">
+                            Hapus <span className="text-rose-600">{selectedIds.length} Data Warga</span>?
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                            Data dari <strong className="text-slate-700">{selectedIds.length} warga</strong> yang dipilih beserta seluruh riwayat transaksinya akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
+                        </p>
+                    </div>
+
+                    {/* Selected citizens list preview */}
+                    <div className="max-h-52 overflow-y-auto border border-slate-100 rounded-2xl p-2 bg-slate-50 text-left divide-y divide-slate-100">
+                        {wargaList
+                            .filter(w => selectedIds.includes(w.id))
+                            .slice(0, 8)
+                            .map(w => (
+                                <div key={w.id} className="py-2 px-3 flex items-center justify-between text-xs">
+                                    <div className="min-w-0 pr-2">
+                                        <p className="font-bold text-slate-700 truncate">{w.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-mono">ID: {w.id} • RT {rtList.find(r => r.id === w.rtId)?.number || '?'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || '?'}</p>
+                                    </div>
+                                    <span className={`shrink-0 text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${w.billingType === 'BULANAN' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {w.billingType || 'HARIAN'}
+                                    </span>
+                                </div>
+                            ))}
+                        {selectedIds.length > 8 && (
+                            <div className="py-2.5 px-3 text-center text-xs font-bold text-slate-400 italic bg-white/60 rounded-xl mt-1">
+                                ...dan {selectedIds.length - 8} warga lainnya
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <button 
+                            type="button" 
+                            disabled={bulkDeleting}
+                            onClick={() => setIsBulkDeleteModalOpen(false)} 
+                            className="flex-1 py-3.5 rounded-2xl text-slate-600 font-bold hover:bg-slate-100 transition-all text-sm disabled:opacity-50"
+                        >
+                            Batal
+                        </button>
+                        <button 
+                            type="button"
+                            disabled={bulkDeleting}
+                            onClick={handleConfirmBulkDelete} 
+                            className="flex-[2] py-3.5 rounded-2xl bg-rose-600 text-white font-bold shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all text-sm flex items-center justify-center gap-2 disabled:bg-slate-300"
+                        >
+                            {bulkDeleting ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                                <>
+                                    <TrashIcon />
+                                    Ya, Hapus {selectedIds.length} Warga
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
             </Modal>
 
             {/* NOTIFICATION TOAST */}

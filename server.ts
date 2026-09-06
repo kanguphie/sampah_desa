@@ -1027,11 +1027,66 @@ async function startServer() {
     }
   });
 
+  app.post('/api/data/:table/bulk-delete', async (req, res) => {
+    try {
+        const { table } = req.params;
+        const { ids } = req.body;
+        const db = await getDB();
+        
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.json({ success: true, count: 0 });
+        }
+
+        const chunkSize = 500;
+        for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunk = ids.slice(i, i + chunkSize);
+            const placeholders = chunk.map(() => '?').join(',');
+            await db.execute(`DELETE FROM \`${table}\` WHERE id IN (${placeholders})`, chunk);
+            if (table === 'wargas') {
+                await db.execute(`DELETE FROM transactions WHERE wargaId IN (${placeholders})`, chunk);
+            }
+        }
+        res.json({ success: true, count: ids.length });
+    } catch (err: any) {
+        console.error('[API] bulk-delete error:', err);
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/data/:table/bulk', async (req, res) => {
+    try {
+        const { table } = req.params;
+        const { ids } = req.body;
+        const db = await getDB();
+        
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.json({ success: true, count: 0 });
+        }
+
+        const chunkSize = 500;
+        for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunk = ids.slice(i, i + chunkSize);
+            const placeholders = chunk.map(() => '?').join(',');
+            await db.execute(`DELETE FROM \`${table}\` WHERE id IN (${placeholders})`, chunk);
+            if (table === 'wargas') {
+                await db.execute(`DELETE FROM transactions WHERE wargaId IN (${placeholders})`, chunk);
+            }
+        }
+        res.json({ success: true, count: ids.length });
+    } catch (err: any) {
+        console.error('[API] bulk-delete error:', err);
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   app.delete('/api/data/:table/:id', async (req, res) => {
     try {
         const { table, id } = req.params;
         const db = await getDB();
         await db.execute(`DELETE FROM \`${table}\` WHERE id = ?`, [id]);
+        if (table === 'wargas') {
+            await db.execute(`DELETE FROM transactions WHERE wargaId = ?`, [id]);
+        }
         res.json({ success: true });
     } catch (err: any) {
         res.status(500).json({ error: err.message });

@@ -107,6 +107,7 @@ export const bulkCreateWarga = async (wargas: any[]) => {
 };
 export const updateWarga = async (id: string, data: any) => fetchLocal(`/data/wargas/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteWarga = async (id: string) => fetchLocal(`/data/wargas/${id}`, { method: 'DELETE' });
+export const bulkDeleteWarga = async (ids: string[]) => fetchLocal('/data/wargas/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) });
 
 export const getAllPetugas = async () => fetchLocal('/data/petugases');
 export const createPetugas = async (data: any) => fetchLocal('/data/petugases', { method: 'POST', body: JSON.stringify(data) });
