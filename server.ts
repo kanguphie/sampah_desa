@@ -81,6 +81,57 @@ async function startServer() {
     return pool;
   };
 
+  // Helper to ensure all required wargas columns exist in MySQL (self-healing migration)
+  async function ensureWargasColumns(db: any): Promise<Set<string>> {
+    try {
+      const [cols]: any = await db.execute('DESCRIBE wargas');
+      const existing = new Set<string>(
+        cols.map((c: any) => String(c.Field || c.field || c.COLUMN_NAME || '').toLowerCase())
+      );
+
+      if (!existing.has('billingtype')) {
+        try {
+          await db.execute("ALTER TABLE wargas ADD COLUMN billingType VARCHAR(20) DEFAULT 'HARIAN'");
+          existing.add('billingtype');
+          console.log("[MIGRATION] Added billingType column to wargas table");
+        } catch (e: any) {
+          console.warn("[MIGRATION] billingType ALTER warning:", e.message);
+        }
+      }
+      if (!existing.has('monthlyfee')) {
+        try {
+          await db.execute("ALTER TABLE wargas ADD COLUMN monthlyFee INT DEFAULT 0");
+          existing.add('monthlyfee');
+          console.log("[MIGRATION] Added monthlyFee column to wargas table");
+        } catch (e: any) {
+          console.warn("[MIGRATION] monthlyFee ALTER warning:", e.message);
+        }
+      }
+      if (!existing.has('totaldebt')) {
+        try {
+          await db.execute("ALTER TABLE wargas ADD COLUMN totalDebt INT DEFAULT 0");
+          existing.add('totaldebt');
+          console.log("[MIGRATION] Added totalDebt column to wargas table");
+        } catch (e: any) {
+          console.warn("[MIGRATION] totalDebt ALTER warning:", e.message);
+        }
+      }
+      if (!existing.has('dailyfee')) {
+        try {
+          await db.execute("ALTER TABLE wargas ADD COLUMN dailyFee INT DEFAULT 2000");
+          existing.add('dailyfee');
+          console.log("[MIGRATION] Added dailyFee column to wargas table");
+        } catch (e: any) {
+          console.warn("[MIGRATION] dailyFee ALTER warning:", e.message);
+        }
+      }
+      return existing;
+    } catch (err: any) {
+      console.error("[MIGRATION] Error inspecting wargas columns:", err.message);
+      return new Set<string>();
+    }
+  }
+
   // --- DATABASE INITIALIZATION ---
   const initializeDatabase = async () => {
     try {
@@ -99,7 +150,7 @@ async function startServer() {
         )`,
         `CREATE TABLE IF NOT EXISTS dukuhs (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
         `CREATE TABLE IF NOT EXISTS rts (id INT AUTO_INCREMENT PRIMARY KEY, number VARCHAR(10), dukuhId INT)`,
-        `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT, billingType VARCHAR(20) DEFAULT 'HARIAN', monthlyFee INT DEFAULT 0, totalDebt INT DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT DEFAULT 2000, billingType VARCHAR(20) DEFAULT 'HARIAN', monthlyFee INT DEFAULT 0, totalDebt INT DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS petugases (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS admins (id VARCHAR(50) PRIMARY KEY, username VARCHAR(255), name VARCHAR(255), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS transactions (id VARCHAR(50) PRIMARY KEY, wargaId VARCHAR(50), petugasId VARCHAR(50), amount INT, status VARCHAR(20), category VARCHAR(50), timestamp DATETIME)`,
@@ -108,37 +159,46 @@ async function startServer() {
         `CREATE TABLE IF NOT EXISTS announcements (id VARCHAR(50) PRIMARY KEY, title VARCHAR(255), content TEXT, date DATETIME, isActive BOOLEAN DEFAULT TRUE)`,
         `CREATE TABLE IF NOT EXISTS schedules (day VARCHAR(20) PRIMARY KEY, dukuhIds JSON)`
       ];
-      for (const q of queries) { await db.execute(q); }
-      // Ensure village_config has all columns (Migration for existing databases)
-      const [vCols]: any = await db.execute('DESCRIBE village_config');
-      const existingVCols = vCols.map((c: any) => c.Field);
-      const neededVCols = ['district', 'regency', 'phone', 'email'];
-      for (const col of neededVCols) {
-        if (!existingVCols.includes(col)) {
-            await db.execute(`ALTER TABLE village_config ADD COLUMN ${col} VARCHAR(255)`);
+      for (const q of queries) {
+        try {
+          await db.execute(q);
+        } catch (e: any) {
+          console.warn("[Init Table Note]:", e.message);
         }
       }
 
-      // Migration for admins table to add username
-      const [aCols]: any = await db.execute('DESCRIBE admins');
-      const existingACols = aCols.map((c: any) => c.Field);
-      if (!existingACols.includes('username')) {
-          await db.execute(`ALTER TABLE admins ADD COLUMN username VARCHAR(255)`);
+      // Ensure village_config has all columns (Migration for existing databases)
+      try {
+        const [vCols]: any = await db.execute('DESCRIBE village_config');
+        const existingVCols = new Set(vCols.map((c: any) => String(c.Field || c.field || '').toLowerCase()));
+        const neededVCols = ['district', 'regency', 'phone', 'email', 'logo_url'];
+        for (const col of neededVCols) {
+          if (!existingVCols.has(col.toLowerCase())) {
+            await db.execute(`ALTER TABLE village_config ADD COLUMN ${col} VARCHAR(255)`);
+          }
+        }
+      } catch (err: any) {
+        console.warn("[Migration village_config]:", err.message);
       }
 
-      // Migration for wargas table to add billingType and monthlyFee
-      const [wCols]: any = await db.execute('DESCRIBE wargas');
-      const existingWCols = wCols.map((c: any) => c.Field);
-      if (!existingWCols.includes('billingType')) {
-          await db.execute(`ALTER TABLE wargas ADD COLUMN billingType VARCHAR(20) DEFAULT 'HARIAN'`);
+      // Migration for admins table to add username
+      try {
+        const [aCols]: any = await db.execute('DESCRIBE admins');
+        const existingACols = new Set(aCols.map((c: any) => String(c.Field || c.field || '').toLowerCase()));
+        if (!existingACols.has('username')) {
+          await db.execute(`ALTER TABLE admins ADD COLUMN username VARCHAR(255)`);
+        }
+      } catch (err: any) {
+        console.warn("[Migration admins]:", err.message);
       }
-      if (!existingWCols.includes('monthlyFee')) {
-          await db.execute(`ALTER TABLE wargas ADD COLUMN monthlyFee INT DEFAULT 0`);
-      }
+
+      // Migration for wargas table to add billingType, monthlyFee, totalDebt, dailyFee
+      await ensureWargasColumns(db);
       
-      console.log("Database Schema Verified.");
+      console.log("Database Schema Verified & Migrated.");
     } catch (err) {
       console.error("DB Init Error:", err);
+      throw err;
     }
   };
 
@@ -997,8 +1057,11 @@ async function startServer() {
         }
 
         if (table === 'wargas') {
+            // First run auto-migration to ensure columns exist in wargas table
+            const activeCols = await ensureWargasColumns(db);
+
             // Bulk insert/update specifically optimized for wargas
-            const [existingRows]: any = await db.execute('SELECT id, name, dukuhId, rtId, totalDebt FROM wargas');
+            const [existingRows]: any = await db.execute('SELECT id, name, dukuhId, rtId FROM wargas');
             const existingById = new Map<string, any>();
             const existingByNameAndLoc = new Map<string, any>();
             for (const row of existingRows) {
@@ -1009,7 +1072,7 @@ async function startServer() {
 
             let nextNumericId = await getNextWargaId(db);
 
-            const preparedRows = [];
+            const preparedRows: any[] = [];
             for (const item of items) {
                 const cleanName = String(item.name || '').trim();
                 if (!cleanName) continue;
@@ -1044,30 +1107,44 @@ async function startServer() {
                 const address = item.address ? String(item.address).trim() : null;
                 const phone = item.phone ? String(item.phone).trim() : null;
 
-                preparedRows.push({
+                const rowObj: any = {
                     id,
                     name: cleanName,
                     address,
                     dukuhId: dId,
                     rtId: rId,
-                    phone,
-                    dailyFee,
-                    billingType,
-                    monthlyFee,
-                    totalDebt
-                });
+                    phone
+                };
+                if (activeCols.has('dailyfee')) rowObj.dailyFee = dailyFee;
+                if (activeCols.has('billingtype')) rowObj.billingType = billingType;
+                if (activeCols.has('monthlyfee')) rowObj.monthlyFee = monthlyFee;
+                if (activeCols.has('totaldebt')) rowObj.totalDebt = totalDebt;
+
+                preparedRows.push(rowObj);
             }
+
+            if (preparedRows.length === 0) {
+                return res.json({ success: true, count: 0 });
+            }
+
+            // Dynamically determine insertable columns based on active columns that actually exist
+            const insertKeys: string[] = ['id', 'name', 'address', 'dukuhId', 'rtId', 'phone'];
+            if (activeCols.has('dailyfee')) insertKeys.push('dailyFee');
+            if (activeCols.has('billingtype')) insertKeys.push('billingType');
+            if (activeCols.has('monthlyfee')) insertKeys.push('monthlyFee');
+            if (activeCols.has('totaldebt')) insertKeys.push('totalDebt');
+
+            const colsSql = insertKeys.map(k => `\`${k}\``).join(', ');
+            const singlePlaceholder = `(${insertKeys.map(() => '?').join(', ')})`;
 
             // Batch multi-row REPLACE INTO (safe against re-uploads & duplicate entries)
             const chunkSize = 200;
             for (let i = 0; i < preparedRows.length; i += chunkSize) {
                 const chunk = preparedRows.slice(i, i + chunkSize);
-                const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
-                const flatValues = chunk.flatMap(r => [
-                    r.id, r.name, r.address, r.dukuhId, r.rtId, r.phone, r.dailyFee, r.billingType, r.monthlyFee, r.totalDebt
-                ]);
+                const placeholders = chunk.map(() => singlePlaceholder).join(', ');
+                const flatValues = chunk.flatMap(r => insertKeys.map(k => (r[k] === undefined ? null : r[k])));
                 await db.execute(
-                    `REPLACE INTO \`wargas\` (\`id\`, \`name\`, \`address\`, \`dukuhId\`, \`rtId\`, \`phone\`, \`dailyFee\`, \`billingType\`, \`monthlyFee\`, \`totalDebt\`) VALUES ${placeholders}`,
+                    `REPLACE INTO \`wargas\` (${colsSql}) VALUES ${placeholders}`,
                     flatValues
                 );
             }
@@ -1099,15 +1176,36 @@ async function startServer() {
         const db = await getDB();
         
         if (table === 'wargas') {
+            const activeCols = await ensureWargasColumns(db);
             if (!data.id) {
                 data.id = String(await getNextWargaId(db));
             }
-            if (data.totalDebt === undefined) {
+            if (data.totalDebt === undefined && activeCols.has('totaldebt')) {
                 data.totalDebt = 0;
             }
-            if (!data.billingType) {
+            if (!data.billingType && activeCols.has('billingtype')) {
                 data.billingType = 'HARIAN';
             }
+
+            const allowed = new Set(['id', 'name', 'address', 'dukuhId', 'rtId', 'phone']);
+            if (activeCols.has('dailyfee')) allowed.add('dailyFee');
+            if (activeCols.has('billingtype')) allowed.add('billingType');
+            if (activeCols.has('monthlyfee')) allowed.add('monthlyFee');
+            if (activeCols.has('totaldebt')) allowed.add('totalDebt');
+
+            const cleanData: any = {};
+            for (const [k, v] of Object.entries(data)) {
+                if (allowed.has(k)) {
+                    cleanData[k] = v === undefined ? null : v;
+                }
+            }
+
+            const cols = Object.keys(cleanData).map(c => `\`${c}\``).join(', ');
+            const q = Object.keys(cleanData).map(() => '?').join(', ');
+            const vals = Object.values(cleanData);
+            
+            const [result]: any = await db.execute(`INSERT INTO \`${table}\` (${cols}) VALUES (${q})`, vals);
+            return res.json({ id: cleanData.id || result.insertId, ...cleanData });
         } else if (table === 'petugases' && !data.id) {
             data.id = `petugas-${Date.now()}`;
         } else if (table === 'admins' && !data.id) {
@@ -1137,6 +1235,26 @@ async function startServer() {
         const data = req.body;
         const db = await getDB();
         
+        if (table === 'wargas') {
+            const activeCols = await ensureWargasColumns(db);
+            const allowed = new Set(['name', 'address', 'dukuhId', 'rtId', 'phone']);
+            if (activeCols.has('dailyfee')) allowed.add('dailyFee');
+            if (activeCols.has('billingtype')) allowed.add('billingType');
+            if (activeCols.has('monthlyfee')) allowed.add('monthlyFee');
+            if (activeCols.has('totaldebt')) allowed.add('totalDebt');
+
+            const filteredData: any = {};
+            for (const [k, v] of Object.entries(data)) {
+                if (allowed.has(k)) {
+                    filteredData[k] = v === undefined ? null : v;
+                }
+            }
+            const sets = Object.keys(filteredData).map(c => `\`${c}\` = ?`).join(', ');
+            const vals = [...Object.values(filteredData), id];
+            await db.execute(`UPDATE \`wargas\` SET ${sets} WHERE id = ?`, vals);
+            return res.json({ id, ...filteredData });
+        }
+
         const sets = Object.keys(data).map(c => `\`${c}\` = ?`).join(', ');
         const vals = [...Object.values(data), id];
         
@@ -1413,6 +1531,23 @@ async function startServer() {
     }
   });
 
+  // Manual / Diagnostic Migration Trigger
+  app.get('/api/system/migrate', async (req, res) => {
+    try {
+      const db = await getDB();
+      await initializeDatabase();
+      const [cols]: any = await db.execute('DESCRIBE wargas');
+      res.json({ 
+        success: true, 
+        message: 'Database schema successfully verified and migrated.',
+        wargasColumns: cols.map((c: any) => c.Field)
+      });
+    } catch (err: any) {
+      console.error('[API] /api/system/migrate error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // 404 handler for API routes
   app.all('/api/*all', (req, res) => {
     console.warn(`[404] API route not found: ${req.method} ${req.originalUrl}`);
@@ -1440,13 +1575,28 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', async () => {
-    try {
-      await initializeDatabase();
-      console.log(`Server SapaDesa running on http://localhost:${PORT}`);
-      console.log(`Timezone forced to WIB (UTC+7)`);
-    } catch (e) {
-      console.error("Critical Startup Error:", e);
-    }
+    console.log(`Server SapaDesa running on http://localhost:${PORT}`);
+    console.log(`Timezone forced to WIB (UTC+7)`);
+    
+    // Non-blocking retry loop for database initialization (vital for Portainer/Docker startup)
+    (async () => {
+      let retries = 15;
+      while (retries > 0) {
+        try {
+          await initializeDatabase();
+          console.log("Database initialized and all table schemas verified.");
+          break;
+        } catch (e: any) {
+          retries--;
+          console.warn(`[DB Init] Waiting for database (${e.message}). Retrying in 3s... (${retries} left)`);
+          if (retries === 0) {
+            console.error("Database connection failed after 15 attempts. Schema migration will run on first API request.");
+          } else {
+            await new Promise(r => setTimeout(r, 3000));
+          }
+        }
+      }
+    })();
   });
 
   // Global Error Handler
