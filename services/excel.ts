@@ -48,15 +48,27 @@ export const readWargaExcel = (file: File): Promise<Partial<Warga>[]> => {
                         return matchedKey ? row[matchedKey] : undefined;
                     };
 
-                    // Sesuai Gambar: Nama, Tarif, Kode Dukuh, Kode RT
+                    // Sesuai Gambar: Nama, Tarif, Kode Dukuh, Kode RT, Tipe Pembayaran, Tarif Bulanan
                     const name = findValue(['Nama', 'Nama Lengkap', 'Name']);
-                    const dailyFee = findValue(['Tarif', 'Iuran', 'Daily Fee', 'Fee']);
+                    const dailyFee = findValue(['Tarif', 'Iuran', 'Daily Fee', 'Fee', 'Tarif Harian']);
                     const dukuhId = findValue(['Kode Dukuh', 'Dukuh ID', 'DukuhId', 'Dukuh']);
                     const rtId = findValue(['Kode RT', 'RT ID', 'RtId', 'RT']);
+                    const billingTypeRaw = findValue(['Tipe Pembayaran', 'Tipe', 'Billing Type', 'Jenis Pembayaran', 'Paket']);
+                    const monthlyFee = findValue(['Tarif Bulanan', 'Monthly Fee', 'Iuran Bulanan', 'Tarif Sebulan']);
+
+                    let billingType: 'HARIAN' | 'BULANAN' = 'HARIAN';
+                    if (billingTypeRaw) {
+                        const btStr = String(billingTypeRaw).toUpperCase().trim();
+                        if (btStr.includes('BULAN')) {
+                            billingType = 'BULANAN';
+                        }
+                    }
 
                     return {
                         name: name ? String(name).trim() : undefined,
-                        dailyFee: (dailyFee !== null && dailyFee !== undefined) ? Number(dailyFee) : undefined,
+                        dailyFee: (dailyFee !== null && dailyFee !== undefined) ? Number(dailyFee) : 2000,
+                        billingType: billingType,
+                        monthlyFee: (monthlyFee !== null && monthlyFee !== undefined) ? Number(monthlyFee) : (billingType === 'BULANAN' ? 25000 : 0),
                         dukuhId: (dukuhId !== null && dukuhId !== undefined) ? Number(dukuhId) : undefined,
                         rtId: (rtId !== null && rtId !== undefined) ? Number(rtId) : undefined
                     };

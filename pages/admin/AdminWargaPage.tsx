@@ -18,7 +18,9 @@ const WargaForm: React.FC<{
     name: warga?.name || '',
     dukuhId: warga?.dukuhId || (dukuhList[0]?.id || 0),
     rtId: warga?.rtId || (rtList[0]?.id || 0),
-    dailyFee: warga?.dailyFee || 2000,
+    billingType: (warga?.billingType || 'HARIAN') as 'HARIAN' | 'BULANAN',
+    dailyFee: warga?.dailyFee !== undefined ? warga.dailyFee : 2000,
+    monthlyFee: warga?.monthlyFee !== undefined ? warga.monthlyFee : 25000,
   });
 
   return (
@@ -41,13 +43,55 @@ const WargaForm: React.FC<{
           </select>
         </div>
       </div>
+
       <div className="space-y-2">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tarif Iuran Harian</label>
-        <div className="relative">
-            <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rp</span>
-            <input type="number" value={formData.dailyFee} onChange={e => setFormData({...formData, dailyFee: Number(e.target.value)})} className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold" required />
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Metode & Frekuensi Pembayaran</label>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setFormData({...formData, billingType: 'HARIAN'})}
+            className={`p-4 rounded-2xl border text-left transition-all ${formData.billingType === 'HARIAN' ? 'bg-primary/5 border-primary ring-2 ring-primary/20 text-primary' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+          >
+            <div className="flex items-center gap-2 font-black text-xs uppercase tracking-wide mb-1">
+              <span className={`w-3 h-3 rounded-full border-2 ${formData.billingType === 'HARIAN' ? 'border-primary bg-primary' : 'border-slate-300'}`}></span>
+              Harian (Per Ambil)
+            </div>
+            <p className="text-[11px] text-slate-500">Iuran ditarik setiap jadwal sampah diambil (2 hari sekali).</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFormData({...formData, billingType: 'BULANAN'})}
+            className={`p-4 rounded-2xl border text-left transition-all ${formData.billingType === 'BULANAN' ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-500/20 text-purple-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+          >
+            <div className="flex items-center gap-2 font-black text-xs uppercase tracking-wide mb-1">
+              <span className={`w-3 h-3 rounded-full border-2 ${formData.billingType === 'BULANAN' ? 'border-purple-600 bg-purple-600' : 'border-slate-300'}`}></span>
+              Bulanan (Tetap)
+            </div>
+            <p className="text-[11px] text-slate-500">Iuran dibayar sebulan sekali dengan nominal tarif paket tertentu.</p>
+          </button>
         </div>
       </div>
+
+      {formData.billingType === 'HARIAN' ? (
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tarif Per Pengambilan (2 Hari Sekali)</label>
+          <div className="relative">
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rp</span>
+              <input type="number" value={formData.dailyFee} onChange={e => setFormData({...formData, dailyFee: Number(e.target.value)})} className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold" placeholder="2000" required />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest ml-1">Tarif Iuran Bulanan (Sebulan Sekali)</label>
+          <div className="relative">
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-purple-400">Rp</span>
+              <input type="number" value={formData.monthlyFee} onChange={e => setFormData({...formData, monthlyFee: Number(e.target.value)})} className="w-full pl-12 pr-5 py-3.5 bg-purple-50/50 border border-purple-200 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none font-bold text-purple-900" placeholder="25000" required />
+          </div>
+          <p className="text-[11px] text-slate-400 ml-1 italic">Warga bulanan tidak ditarik iuran setiap 2 hari sekali, melainkan satu kali per bulan.</p>
+        </div>
+      )}
+
       <div className="flex gap-3 pt-4">
         <button type="button" onClick={onCancel} className="flex-1 py-3.5 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 transition-all">Batal</button>
         <button type="submit" className="flex-1 py-3.5 rounded-2xl font-bold bg-primary text-white hover:bg-primary-focus shadow-lg shadow-primary/20 transition-all">Simpan Data</button>
@@ -71,7 +115,7 @@ const AdminWargaPage: React.FC = () => {
         idErrors: boolean
     } | null>(null);
 
-    const [filters, setFilters] = useState({ search: '', dukuhId: 'all', rtId: 'all' });
+    const [filters, setFilters] = useState({ search: '', dukuhId: 'all', rtId: 'all', billingType: 'all' });
     const [sortConfig, setSortConfig] = useState<{ key: keyof Warga | 'address'; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
     const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
     const [currentPage, setCurrentPage] = useState(1);
@@ -118,7 +162,8 @@ const AdminWargaPage: React.FC = () => {
             const matchSearch = (w.name || '').toLowerCase().includes(filters.search.toLowerCase()) || (w.id || '').includes(filters.search);
             const matchDukuh = filters.dukuhId === 'all' || w.dukuhId === Number(filters.dukuhId);
             const matchRT = filters.rtId === 'all' || w.rtId === Number(filters.rtId);
-            return matchSearch && matchDukuh && matchRT;
+            const matchBilling = filters.billingType === 'all' || (w.billingType || 'HARIAN') === filters.billingType;
+            return matchSearch && matchDukuh && matchRT && matchBilling;
         });
 
         return items.sort((a, b) => {
@@ -152,8 +197,8 @@ const AdminWargaPage: React.FC = () => {
 
     const handleDownloadTemplate = () => {
         const templateData = [
-            { "Nama": "Budi Santoso", "Tarif": 2000, "Kode Dukuh": 1, "Kode RT": 1 },
-            { "Nama": "Siti Aminah", "Tarif": 2500, "Kode Dukuh": 1, "Kode RT": 2 },
+            { "Nama": "Budi Santoso", "Tipe Pembayaran": "HARIAN", "Tarif": 2000, "Tarif Bulanan": 0, "Kode Dukuh": 1, "Kode RT": 1 },
+            { "Nama": "Siti Aminah", "Tipe Pembayaran": "BULANAN", "Tarif": 0, "Tarif Bulanan": 25000, "Kode Dukuh": 1, "Kode RT": 2 },
         ];
         exportToExcel(templateData, "Template_Warga_Rowosari", "DataWarga");
     };
@@ -255,18 +300,23 @@ const AdminWargaPage: React.FC = () => {
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-slate-200/60 shadow-sm space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                     <div className="relative md:col-span-2">
                         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input type="text" placeholder="Cari nama atau ID..." className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-semibold" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+                        <input type="text" placeholder="Cari nama atau ID..." className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-semibold text-sm" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
                     </div>
-                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
+                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
                         <option value="all">Semua Dukuh</option>
                         {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
-                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
+                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
                         <option value="all">Semua RT</option>
                         {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
+                    </select>
+                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" onChange={e => setFilters({...filters, billingType: e.target.value})} value={filters.billingType}>
+                        <option value="all">Semua Pembayaran</option>
+                        <option value="HARIAN">Harian (2 Hari Sekali)</option>
+                        <option value="BULANAN">Bulanan (Sebulan Sekali)</option>
                     </select>
                 </div>
                 
@@ -289,27 +339,57 @@ const AdminWargaPage: React.FC = () => {
                                 <th onClick={() => handleSort('id')} className="p-5 cursor-pointer hover:text-primary transition-colors whitespace-nowrap">ID <SortIcon col="id" /></th>
                                 <th onClick={() => handleSort('name')} className="p-5 cursor-pointer hover:text-primary transition-colors">Nama Lengkap <SortIcon col="name" /></th>
                                 <th onClick={() => handleSort('address')} className="p-5 cursor-pointer hover:text-primary transition-colors">Wilayah (RT/Dukuh) <SortIcon col="address" /></th>
-                                <th onClick={() => handleSort('dailyFee')} className="p-5 text-right cursor-pointer hover:text-primary transition-colors whitespace-nowrap">Tarif Iuran <SortIcon col="dailyFee" /></th>
+                                <th onClick={() => handleSort('dailyFee')} className="p-5 text-right cursor-pointer hover:text-primary transition-colors whitespace-nowrap">Tipe & Tarif <SortIcon col="dailyFee" /></th>
                                 <th className="p-5 text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? <tr><td colSpan={5} className="p-10 text-center animate-pulse font-bold text-slate-300 uppercase tracking-widest text-xs">Memuat data Warga...</td></tr> : 
-                            paginatedWarga.map(w => (
-                                <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-5 text-xs font-bold text-slate-400 font-mono tracking-tighter">{(w.id || 'N/A')}</td>
-                                    <td className="p-5 font-bold text-slate-700">{(w.name || 'Warga Tanpa Nama')}</td>
-                                    <td className="p-5 text-slate-500 font-medium text-xs">RT {rtList.find(r => r.id === w.rtId)?.number || '?'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || '?'}</td>
-                                    <td className="p-5 text-right font-bold text-slate-700 font-mono tracking-tighter">Rp{(w.dailyFee || 0).toLocaleString('id-ID')}</td>
-                                    <td className="p-5">
-                                        <div className="flex justify-center items-center gap-1">
-                                            <button onClick={() => setQrToShow(w)} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all" title="QR Code"><QrCodeIcon className="text-xl" /></button>
-                                            <button onClick={() => { setSelectedWarga(w); setIsFormModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all" title="Edit"><PencilIcon className="text-xl" /></button>
-                                            <button onClick={() => setWargaToDelete(w)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all" title="Hapus"><TrashIcon className="text-xl" /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            paginatedWarga.map(w => {
+                                const isBulanan = w.billingType === 'BULANAN';
+                                return (
+                                    <tr key={w.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-5 text-xs font-bold text-slate-400 font-mono tracking-tighter">{(w.id || 'N/A')}</td>
+                                        <td className="p-5">
+                                            <p className="font-bold text-slate-800">{(w.name || 'Warga Tanpa Nama')}</p>
+                                            {w.totalDebt && w.totalDebt > 0 ? (
+                                                <span className="inline-block mt-0.5 text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md">
+                                                    Tunggakan: Rp{w.totalDebt.toLocaleString('id-ID')}
+                                                </span>
+                                            ) : null}
+                                        </td>
+                                        <td className="p-5 text-slate-500 font-medium text-xs">RT {rtList.find(r => r.id === w.rtId)?.number || '?'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || '?'}</td>
+                                        <td className="p-5 text-right">
+                                            {isBulanan ? (
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="inline-block px-2.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-full text-[10px] font-black uppercase tracking-wider">
+                                                        Bulanan
+                                                    </span>
+                                                    <span className="font-mono font-black text-slate-800 text-sm">
+                                                        Rp{(w.monthlyFee || 0).toLocaleString('id-ID')}<span className="text-[10px] font-normal text-slate-400">/bln</span>
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="inline-block px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[10px] font-black uppercase tracking-wider">
+                                                        Harian
+                                                    </span>
+                                                    <span className="font-mono font-black text-slate-800 text-sm">
+                                                        Rp{(w.dailyFee || 0).toLocaleString('id-ID')}<span className="text-[10px] font-normal text-slate-400">/ambil</span>
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-5">
+                                            <div className="flex justify-center items-center gap-1">
+                                                <button onClick={() => setQrToShow(w)} className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all" title="QR Code"><QrCodeIcon className="text-xl" /></button>
+                                                <button onClick={() => { setSelectedWarga(w); setIsFormModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all" title="Edit"><PencilIcon className="text-xl" /></button>
+                                                <button onClick={() => setWargaToDelete(w)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all" title="Hapus"><TrashIcon className="text-xl" /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

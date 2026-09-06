@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { FC } from 'react';
 import type { Warga, TransactionStatus, Transaksi, Dukuh, RT } from '@/types';
-import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday } from '@/services/api';
+import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday, getWargaStatus } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
@@ -13,6 +13,7 @@ const PetugasScanPage: FC = () => {
     const [wargaId, setWargaId] = useState('');
     const [warga, setWarga] = useState<Warga | null>(null);
     const [todayTx, setTodayTx] = useState<Transaksi | null>(null);
+    const [monthlyStatus, setMonthlyStatus] = useState<{ monthlyPaid: boolean; monthlyTx?: any; currentMonthName: string } | null>(null);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [scheduleToday, setScheduleToday] = useState<{isHoliday: boolean, dukuhIds: number[], dukuhNames: string[]} | null>(null);
@@ -53,6 +54,7 @@ const PetugasScanPage: FC = () => {
         if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         setWarga(null);
         setTodayTx(null);
+        setMonthlyStatus(null);
         setWargaId('');
         setError('');
         setSuccess(false);
@@ -79,7 +81,11 @@ const PetugasScanPage: FC = () => {
         if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         
         try {
-            const data = await getWargaById(id);
+            const [data, statusData] = await Promise.all([
+                getWargaById(id),
+                getWargaStatus(id).catch(() => null)
+            ]);
+
             if (data) {
                 // VALIDASI JADWAL
                 if (scheduleToday) {
@@ -105,8 +111,17 @@ const PetugasScanPage: FC = () => {
                 }
 
                 setWarga(data);
-                const tx = await getWargaTodayTransaction(id);
-                setTodayTx(tx || null);
+                if (statusData) {
+                    setTodayTx(statusData.todayTx || null);
+                    setMonthlyStatus({
+                        monthlyPaid: !!statusData.monthlyPaid,
+                        monthlyTx: statusData.monthlyTx,
+                        currentMonthName: statusData.currentMonthName
+                    });
+                } else {
+                    const tx = await getWargaTodayTransaction(id);
+                    setTodayTx(tx || null);
+                }
             } else {
                 setError(`ID WARGA "${id}" TIDAK DITEMUKAN.`);
                 errorTimeoutRef.current = setTimeout(() => { 
@@ -206,12 +221,38 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: status });
+            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: status, category: 'harian' });
             setModalTitle(status === 'LUNAS' ? 'Pembayaran Berhasil' : 'Tunggakan Dicatat');
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
         } catch (err) { setError('Gagal menyimpan.'); }
+        finally { setLoading(false); }
+    };
+
+    const handleSaveMonthlyPayment = async (status: TransactionStatus) => {
+        if (!warga || !petugas) return;
+        setLoading(true);
+        try {
+            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.monthlyFee || 0, status, category: 'bulanan' });
+            setModalTitle(status === 'LUNAS' ? 'Iuran Bulanan Lunas' : 'Tunggakan Bulanan Dicatat');
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err) { setError('Gagal menyimpan iuran bulanan.'); }
+        finally { setLoading(false); }
+    };
+
+    const handleRecordMonthlyPickup = async () => {
+        if (!warga || !petugas) return;
+        setLoading(true);
+        try {
+            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: 0, status: 'LUNAS', category: 'ambil_bulanan' });
+            setModalTitle('Pengambilan Sampah Dicatat');
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err) { setError('Gagal mencatat pengambilan sampah.'); }
         finally { setLoading(false); }
     };
 
@@ -245,16 +286,25 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            if (todayTx?.status === 'HUTANG') {
-                await convertDebtToPaidToday(warga.id);
-                const oldDebt = warga.totalDebt - warga.dailyFee;
-                if (oldDebt > 0) {
-                    await payDebt(warga.id, petugas.id, oldDebt);
+            if (warga.billingType === 'BULANAN') {
+                if (!monthlyStatus?.monthlyPaid) {
+                    await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.monthlyFee || 0, status: 'LUNAS', category: 'bulanan' });
                 }
-            } else {
-                await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS' });
                 if (warga.totalDebt > 0) {
                     await payDebt(warga.id, petugas.id, warga.totalDebt);
+                }
+            } else {
+                if (todayTx?.status === 'HUTANG') {
+                    await convertDebtToPaidToday(warga.id);
+                    const oldDebt = warga.totalDebt - warga.dailyFee;
+                    if (oldDebt > 0) {
+                        await payDebt(warga.id, petugas.id, oldDebt);
+                    }
+                } else {
+                    await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS', category: 'harian' });
+                    if (warga.totalDebt > 0) {
+                        await payDebt(warga.id, petugas.id, warga.totalDebt);
+                    }
                 }
             }
             
@@ -264,13 +314,20 @@ const PetugasScanPage: FC = () => {
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
         } catch (err) { setError('Gagal menyimpan.'); }
         finally { setLoading(false); }
-    }
+    };
 
+    const isBulanan = warga?.billingType === 'BULANAN';
     const isTodayDebt = todayTx?.status === 'HUTANG';
     const isTodayPaid = todayTx?.status === 'LUNAS';
+    const isMonthlyPaid = !!monthlyStatus?.monthlyPaid;
     const hasDebt = warga ? warga.totalDebt > 0 : false;
+    
     const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
-    const bulkAmount = warga ? (isTodayDebt ? warga.totalDebt : warga.dailyFee + warga.totalDebt) : 0;
+    const bulkAmount = warga ? (
+        isBulanan
+            ? (isMonthlyPaid ? warga.totalDebt : (warga.monthlyFee || 0) + warga.totalDebt)
+            : (isTodayDebt ? warga.totalDebt : warga.dailyFee + warga.totalDebt)
+    ) : 0;
 
     return (
         <div className="flex-grow p-4 max-w-md mx-auto w-full">
@@ -328,18 +385,38 @@ const PetugasScanPage: FC = () => {
             {warga && !success && (
                 <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-200 animate-slide-in-up">
                     <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100">
-                            <QrCodeIcon className="text-3xl text-emerald-500" />
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 border ${isBulanan ? 'bg-purple-50 border-purple-100 text-purple-600' : 'bg-emerald-50 border-emerald-100 text-emerald-500'}`}>
+                            <QrCodeIcon className="text-3xl" />
                         </div>
-                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">{warga.name}</h2>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {warga.id} • {getDukuhName(warga.dukuhId)}</p>
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                            <h2 className="text-2xl font-black text-slate-800 tracking-tight">{warga.name}</h2>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 flex-wrap mt-1">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">ID: {warga.id} • {getDukuhName(warga.dukuhId)}</span>
+                            {isBulanan ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 border border-purple-200 uppercase tracking-wider">
+                                    Warga Bulanan
+                                </span>
+                            ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wider">
+                                    Warga Harian
+                                </span>
+                            )}
+                        </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <div className={`p-4 rounded-2xl border text-center transition-all ${displayedDailyFee > 0 ? 'bg-slate-50 border-slate-100' : 'bg-slate-100/50 border-slate-200 opacity-60'}`}>
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Iuran Rutin</p>
-                            <p className="text-xl font-black text-slate-800">Rp{displayedDailyFee.toLocaleString('id-ID')}</p>
-                        </div>
+                        {isBulanan ? (
+                            <div className="p-4 rounded-2xl border bg-purple-50/60 border-purple-100 text-center">
+                                <p className="text-[8px] font-black text-purple-500 uppercase tracking-widest mb-1">Tarif Bulanan</p>
+                                <p className="text-xl font-black text-purple-950">Rp{(warga.monthlyFee || 0).toLocaleString('id-ID')}</p>
+                            </div>
+                        ) : (
+                            <div className={`p-4 rounded-2xl border text-center transition-all ${displayedDailyFee > 0 ? 'bg-slate-50 border-slate-100' : 'bg-slate-100/50 border-slate-200 opacity-60'}`}>
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Iuran Per Ambil</p>
+                                <p className="text-xl font-black text-slate-800">Rp{displayedDailyFee.toLocaleString('id-ID')}</p>
+                            </div>
+                        )}
                         <div className={`p-4 rounded-2xl border text-center transition-all ${hasDebt ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
                             <p className="text-[8px] font-black uppercase tracking-widest mb-1">Tunggakan</p>
                             <p className="text-xl font-black">Rp{(warga.totalDebt || 0).toLocaleString('id-ID')}</p>
@@ -362,33 +439,77 @@ const PetugasScanPage: FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {isTodayPaid ? (
-                                <div className="w-full bg-emerald-100 text-emerald-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-sm uppercase tracking-widest border border-emerald-200">
-                                    <CheckCircleIcon /> Sudah Lunas Hari Ini
-                                </div>
-                            ) : isTodayDebt ? (
-                                <button onClick={handleSettleTodayDebt} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                    <CheckCircleIcon /> Lunasi Iuran Hari Ini
-                                </button>
-                            ) : (
-                                <button onClick={() => handleSavePayment('LUNAS')} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                    <CheckCircleIcon /> Bayar Iuran Hari Ini
-                                </button>
-                            )}
+                            {isBulanan ? (
+                                <>
+                                    {isMonthlyPaid ? (
+                                        <div className="w-full bg-emerald-50 text-emerald-700 font-bold p-4 rounded-2xl border border-emerald-200 text-center space-y-1">
+                                            <div className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest">
+                                                <CheckCircleIcon className="text-emerald-600 text-base" /> Iuran Bulan Ini ({monthlyStatus?.currentMonthName || 'Bulan Ini'}) LUNAS
+                                            </div>
+                                            <p className="text-[11px] text-emerald-600 font-medium">Pembayaran bulanan sudah tercatat untuk periode ini.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full bg-amber-50 text-amber-800 font-bold p-3.5 rounded-2xl border border-amber-200 text-center">
+                                            <p className="text-xs font-black uppercase tracking-widest text-amber-700">Belum Bayar Iuran {monthlyStatus?.currentMonthName || 'Bulan Ini'}</p>
+                                            <p className="text-[11px] text-amber-600 font-medium mt-0.5">Tagihan: Rp{(warga.monthlyFee || 0).toLocaleString('id-ID')}</p>
+                                        </div>
+                                    )}
 
-                            {!isTodayPaid && !isTodayDebt && (
-                                <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                    <ClockIcon /> Jadikan Tunggakan (Nanti)
-                                </button>
+                                    {/* Action Buttons for Monthly Warga */}
+                                    {!isMonthlyPaid && (
+                                        <>
+                                            <button onClick={() => handleSaveMonthlyPayment('LUNAS')} disabled={loading} className="w-full bg-purple-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-purple-500/20 hover:bg-purple-700 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                                <CheckCircleIcon /> Bayar Iuran Bulan Ini (Rp{(warga.monthlyFee || 0).toLocaleString('id-ID')})
+                                            </button>
+
+                                            <button onClick={() => handleSaveMonthlyPayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-700 border border-amber-300 font-bold py-3.5 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                                <ClockIcon /> Catat Sebagai Tunggakan Bulanan
+                                            </button>
+                                        </>
+                                    )}
+
+                                    {/* Daily Pickup check for monthly resident */}
+                                    {todayTx ? (
+                                        <div className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-2xl flex items-center justify-center gap-2 text-xs uppercase tracking-wider border border-slate-200">
+                                            <CheckCircleIcon className="text-emerald-500" /> Sampah Sudah Diambil Hari Ini
+                                        </div>
+                                    ) : (
+                                        <button onClick={handleRecordMonthlyPickup} disabled={loading} className="w-full bg-slate-800 text-white font-bold py-3.5 rounded-2xl hover:bg-slate-900 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-sm">
+                                            <CheckCircleIcon className="text-emerald-400" /> Catat Pengambilan Sampah Hari Ini (Rp 0)
+                                        </button>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {isTodayPaid ? (
+                                        <div className="w-full bg-emerald-100 text-emerald-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 text-sm uppercase tracking-widest border border-emerald-200">
+                                            <CheckCircleIcon /> Sudah Lunas Hari Ini
+                                        </div>
+                                    ) : isTodayDebt ? (
+                                        <button onClick={handleSettleTodayDebt} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                            <CheckCircleIcon /> Lunasi Iuran Hari Ini
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => handleSavePayment('LUNAS')} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                            <CheckCircleIcon /> Bayar Iuran Hari Ini
+                                        </button>
+                                    )}
+
+                                    {!isTodayPaid && !isTodayDebt && (
+                                        <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                            <ClockIcon /> Jadikan Tunggakan (Nanti)
+                                        </button>
+                                    )}
+                                </>
                             )}
 
                             {hasDebt && (
-                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <BanknotesIcon /> Cicil Tunggakan
                                 </button>
                             )}
 
-                            {hasDebt && !isTodayPaid && (
+                            {hasDebt && (isBulanan ? !isMonthlyPaid : !isTodayPaid) && (
                                 <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-white border-2 border-slate-800 text-slate-800 font-black py-4 rounded-2xl hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5">
                                     <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
                                         <CheckCircleIcon className="text-slate-400" /> Bayar Borongan

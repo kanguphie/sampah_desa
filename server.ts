@@ -98,7 +98,7 @@ async function startServer() {
         )`,
         `CREATE TABLE IF NOT EXISTS dukuhs (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
         `CREATE TABLE IF NOT EXISTS rts (id INT AUTO_INCREMENT PRIMARY KEY, number VARCHAR(10), dukuhId INT)`,
-        `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT, totalDebt INT DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT, billingType VARCHAR(20) DEFAULT 'HARIAN', monthlyFee INT DEFAULT 0, totalDebt INT DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS petugases (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS admins (id VARCHAR(50) PRIMARY KEY, username VARCHAR(255), name VARCHAR(255), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS transactions (id VARCHAR(50) PRIMARY KEY, wargaId VARCHAR(50), petugasId VARCHAR(50), amount INT, status VARCHAR(20), category VARCHAR(50), timestamp DATETIME)`,
@@ -123,6 +123,16 @@ async function startServer() {
       const existingACols = aCols.map((c: any) => c.Field);
       if (!existingACols.includes('username')) {
           await db.execute(`ALTER TABLE admins ADD COLUMN username VARCHAR(255)`);
+      }
+
+      // Migration for wargas table to add billingType and monthlyFee
+      const [wCols]: any = await db.execute('DESCRIBE wargas');
+      const existingWCols = wCols.map((c: any) => c.Field);
+      if (!existingWCols.includes('billingType')) {
+          await db.execute(`ALTER TABLE wargas ADD COLUMN billingType VARCHAR(20) DEFAULT 'HARIAN'`);
+      }
+      if (!existingWCols.includes('monthlyFee')) {
+          await db.execute(`ALTER TABLE wargas ADD COLUMN monthlyFee INT DEFAULT 0`);
       }
       
       console.log("Database Schema Verified.");
@@ -415,6 +425,135 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  app.post('/api/mark-skipped', async (req, res) => {
+    try {
+        const { dukuhIds } = req.body;
+        const db = await getDB();
+        const today = getWIBDateString();
+        if (!Array.isArray(dukuhIds) || dukuhIds.length === 0) {
+            return res.json({ success: true, count: 0 });
+        }
+        const placeholders = dukuhIds.map(() => '?').join(',');
+
+        // Hanya warga dengan billingType = 'HARIAN' (atau NULL) yang dicatat tunggakan harian saat jadwal dilewati.
+        // Warga berlangganan BULANAN membayar tarif bulanan tetap, tidak dikenakan denda harian saat armada batal/lewat.
+        const [wargas]: any = await db.execute(`
+            SELECT w.* FROM wargas w 
+            WHERE w.dukuhId IN (${placeholders})
+            AND (w.billingType = 'HARIAN' OR w.billingType IS NULL)
+            AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.wargaId = w.id AND DATE(t.timestamp) = ?)
+        `, [...dukuhIds, today]);
+
+        let count = 0;
+        for (const w of wargas) {
+            const amount = w.dailyFee || 2000;
+            const id = `tr-debt-skip-${Date.now()}-${w.id}`;
+            await db.execute(
+                'INSERT INTO transactions (id, wargaId, status, amount, category, timestamp) VALUES (?, ?, "unpaid", ?, "harian", ?)',
+                [id, w.id, amount, getWIBDateTimeString()]
+            );
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, w.id]);
+            count++;
+        }
+        res.json({ success: true, count });
+    } catch (err: any) {
+        console.error('[API] mark-skipped error:', err);
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/warga-status/:wargaId', async (req, res) => {
+    try {
+        const { wargaId } = req.params;
+        const db = await getDB();
+        const today = getWIBDateString();
+
+        const [wRows]: any = await db.execute('SELECT * FROM wargas WHERE id = ?', [wargaId]);
+        if (wRows.length === 0) {
+            return res.status(404).json({ error: 'Warga tidak ditemukan' });
+        }
+        const warga = wRows[0];
+
+        // 1. Cek transaksi hari ini
+        const [todayRows]: any = await db.execute(
+            'SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? ORDER BY timestamp DESC LIMIT 1', 
+            [wargaId, today]
+        );
+
+        // 2. Cek status pembayaran bulanan bulan ini (WIB)
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const wib = new Date(utc + (3600000 * 7));
+        const currentYear = wib.getFullYear();
+        const currentMonth = wib.getMonth() + 1;
+
+        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const currentMonthName = `${months[currentMonth - 1]} ${currentYear}`;
+
+        const [mRows]: any = await db.execute(`
+            SELECT * FROM transactions 
+            WHERE wargaId = ? 
+            AND LOWER(category) = 'bulanan' 
+            AND LOWER(status) = 'paid' 
+            AND YEAR(timestamp) = ? 
+            AND MONTH(timestamp) = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 1
+        `, [wargaId, currentYear, currentMonth]);
+
+        const monthlyPaid = mRows.length > 0;
+
+        res.json({
+            warga,
+            todayTx: todayRows[0] || null,
+            monthlyPaid,
+            monthlyTx: mRows[0] || null,
+            currentMonthName,
+            currentMonth,
+            currentYear
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/monthly-status/:wargaId', async (req, res) => {
+    try {
+        const { wargaId } = req.params;
+        const db = await getDB();
+
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const wib = new Date(utc + (3600000 * 7));
+        const currentYear = wib.getFullYear();
+        const currentMonth = wib.getMonth() + 1;
+
+        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const currentMonthName = `${months[currentMonth - 1]} ${currentYear}`;
+
+        const [mRows]: any = await db.execute(`
+            SELECT * FROM transactions 
+            WHERE wargaId = ? 
+            AND LOWER(category) = 'bulanan' 
+            AND LOWER(status) = 'paid' 
+            AND YEAR(timestamp) = ? 
+            AND MONTH(timestamp) = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 1
+        `, [wargaId, currentYear, currentMonth]);
+
+        res.json({
+            monthlyPaid: mRows.length > 0,
+            monthlyTx: mRows[0] || null,
+            currentMonthName,
+            currentMonth,
+            currentYear
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post('/api/reports', async (req, res) => {
     try {
         const { startDate, endDate, dukuhId, status } = req.body;
@@ -539,11 +678,36 @@ async function startServer() {
         const dukuhIds = schedule.length > 0 ? schedule[0].dukuhIds : [];
         if (!Array.isArray(dukuhIds) || dukuhIds.length === 0) return res.json([]);
         const placeholders = dukuhIds.map(() => '?').join(',');
+        const currentYear = wib.getFullYear();
+        const currentMonth = wib.getMonth() + 1;
+
+        // Warga harian: belum bayar jika belum ada transaksi lunas hari ini
+        // Warga bulanan: belum bayar jika belum ada iuran bulanan lunas di bulan ini
         const [wargas]: any = await db.execute(`
             SELECT w.* FROM wargas w 
             WHERE w.dukuhId IN (${placeholders})
-            AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.wargaId = w.id AND DATE(t.timestamp) = ?)
-        `, [...dukuhIds, today]);
+            AND (
+                (
+                    (w.billingType = 'HARIAN' OR w.billingType IS NULL)
+                    AND NOT EXISTS (
+                        SELECT 1 FROM transactions t 
+                        WHERE t.wargaId = w.id AND DATE(t.timestamp) = ? AND LOWER(t.status) IN ('paid', 'lunas')
+                    )
+                )
+                OR
+                (
+                    w.billingType = 'BULANAN'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM transactions t 
+                        WHERE t.wargaId = w.id 
+                        AND LOWER(t.category) = 'bulanan' 
+                        AND LOWER(t.status) IN ('paid', 'lunas')
+                        AND YEAR(t.timestamp) = ? 
+                        AND MONTH(t.timestamp) = ?
+                    )
+                )
+            )
+        `, [...dukuhIds, today, currentYear, currentMonth]);
         res.json(wargas);
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
@@ -922,6 +1086,8 @@ async function startServer() {
                             'dukuh_id': 'dukuhId',
                             'dukuh_ids': 'dukuhIds', // Added for schedules
                             'daily_fee': 'dailyFee',
+                            'billing_type': 'billingType',
+                            'monthly_fee': 'monthlyFee',
                             'total_debt': 'totalDebt',
                             'warga_id': 'wargaId',
                             'petugas_id': 'petugasId'
@@ -978,14 +1144,22 @@ async function startServer() {
         
         // Standardize status: LUNAS/paid -> paid, HUTANG/unpaid -> unpaid
         const finalStatus = (status === 'LUNAS' || status === 'paid') ? 'paid' : 'unpaid';
-        // Standardize category: TUNGGAKAN/tunggakan -> tunggakan, IURAN/harian -> harian
-        const finalCategory = (category === 'TUNGGAKAN' || category === 'tunggakan') ? 'tunggakan' : 'harian';
+        // Standardize category: tunggakan, bulanan, ambil_bulanan, or harian
+        let finalCategory = 'harian';
+        const catLower = (category || '').toLowerCase();
+        if (catLower === 'tunggakan') {
+            finalCategory = 'tunggakan';
+        } else if (catLower === 'bulanan' || catLower === 'iuran_bulanan') {
+            finalCategory = 'bulanan';
+        } else if (catLower === 'ambil_bulanan') {
+            finalCategory = 'ambil_bulanan';
+        }
 
         await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, wargaId, petugasId || null, amount, finalStatus, finalCategory, getWIBDateTimeString()]);
 
         // Effect on totalDebt
         if (finalStatus === 'unpaid') {
-            // Adding a debt record
+            // Adding a debt record (harian or bulanan)
             await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, wargaId]);
         } else if (finalStatus === 'paid' && finalCategory === 'tunggakan') {
             // Paying a debt

@@ -133,6 +133,8 @@ export const getReports = async (filter: any) => fetchLocal('/reports', { method
 export const checkIfWargaPaidToday = async (wargaId: string) => fetchLocal(`/check-payment/${wargaId}`);
 export const getWargaTodayTransaction = async (wargaId: string) => fetchLocal(`/transactions/today/${wargaId}`);
 export const getTransactionsByWargaId = async (wargaId: string) => fetchLocal(`/transactions/warga/${wargaId}`);
+export const getWargaStatus = async (wargaId: string) => fetchLocal(`/warga-status/${wargaId}`);
+export const getMonthlyPaymentStatus = async (wargaId: string) => fetchLocal(`/monthly-status/${wargaId}`);
 
 // --- KEUANGAN & DASHBOARD ---
 

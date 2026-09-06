@@ -9,12 +9,16 @@ export interface RT {
     number: string;
 }
 
+export type BillingType = 'HARIAN' | 'BULANAN';
+
 export interface Warga {
     id: string; // 6-digit unique random number
     name: string;
     rtId: number;
     dukuhId: number;
-    dailyFee: number;
+    dailyFee: number; // Tarif per pengambilan (2 hari sekali)
+    billingType?: BillingType; // 'HARIAN' (per ambil) atau 'BULANAN' (sebulan sekali)
+    monthlyFee?: number; // Tarif sebulan sekali
     totalDebt: number; // Accumulated unpaid fees
 }
 
@@ -33,7 +37,7 @@ export interface Admin {
 }
 
 export type TransactionStatus = 'LUNAS' | 'HUTANG';
-export type TransactionCategory = 'IURAN' | 'TUNGGAKAN';
+export type TransactionCategory = 'IURAN' | 'TUNGGAKAN' | 'BULANAN' | 'HARIAN' | 'AMBIL_BULANAN';
 
 export interface Transaksi {
     id: string;
