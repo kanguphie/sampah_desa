@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sapadesa-v2';
+const CACHE_NAME = 'sapadesa-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -19,6 +19,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only handle HTTP/HTTPS requests
+  if (!event.request.url.startsWith('http://') && !event.request.url.startsWith('https://')) {
+    return;
+  }
+
   // Do not intercept non-GET requests or API calls
   if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
     return;
@@ -32,13 +37,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-while-revalidate for other assets
+  // Stale-while-revalidate for static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+        if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
           const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          caches.open(CACHE_NAME).then((cache) => {
+            // Guard against unsupported schemes or uncacheable requests
+            if (event.request.url.startsWith('http')) {
+              cache.put(event.request, responseToCache).catch(() => {});
+            }
+          });
         }
         return networkResponse;
       }).catch(() => cachedResponse);
