@@ -73,6 +73,7 @@ async function startServer() {
             database: process.env.DB_NAME || 'sapadesa',
             port: parseInt(process.env.DB_PORT || '3306'),
             timezone: '+07:00', // Set to WIB (UTC+7)
+            dateStrings: true,
             waitForConnections: true,
             connectionLimit: 10,
             queueLimit: 0
@@ -1011,44 +1012,84 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  // Helper for querying pengeluaran
+  const queryPengeluarans = async (db: any, filter: any) => {
+    let query = "SELECT id, description, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, category FROM pengeluarans WHERE 1=1";
+    const params = [];
+    if (filter.startDate) { 
+        let adjustedStartDate = filter.startDate;
+        if (typeof adjustedStartDate === 'string' && adjustedStartDate.includes('T')) {
+            adjustedStartDate = adjustedStartDate.split('T')[0];
+        }
+        query += ' AND date >= ?'; 
+        params.push(adjustedStartDate); 
+    }
+    if (filter.endDate) { 
+        let adjustedEndDate = filter.endDate;
+        if (typeof adjustedEndDate === 'string' && adjustedEndDate.includes('T')) {
+            adjustedEndDate = adjustedEndDate.split('T')[0];
+        }
+        query += ' AND date <= ?'; 
+        params.push(adjustedEndDate); 
+    }
+    if (filter.category) { query += ' AND category = ?'; params.push(filter.category); }
+    query += ' ORDER BY date DESC, id DESC';
+    const [rows] = await db.execute(query, params);
+    return rows;
+  };
+
+  // GET pengeluaran with query params
+  app.get(['/api/pengeluaran', '/api/pengeluarans'], async (req, res) => {
+    try {
+        const db = await getDB();
+        const rows = await queryPengeluarans(db, req.query);
+        res.json(rows);
+    } catch (err: any) { 
+        console.error('[API Error] GET pengeluaran:', err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+  });
+
+  // POST filter for pengeluaran
+  app.post(['/api/pengeluaran/filter', '/api/pengeluarans/filter'], async (req, res) => {
+    try {
+        const db = await getDB();
+        const rows = await queryPengeluarans(db, req.body);
+        res.json(rows);
+    } catch (err: any) { 
+        console.error('[API Error] POST filter pengeluaran:', err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+  });
+
+  // POST pengeluaran (Create, with fallback to filter if body is filter params)
   app.post(['/api/pengeluaran', '/api/pengeluarans'], async (req, res) => {
     try {
         const db = await getDB();
         const data = req.body;
         
-        // Distinguish between Filter (get-like) and Create
-        if (data.startDate || data.category || (data.description === undefined && data.amount === undefined)) {
-            // It's a filter request
-            let query = 'SELECT * FROM pengeluarans WHERE 1=1';
-            const params = [];
-            if (data.startDate) { 
-                let adjustedStartDate = data.startDate;
-                if (typeof adjustedStartDate === 'string' && adjustedStartDate.includes('T')) {
-                    adjustedStartDate = adjustedStartDate.split('T')[0];
-                }
-                query += ' AND date >= ?'; 
-                params.push(adjustedStartDate); 
-            }
-            if (data.endDate) { 
-                let adjustedEndDate = data.endDate;
-                if (typeof adjustedEndDate === 'string' && adjustedEndDate.includes('T')) {
-                    adjustedEndDate = adjustedEndDate.split('T')[0];
-                }
-                query += ' AND date <= ?'; 
-                params.push(adjustedEndDate); 
-            }
-            if (data.category) { query += ' AND category = ?'; params.push(data.category); }
-            query += ' ORDER BY date DESC';
-            const [rows] = await db.execute(query, params);
+        // If request is purely a filter request (has filter fields but no description & amount)
+        if ((data.startDate || data.endDate) && data.description === undefined && data.amount === undefined) {
+            const rows = await queryPengeluarans(db, data);
             return res.json(rows);
         }
 
         // It's a create request
         const { description, amount, date, category } = data;
         const id = `exp-${Date.now()}`;
-        await db.execute('INSERT INTO pengeluarans (id, description, amount, date, category) VALUES (?, ?, ?, ?, ?)', [id, description, amount, date, category]);
-        res.json({ id, description, amount, date, category });
-    } catch (err: any) { res.status(500).json({ error: err.message }); }
+        const catVal = category || 'OPERASIONAL';
+        const dateVal = date ? (typeof date === 'string' && date.includes('T') ? date.split('T')[0] : date) : new Date().toISOString().split('T')[0];
+        const amountVal = Number(amount) || 0;
+
+        await db.execute(
+            'INSERT INTO pengeluarans (id, description, amount, date, category) VALUES (?, ?, ?, ?, ?)', 
+            [id, description || '', amountVal, dateVal, catVal]
+        );
+        res.json({ id, description: description || '', amount: amountVal, date: dateVal, category: catVal });
+    } catch (err: any) { 
+        console.error('[API Error] CREATE pengeluaran:', err.message);
+        res.status(500).json({ error: err.message }); 
+    }
   });
 
   app.put(['/api/pengeluaran/:id', '/api/pengeluarans/:id'], async (req, res) => {
@@ -1073,35 +1114,67 @@ async function startServer() {
   });
 
   // --- PEMASUKAN LAIN (NON-IURAN) ROUTES ---
-  app.all(['/api/pemasukan-lain', '/api/pemasukan-lains'], async (req, res) => {
+
+  // Helper for querying pemasukan_lain
+  const queryPemasukanLain = async (db: any, filter: any) => {
+    let query = "SELECT id, description, amount, DATE_FORMAT(date, '%Y-%m-%d') as date, source, category FROM pemasukan_lain WHERE 1=1";
+    const params = [];
+    if (filter.startDate) { 
+        let adjustedStartDate = filter.startDate;
+        if (typeof adjustedStartDate === 'string' && adjustedStartDate.includes('T')) {
+            adjustedStartDate = adjustedStartDate.split('T')[0];
+        }
+        query += ' AND date >= ?'; 
+        params.push(adjustedStartDate); 
+    }
+    if (filter.endDate) { 
+        let adjustedEndDate = filter.endDate;
+        if (typeof adjustedEndDate === 'string' && adjustedEndDate.includes('T')) {
+            adjustedEndDate = adjustedEndDate.split('T')[0];
+        }
+        query += ' AND date <= ?'; 
+        params.push(adjustedEndDate); 
+    }
+    if (filter.source) { query += ' AND source = ?'; params.push(filter.source); }
+    if (filter.category) { query += ' AND category = ?'; params.push(filter.category); }
+    query += ' ORDER BY date DESC, id DESC';
+    const [rows] = await db.execute(query, params);
+    return rows;
+  };
+
+  // GET pemasukan-lain with query params
+  app.get(['/api/pemasukan-lain', '/api/pemasukan-lains'], async (req, res) => {
     try {
         const db = await getDB();
-        const data = req.method === 'GET' ? req.query : req.body;
+        const rows = await queryPemasukanLain(db, req.query);
+        res.json(rows);
+    } catch (err: any) { 
+        console.error('[API Error] GET pemasukan-lain:', err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+  });
+
+  // POST filter for pemasukan-lain
+  app.post(['/api/pemasukan-lain/filter', '/api/pemasukan-lains/filter'], async (req, res) => {
+    try {
+        const db = await getDB();
+        const rows = await queryPemasukanLain(db, req.body);
+        res.json(rows);
+    } catch (err: any) { 
+        console.error('[API Error] POST filter pemasukan-lain:', err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+  });
+
+  // POST pemasukan-lain (Create, with fallback to filter if body is filter params)
+  app.post(['/api/pemasukan-lain', '/api/pemasukan-lains'], async (req, res) => {
+    try {
+        const db = await getDB();
+        const data = req.body;
         
-        // If GET or Filter request
-        if (req.method === 'GET' || data.startDate || data.endDate || data.source || data.category || (data.description === undefined && data.amount === undefined)) {
-            let query = 'SELECT * FROM pemasukan_lain WHERE 1=1';
-            const params = [];
-            if (data.startDate) { 
-                let adjustedStartDate = data.startDate;
-                if (typeof adjustedStartDate === 'string' && adjustedStartDate.includes('T')) {
-                    adjustedStartDate = adjustedStartDate.split('T')[0];
-                }
-                query += ' AND date >= ?'; 
-                params.push(adjustedStartDate); 
-            }
-            if (data.endDate) { 
-                let adjustedEndDate = data.endDate;
-                if (typeof adjustedEndDate === 'string' && adjustedEndDate.includes('T')) {
-                    adjustedEndDate = adjustedEndDate.split('T')[0];
-                }
-                query += ' AND date <= ?'; 
-                params.push(adjustedEndDate); 
-            }
-            if (data.source) { query += ' AND source = ?'; params.push(data.source); }
-            if (data.category) { query += ' AND category = ?'; params.push(data.category); }
-            query += ' ORDER BY date DESC, id DESC';
-            const [rows] = await db.execute(query, params);
+        // If this request is purely a filter request (has startDate/endDate but no description & amount)
+        if ((data.startDate || data.endDate) && data.description === undefined && data.amount === undefined) {
+            const rows = await queryPemasukanLain(db, data);
             return res.json(rows);
         }
 
@@ -1110,10 +1183,16 @@ async function startServer() {
         const id = `inc-${Date.now()}`;
         const sourceVal = source || 'Lainnya';
         const catVal = category || 'PEMASUKAN_LAIN';
-        await db.execute('INSERT INTO pemasukan_lain (id, description, amount, date, source, category) VALUES (?, ?, ?, ?, ?, ?)', [id, description, amount, date, sourceVal, catVal]);
-        res.json({ id, description, amount, date, source: sourceVal, category: catVal });
+        const dateVal = date ? (typeof date === 'string' && date.includes('T') ? date.split('T')[0] : date) : new Date().toISOString().split('T')[0];
+        const amountVal = Number(amount) || 0;
+
+        await db.execute(
+            'INSERT INTO pemasukan_lain (id, description, amount, date, source, category) VALUES (?, ?, ?, ?, ?, ?)', 
+            [id, description || '', amountVal, dateVal, sourceVal, catVal]
+        );
+        res.json({ id, description: description || '', amount: amountVal, date: dateVal, source: sourceVal, category: catVal });
     } catch (err: any) { 
-        console.error('[API Error] pemasukan-lain:', err.message);
+        console.error('[API Error] CREATE pemasukan-lain:', err.message);
         res.status(500).json({ error: err.message }); 
     }
   });

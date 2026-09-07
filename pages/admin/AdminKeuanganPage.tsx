@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Swal from 'sweetalert2';
 import type { Pengeluaran, PemasukanLain } from '@/types';
 import { 
     getPengeluaran, 
@@ -101,11 +102,31 @@ const PemasukanLainForm: React.FC<{
 
   const displayAmount = formData.amount === 0 ? '' : formData.amount.toLocaleString('id-ID');
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Nominal Belum Diisi',
+        text: 'Silakan masukkan jumlah nominal pemasukan yang valid.',
+        confirmButtonColor: '#059669',
+      });
+      return;
+    }
+    if (!formData.description || !formData.description.trim()) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Keterangan Wajib Diisi',
+        text: 'Silakan isi rincian keterangan atau sumber pemasukan.',
+        confirmButtonColor: '#059669',
+      });
+      return;
+    }
+    onSave(pemasukan ? { ...pemasukan, ...formData } : { ...formData });
+  };
+
   return (
-    <form onSubmit={(e) => { 
-        e.preventDefault(); 
-        onSave(pemasukan ? { ...pemasukan, ...formData } : { ...formData }); 
-    }} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Pemasukan</label>
         <input 
@@ -206,11 +227,31 @@ const PengeluaranForm: React.FC<{
 
   const displayAmount = formData.amount === 0 ? '' : formData.amount.toLocaleString('id-ID');
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Nominal Belum Diisi',
+        text: 'Silakan masukkan jumlah nominal pengeluaran yang valid.',
+        confirmButtonColor: '#e11d48',
+      });
+      return;
+    }
+    if (!formData.description || !formData.description.trim()) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Keterangan Wajib Diisi',
+        text: 'Silakan isi keterangan atau rincian pengeluaran.',
+        confirmButtonColor: '#e11d48',
+      });
+      return;
+    }
+    onSave(pengeluaran ? { ...pengeluaran, ...formData } : { ...formData });
+  };
+
   return (
-    <form onSubmit={(e) => { 
-        e.preventDefault(); 
-        onSave(pengeluaran ? { ...pengeluaran, ...formData } : { ...formData }); 
-    }} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Transaksi</label>
         <input 
@@ -433,46 +474,143 @@ const AdminKeuanganPage: React.FC = () => {
     // Save Handlers
     const handleSavePemasukan = async (data: any) => {
         try {
-            if (data.id) {
+            const isEdit = !!data.id;
+            if (isEdit) {
                 await updatePemasukanLain(data.id, data);
             } else {
                 await createPemasukanLain(data);
             }
+
+            // Adjust date filter if the saved transaction date falls outside the current range
+            const itemDate = toLocalDateString(data.date);
+            if (itemDate) {
+                setFilters(prev => {
+                    let newStart = prev.startDate;
+                    let newEnd = prev.endDate;
+                    if (itemDate < newStart) newStart = itemDate;
+                    if (itemDate > newEnd) newEnd = itemDate;
+                    return { ...prev, startDate: newStart, endDate: newEnd };
+                });
+            }
+
+            // If user was on pengeluaran or iuran tab, switch to pemasukan_lain or keep 'all'
+            setActiveTab(prev => (prev === 'pengeluaran' || prev === 'iuran' ? 'pemasukan_lain' : prev));
+            setCurrentPage(1);
+
             setModalType(null);
             setSelectedPemasukan(null);
             await fetchData();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil Disimpan!',
+                text: isEdit ? 'Perubahan pemasukan lain berhasil disimpan.' : 'Pemasukan non-iuran berhasil dicatat ke dalam kas.',
+                timer: 2000,
+                showConfirmButton: false,
+                customClass: {
+                    popup: 'rounded-3xl shadow-xl'
+                }
+            });
         } catch (err: any) {
             console.error('Failed to save pemasukan lain:', err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Menyimpan',
+                text: err.message || 'Terjadi kesalahan saat menyimpan pemasukan lain.',
+                confirmButtonColor: '#059669',
+                customClass: {
+                    popup: 'rounded-3xl shadow-xl'
+                }
+            });
         }
     };
 
     const handleSavePengeluaran = async (data: any) => {
         try {
-            if (data.id) {
+            const isEdit = !!data.id;
+            if (isEdit) {
                 await updatePengeluaran(data.id, data);
             } else {
                 await createPengeluaran(data);
             }
+
+            // Adjust date filter if the saved transaction date falls outside current range
+            const itemDate = toLocalDateString(data.date);
+            if (itemDate) {
+                setFilters(prev => {
+                    let newStart = prev.startDate;
+                    let newEnd = prev.endDate;
+                    if (itemDate < newStart) newStart = itemDate;
+                    if (itemDate > newEnd) newEnd = itemDate;
+                    return { ...prev, startDate: newStart, endDate: newEnd };
+                });
+            }
+
+            // If user was on pemasukan_lain or iuran tab, switch to pengeluaran or keep 'all'
+            setActiveTab(prev => (prev === 'pemasukan_lain' || prev === 'iuran' ? 'pengeluaran' : prev));
+            setCurrentPage(1);
+
             setModalType(null);
             setSelectedPengeluaran(null);
             await fetchData();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil Disimpan!',
+                text: isEdit ? 'Perubahan pengeluaran berhasil disimpan.' : 'Catatan pengeluaran kas berhasil disimpan.',
+                timer: 2000,
+                showConfirmButton: false,
+                customClass: {
+                    popup: 'rounded-3xl shadow-xl'
+                }
+            });
         } catch (err: any) {
             console.error('Failed to save pengeluaran:', err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Menyimpan',
+                text: err.message || 'Terjadi kesalahan saat menyimpan pengeluaran.',
+                confirmButtonColor: '#e11d48',
+                customClass: {
+                    popup: 'rounded-3xl shadow-xl'
+                }
+            });
         }
     };
 
     const handleDeleteConfirm = async () => {
         if (!toDelete) return;
+        const deleteType = toDelete.type;
         try {
-            if (toDelete.type === 'pemasukan') {
+            if (deleteType === 'pemasukan') {
                 await deletePemasukanLain(toDelete.item.id);
             } else {
                 await deletePengeluaran(toDelete.item.id);
             }
             setToDelete(null);
             await fetchData();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil Dihapus!',
+                text: `Catatan ${deleteType === 'pemasukan' ? 'pemasukan lain' : 'pengeluaran'} telah dihapus dari sistem.`,
+                timer: 1800,
+                showConfirmButton: false,
+                customClass: {
+                    popup: 'rounded-3xl shadow-xl'
+                }
+            });
         } catch (err: any) {
             console.error('Failed to delete transaction:', err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Menghapus',
+                text: err.message || 'Terjadi kesalahan saat menghapus data.',
+                confirmButtonColor: '#e11d48',
+                customClass: {
+                    popup: 'rounded-3xl shadow-xl'
+                }
+            });
         }
     };
 
