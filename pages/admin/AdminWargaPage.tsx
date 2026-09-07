@@ -197,7 +197,29 @@ const AdminWargaPage: React.FC = () => {
         return sortedAndFilteredWarga.slice(start, start + (itemsPerPage as number));
     }, [sortedAndFilteredWarga, itemsPerPage, currentPage]);
 
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredWarga.length / (itemsPerPage as number));
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.max(1, Math.ceil(sortedAndFilteredWarga.length / (itemsPerPage as number)));
+
+    // Ensure current page is within valid range when data changes
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [totalPages, currentPage]);
+
+    const getPaginationRange = () => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        const pages: (number | string)[] = [];
+        if (currentPage <= 4) {
+            pages.push(1, 2, 3, 4, 5, '...', totalPages);
+        } else if (currentPage >= totalPages - 3) {
+            pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+            pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+        }
+        return pages;
+    };
 
     // --- SELECTION & BULK ACTIONS LOGIC ---
     const isAllPageSelected = paginatedWarga.length > 0 && paginatedWarga.every(w => selectedIds.includes(w.id));
@@ -369,17 +391,35 @@ const AdminWargaPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                     <div className="relative md:col-span-2">
                         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input type="text" placeholder="Cari nama atau ID..." className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-semibold text-sm" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+                        <input 
+                            type="text" 
+                            placeholder="Cari nama atau ID..." 
+                            className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-semibold text-sm" 
+                            value={filters.search} 
+                            onChange={e => { setFilters({...filters, search: e.target.value}); setCurrentPage(1); }} 
+                        />
                     </div>
-                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" onChange={e => setFilters({...filters, dukuhId: e.target.value})} value={filters.dukuhId}>
+                    <select 
+                        className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" 
+                        onChange={e => { setFilters({...filters, dukuhId: e.target.value}); setCurrentPage(1); }} 
+                        value={filters.dukuhId}
+                    >
                         <option value="all">Semua Dukuh</option>
                         {dukuhList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
-                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" onChange={e => setFilters({...filters, rtId: e.target.value})} value={filters.rtId}>
+                    <select 
+                        className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" 
+                        onChange={e => { setFilters({...filters, rtId: e.target.value}); setCurrentPage(1); }} 
+                        value={filters.rtId}
+                    >
                         <option value="all">Semua RT</option>
                         {rtList.map(rt => <option key={rt.id} value={rt.id}>RT {rt.number}</option>)}
                     </select>
-                    <select className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" onChange={e => setFilters({...filters, billingType: e.target.value})} value={filters.billingType}>
+                    <select 
+                        className="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none bg-slate-50 font-bold text-slate-600 text-xs" 
+                        onChange={e => { setFilters({...filters, billingType: e.target.value}); setCurrentPage(1); }} 
+                        value={filters.billingType}
+                    >
                         <option value="all">Semua Pembayaran</option>
                         <option value="HARIAN">Harian (2 Hari Sekali)</option>
                         <option value="BULANAN">Bulanan (Sebulan Sekali)</option>
@@ -389,11 +429,21 @@ const AdminWargaPage: React.FC = () => {
                 <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                     <div className="flex items-center gap-3">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Baris Per Halaman</span>
-                        <select value={itemsPerPage} onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none">
-                            <option value={10}>10</option><option value={25}>25</option><option value="all">Semua</option>
+                        <select 
+                            value={itemsPerPage} 
+                            onChange={e => { setItemsPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} 
+                            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                        >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value="all">Semua</option>
                         </select>
                     </div>
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Ditemukan {sortedAndFilteredWarga.length} Warga</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Ditemukan <span className="text-slate-700 font-black">{sortedAndFilteredWarga.length}</span> Warga
+                    </p>
                 </div>
             </div>
 
@@ -533,6 +583,97 @@ const AdminWargaPage: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* PAGINATION FOOTER */}
+                {sortedAndFilteredWarga.length > 0 && (
+                    <div className="p-4 sm:p-5 bg-slate-50/70 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                        {/* Left: Info data */}
+                        <div className="text-xs font-semibold text-slate-500 text-center md:text-left">
+                            Menampilkan <span className="font-bold text-slate-800">
+                                {itemsPerPage === 'all' ? 1 : Math.min((currentPage - 1) * (itemsPerPage as number) + 1, sortedAndFilteredWarga.length)}
+                            </span> - <span className="font-bold text-slate-800">
+                                {itemsPerPage === 'all' ? sortedAndFilteredWarga.length : Math.min(currentPage * (itemsPerPage as number), sortedAndFilteredWarga.length)}
+                            </span> dari <span className="font-bold text-slate-800">{sortedAndFilteredWarga.length}</span> warga
+                            {itemsPerPage !== 'all' && totalPages > 1 && (
+                                <span className="ml-2 text-slate-400">
+                                    (Halaman <strong className="text-slate-700">{currentPage}</strong> dari <strong className="text-slate-700">{totalPages}</strong>)
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Right: Pagination Controls */}
+                        {itemsPerPage !== 'all' && totalPages > 1 && (
+                            <div className="flex items-center flex-wrap justify-center gap-1.5">
+                                {/* First Page */}
+                                <button
+                                    onClick={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                    title="Halaman Pertama"
+                                    className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <i className="fa-solid fa-angles-left"></i>
+                                </button>
+
+                                {/* Prev Page */}
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    title="Halaman Sebelumnya"
+                                    className="px-2.5 h-8 rounded-xl flex items-center justify-center gap-1 font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <i className="fa-solid fa-chevron-left text-[10px]"></i>
+                                    <span className="hidden sm:inline">Prev</span>
+                                </button>
+
+                                {/* Numbered Pages */}
+                                {getPaginationRange().map((page, idx) => {
+                                    if (page === '...') {
+                                        return (
+                                            <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-bold text-slate-400 select-none">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    const isCurrent = page === currentPage;
+                                    return (
+                                        <button
+                                            key={`page-${page}`}
+                                            onClick={() => setCurrentPage(Number(page))}
+                                            className={`w-8 h-8 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                                                isCurrent 
+                                                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 scale-105' 
+                                                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                })}
+
+                                {/* Next Page */}
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    title="Halaman Selanjutnya"
+                                    className="px-2.5 h-8 rounded-xl flex items-center justify-center gap-1 font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <span className="hidden sm:inline">Next</span>
+                                    <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                                </button>
+
+                                {/* Last Page */}
+                                <button
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    title="Halaman Terakhir"
+                                    className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <i className="fa-solid fa-angles-right"></i>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* MODAL: FORM ADD/EDIT */}

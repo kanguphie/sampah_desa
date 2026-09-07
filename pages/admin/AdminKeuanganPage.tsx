@@ -741,31 +741,34 @@ const AdminKeuanganPage: React.FC = () => {
     return (
         <div className="space-y-6">
             {/* Top Header Card */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div>
+            <div className="bg-white p-6 sm:p-7 rounded-[2rem] border border-slate-200/70 shadow-sm flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5">
+                <div className="max-w-2xl">
                     <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight font-display">Manajemen Keuangan Desa</h1>
-                    <p className="text-slate-500 text-sm font-medium mt-1">
+                    <p className="text-slate-500 text-sm font-medium mt-1 leading-relaxed">
                         Pencatatan pemasukan iuran warga, pemasukan non-iuran (rosok, donasi, dana desa), dan pengeluaran operasional.
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-3 xl:flex items-center gap-2.5 w-full xl:w-auto shrink-0">
                     <button 
                         onClick={handlePrint} 
-                        className="bg-slate-100 text-slate-700 px-4 py-3 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
+                        className="inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-4.5 py-3 rounded-2xl font-bold text-xs sm:text-sm hover:bg-slate-200 active:scale-95 transition-all whitespace-nowrap cursor-pointer shadow-sm border border-slate-200/60"
                     >
-                        <DownloadIcon /> Cetak Laporan
+                        <DownloadIcon />
+                        <span>Cetak Laporan</span>
                     </button>
                     <button 
                         onClick={() => { setSelectedPemasukan(null); setModalType('pemasukan'); }} 
-                        className="bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm transform hover:-translate-y-0.5"
+                        className="inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm hover:bg-emerald-700 active:scale-95 shadow-md shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all whitespace-nowrap cursor-pointer"
                     >
-                        <SparklesIcon /> + Pemasukan Lain
+                        <SparklesIcon />
+                        <span>+ Pemasukan Lain</span>
                     </button>
                     <button 
                         onClick={() => { setSelectedPengeluaran(null); setModalType('pengeluaran'); }} 
-                        className="bg-rose-600 text-white px-5 py-3 rounded-2xl font-bold hover:bg-rose-700 shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm transform hover:-translate-y-0.5"
+                        className="inline-flex items-center justify-center gap-2 bg-rose-600 text-white px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm hover:bg-rose-700 active:scale-95 shadow-md shadow-rose-600/20 hover:shadow-rose-600/30 transition-all whitespace-nowrap cursor-pointer"
                     >
-                        + Catat Pengeluaran
+                        <BanknotesIcon className="text-base" />
+                        <span>+ Catat Pengeluaran</span>
                     </button>
                 </div>
             </div>

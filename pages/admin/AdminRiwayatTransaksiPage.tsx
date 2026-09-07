@@ -196,7 +196,29 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
         return sortedAndFilteredTx.slice(start, start + (itemsPerPage as number));
     }, [sortedAndFilteredTx, itemsPerPage, currentPage]);
 
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedAndFilteredTx.length / (itemsPerPage as number));
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.max(1, Math.ceil(sortedAndFilteredTx.length / (itemsPerPage as number)));
+
+    // Ensure current page is within valid range
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [totalPages, currentPage]);
+
+    const getPaginationRange = () => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        const pages: (number | string)[] = [];
+        if (currentPage <= 4) {
+            pages.push(1, 2, 3, 4, 5, '...', totalPages);
+        } else if (currentPage >= totalPages - 3) {
+            pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+            pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+        }
+        return pages;
+    };
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
@@ -400,14 +422,94 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                     </table>
                 </div>
 
-                {itemsPerPage !== 'all' && totalPages > 1 && (
-                    <div className="p-5 bg-slate-50/30 border-t border-slate-100 flex justify-center items-center">
-                        <div className="flex items-center gap-1 font-bold text-sm">
-                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 disabled:opacity-20 text-slate-400 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-left"></i></button>
-                            <span className="bg-primary text-white w-8 h-8 flex items-center justify-center rounded-lg shadow-sm text-xs">{currentPage}</span>
-                            <span className="px-2 text-slate-400 font-medium text-xs">/ {totalPages}</span>
-                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages} className="p-2 disabled:opacity-20 text-slate-400 hover:text-primary transition-colors"><i className="fa-solid fa-chevron-right"></i></button>
+                {/* PAGINATION FOOTER */}
+                {sortedAndFilteredTx.length > 0 && (
+                    <div className="p-4 sm:p-5 bg-slate-50/70 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                        {/* Left: Info data */}
+                        <div className="text-xs font-semibold text-slate-500 text-center md:text-left">
+                            Menampilkan <span className="font-bold text-slate-800">
+                                {itemsPerPage === 'all' ? 1 : Math.min((currentPage - 1) * (itemsPerPage as number) + 1, sortedAndFilteredTx.length)}
+                            </span> - <span className="font-bold text-slate-800">
+                                {itemsPerPage === 'all' ? sortedAndFilteredTx.length : Math.min(currentPage * (itemsPerPage as number), sortedAndFilteredTx.length)}
+                            </span> dari <span className="font-bold text-slate-800">{sortedAndFilteredTx.length}</span> transaksi
+                            {itemsPerPage !== 'all' && totalPages > 1 && (
+                                <span className="ml-2 text-slate-400">
+                                    (Halaman <strong className="text-slate-700">{currentPage}</strong> dari <strong className="text-slate-700">{totalPages}</strong>)
+                                </span>
+                            )}
                         </div>
+
+                        {/* Right: Pagination Controls */}
+                        {itemsPerPage !== 'all' && totalPages > 1 && (
+                            <div className="flex items-center flex-wrap justify-center gap-1.5">
+                                {/* First Page */}
+                                <button
+                                    onClick={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                    title="Halaman Pertama"
+                                    className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <i className="fa-solid fa-angles-left"></i>
+                                </button>
+
+                                {/* Prev Page */}
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    title="Halaman Sebelumnya"
+                                    className="px-2.5 h-8 rounded-xl flex items-center justify-center gap-1 font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <i className="fa-solid fa-chevron-left text-[10px]"></i>
+                                    <span className="hidden sm:inline">Prev</span>
+                                </button>
+
+                                {/* Numbered Pages */}
+                                {getPaginationRange().map((page, idx) => {
+                                    if (page === '...') {
+                                        return (
+                                            <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-bold text-slate-400 select-none">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    const isCurrent = page === currentPage;
+                                    return (
+                                        <button
+                                            key={`page-${page}`}
+                                            onClick={() => setCurrentPage(Number(page))}
+                                            className={`w-8 h-8 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                                                isCurrent 
+                                                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 scale-105' 
+                                                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                })}
+
+                                {/* Next Page */}
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    title="Halaman Selanjutnya"
+                                    className="px-2.5 h-8 rounded-xl flex items-center justify-center gap-1 font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <span className="hidden sm:inline">Next</span>
+                                    <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                                </button>
+
+                                {/* Last Page */}
+                                <button
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    title="Halaman Terakhir"
+                                    className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs"
+                                >
+                                    <i className="fa-solid fa-angles-right"></i>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
