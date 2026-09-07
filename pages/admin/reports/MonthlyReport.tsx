@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { getReports, getPengeluaran } from '@/services/api';
+import { getReports, getPengeluaran, getPemasukanLain } from '@/services/api';
 import { DownloadIcon } from '@/components/icons';
 
 const MonthlyReport: React.FC = () => {
@@ -9,6 +8,7 @@ const MonthlyReport: React.FC = () => {
     const [year, setYear] = useState(now.getFullYear());
     const [reports, setReports] = useState<any[]>([]);
     const [expenses, setExpenses] = useState<any[]>([]);
+    const [otherIncomes, setOtherIncomes] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -17,9 +17,14 @@ const MonthlyReport: React.FC = () => {
             const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
             const lastDay = new Date(year, month, 0).getDate();
             const endStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-            const [r, e] = await Promise.all([getReports({ startDate: startStr, endDate: endStr }), getPengeluaran({ startDate: startStr, endDate: endStr })]);
-            setReports(r);
-            setExpenses(e);
+            const [r, e, o] = await Promise.all([
+                getReports({ startDate: startStr, endDate: endStr }), 
+                getPengeluaran({ startDate: startStr, endDate: endStr }),
+                getPemasukanLain({ startDate: startStr, endDate: endStr })
+            ]);
+            setReports(Array.isArray(r) ? r : []);
+            setExpenses(Array.isArray(e) ? e : []);
+            setOtherIncomes(Array.isArray(o) ? o : []);
             setLoading(false);
         };
         fetch();
@@ -31,14 +36,29 @@ const MonthlyReport: React.FC = () => {
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(year, month - 1, d);
             const dateStr = dateObj.toDateString();
-            const income = reports.filter(r => new Date(r.timestamp).toDateString() === dateStr).reduce((s, i) => s + i.amount, 0);
-            const expense = expenses.filter(e => new Date(e.date).toDateString() === dateStr).reduce((s, i) => s + i.amount, 0);
+            const iuran = reports.filter(r => new Date(r.timestamp).toDateString() === dateStr).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+            const other = otherIncomes.filter(o => new Date(o.date).toDateString() === dateStr).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+            const income = iuran + other;
+            const expense = expenses.filter(e => new Date(e.date).toDateString() === dateStr).reduce((s, i) => s + (Number(i.amount) || 0), 0);
             if (income > 0 || expense > 0) {
-                data.push({ date: d, fullDate: dateObj, income, expense, net: income - expense });
+                data.push({ 
+                    date: d, 
+                    fullDate: dateObj, 
+                    income, 
+                    iuran, 
+                    other, 
+                    expense, 
+                    net: income - expense 
+                });
             }
         }
         return data;
-    }, [reports, expenses, month, year]);
+    }, [reports, expenses, otherIncomes, month, year]);
+
+    const totalIuran = useMemo(() => dailyData.reduce((s, i) => s + i.iuran, 0), [dailyData]);
+    const totalOther = useMemo(() => dailyData.reduce((s, i) => s + i.other, 0), [dailyData]);
+    const totalInc = useMemo(() => dailyData.reduce((s, i) => s + i.income, 0), [dailyData]);
+    const totalExp = useMemo(() => dailyData.reduce((s, i) => s + i.expense, 0), [dailyData]);
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
@@ -47,14 +67,13 @@ const MonthlyReport: React.FC = () => {
         const rows = dailyData.map(d => `
             <tr>
                 <td style="font-weight:700;">${d.date} ${new Date(year, month - 1).toLocaleString('id-ID', {month:'long'})}</td>
-                <td style="text-align:right; color:#10b981;">Rp${d.income.toLocaleString('id-ID')}</td>
+                <td style="text-align:right; color:#0284c7;">Rp${d.iuran.toLocaleString('id-ID')}</td>
+                <td style="text-align:right; color:#059669;">Rp${d.other.toLocaleString('id-ID')}</td>
+                <td style="text-align:right; color:#10b981; font-weight:bold;">Rp${d.income.toLocaleString('id-ID')}</td>
                 <td style="text-align:right; color:#ef4444;">Rp${d.expense.toLocaleString('id-ID')}</td>
                 <td style="text-align:right; font-weight:800;">Rp${d.net.toLocaleString('id-ID')}</td>
             </tr>
         `).join('');
-
-        const totalInc = dailyData.reduce((s,i)=>s+i.income,0);
-        const totalExp = dailyData.reduce((s,i)=>s+i.expense,0);
 
         printWindow.document.write(`
             <html>
@@ -74,8 +93,8 @@ const MonthlyReport: React.FC = () => {
                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
                     th { background: #f8fafc; text-align: left; padding: 12px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 1.5px solid #e2e8f0; color: #475569; }
                     td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
-                    .summary-box { display: flex; justify-content: flex-end; margin-top: 30px; }
-                    .total-line { display: flex; gap: 40px; font-weight: 800; font-size: 12pt; background: #0f172a; color: white; padding: 18px 35px; border-radius: 8px; }
+                    .summary-box { display: flex; justify-content: flex-end; margin-top: 25px; }
+                    .total-line { display: flex; gap: 40px; font-weight: 800; font-size: 12pt; background: #f8fafc; padding: 15px 25px; border-radius: 8px; border: 1px solid #e2e8f0; }
                 </style>
             </head>
             <body>
@@ -86,19 +105,21 @@ const MonthlyReport: React.FC = () => {
                         <p class="sub-2">SEKRETARIAT: KANTOR DESA ROWOSARI, JAWA TENGAH 51271</p>
                     </div>
                     <div class="header-right">
-                        <div class="report-title">Rekapitulasi Bulanan</div>
-                        <div class="print-date">BULAN: ${new Date(year, month-1).toLocaleString('id-ID', {month:'long', year:'numeric'})}</div>
-                        <div class="print-date">WAKTU CETAK: ${new Date().toLocaleString('id-ID')}</div>
+                        <div class="report-title">Laporan Bulanan Kas</div>
+                        <div class="print-date">PERIODE: ${new Date(year, month - 1).toLocaleString('id-ID', {month:'long'})} ${year}</div>
+                        <div class="print-date">DICETAK PADA: ${new Date().toLocaleString('id-ID')}</div>
                     </div>
                 </div>
                 <table>
-                    <thead><tr><th>Tanggal</th><th style="text-align:right">Total Pemasukan</th><th style="text-align:right">Total Pengeluaran</th><th style="text-align:right">Netto Harian</th></tr></thead>
-                    <tbody>${rows || '<tr><td colspan="4" style="text-align:center; padding: 20px;">Belum ada aktivitas transaksi bulan ini</td></tr>'}</tbody>
+                    <thead><tr><th>Tanggal</th><th style="text-align:right">Iuran Warga</th><th style="text-align:right">Pemasukan Lain</th><th style="text-align:right">Total Masuk</th><th style="text-align:right">Pengeluaran</th><th style="text-align:right">Netto</th></tr></thead>
+                    <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding: 20px;">Tidak ada pergerakan kas bulan ini</td></tr>'}</tbody>
                 </table>
                 <div class="summary-box">
                     <div class="total-line">
-                        <span>AKUMULASI SALDO BULAN INI</span>
-                        <span>Rp${(totalInc - totalExp).toLocaleString('id-ID')}</span>
+                        <span>TOTAL AKHIR:</span>
+                        <span style="color: #10b981;">MASUK: Rp${totalInc.toLocaleString('id-ID')}</span>
+                        <span style="color: #ef4444;">KELUAR: Rp${totalExp.toLocaleString('id-ID')}</span>
+                        <span>SALDO: Rp${(totalInc - totalExp).toLocaleString('id-ID')}</span>
                     </div>
                 </div>
                 <script>window.onload=()=>{window.print();window.close();}</script>
@@ -111,36 +132,73 @@ const MonthlyReport: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                <div className="flex-1 grid grid-cols-2 gap-3">
+                <div className="flex-1 grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Bulan</label>
-                      <select value={month} onChange={e => setMonth(Number(e.target.value))} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none">
-                          {Array.from({length:12}).map((_, i) => <option key={i+1} value={i+1}>{new Date(2000, i).toLocaleString('id-ID', {month: 'long'})}</option>)}
-                      </select>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Bulan</label>
+                        <select value={month} onChange={e => setMonth(Number(e.target.value))} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20">
+                            {Array.from({length: 12}, (_, i) => (
+                                <option key={i+1} value={i+1}>{new Date(2000, i).toLocaleString('id-ID', {month: 'long'})}</option>
+                            ))}
+                        </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Tahun</label>
-                      <select value={year} onChange={e => setYear(Number(e.target.value))} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none">
-                          {[now.getFullYear(), now.getFullYear()-1].map(y => <option key={y} value={y}>{y}</option>)}
-                      </select>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Tahun</label>
+                        <select value={year} onChange={e => setYear(Number(e.target.value))} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20">
+                            {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => (
+                                <option key={y} value={y}>{y}</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
-                <button onClick={handlePrint} className="bg-emerald-500 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all"><DownloadIcon /> Cetak Rekap</button>
+                <button onClick={handlePrint} className="bg-slate-800 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition-all shadow-lg shadow-slate-900/10"><DownloadIcon /> Cetak Laporan</button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-5 rounded-3xl bg-blue-50 border border-blue-100">
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Iuran Warga</p>
+                    <p className="text-xl font-black text-blue-700 mt-1">Rp{totalIuran.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="p-5 rounded-3xl bg-emerald-50 border border-emerald-100">
+                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pemasukan Lain</p>
+                    <p className="text-xl font-black text-emerald-700 mt-1">Rp{totalOther.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="p-5 rounded-3xl bg-rose-50 border border-rose-100">
+                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Pengeluaran</p>
+                    <p className="text-xl font-black text-rose-700 mt-1">Rp{totalExp.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="p-5 rounded-3xl bg-slate-100 border border-slate-200">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Netto</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">Rp{(totalInc - totalExp).toLocaleString('id-ID')}</p>
+                </div>
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
                 <table className="w-full text-sm text-left">
-                    <thead><tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="p-5">Tanggal</th><th className="p-5 text-right">Pemasukan</th><th className="p-5 text-right">Pengeluaran</th><th className="p-5 text-right">Netto</th></tr></thead>
+                    <thead>
+                        <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="p-5">Tanggal</th>
+                            <th className="p-5 text-right">Iuran Warga</th>
+                            <th className="p-5 text-right">Pemasukan Lain</th>
+                            <th className="p-5 text-right">Total Masuk</th>
+                            <th className="p-5 text-right">Pengeluaran</th>
+                            <th className="p-5 text-right">Saldo Bersih</th>
+                        </tr>
+                    </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse">Memuat...</td></tr> : 
-                        dailyData.map(d => (
-                            <tr key={d.date} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-5 font-bold text-slate-700">{d.date} {new Date(year, month - 1).toLocaleString('id-ID', {month: 'long'})}</td>
-                                <td className="p-5 text-right font-bold text-emerald-600">Rp{d.income.toLocaleString('id-ID')}</td>
+                        {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse font-bold text-slate-300">Memproses Data Bulanan...</td></tr> : 
+                        dailyData.map((d, i) => (
+                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="p-5 font-bold text-slate-700">{d.date} {new Date(year, month - 1).toLocaleString('id-ID', {month:'long'})}</td>
+                                <td className="p-5 text-right font-medium text-blue-600">Rp{d.iuran.toLocaleString('id-ID')}</td>
+                                <td className="p-5 text-right font-medium text-emerald-600">Rp{d.other.toLocaleString('id-ID')}</td>
+                                <td className="p-5 text-right font-bold text-emerald-700">Rp{d.income.toLocaleString('id-ID')}</td>
                                 <td className="p-5 text-right font-bold text-rose-600">Rp{d.expense.toLocaleString('id-ID')}</td>
                                 <td className="p-5 text-right font-black text-slate-800">Rp{d.net.toLocaleString('id-ID')}</td>
                             </tr>
                         ))}
+                        {!loading && dailyData.length === 0 && (
+                            <tr><td colSpan={6} className="p-10 text-center text-slate-400 font-bold italic text-xs">Belum ada catatan transaksi pada bulan ini</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>

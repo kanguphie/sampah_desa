@@ -174,6 +174,13 @@ export const createPengeluaran = async (data: any) => fetchLocal('/pengeluaran',
 export const updatePengeluaran = async (id: string, data: any) => fetchLocal(`/pengeluaran/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deletePengeluaran = async (id: string) => fetchLocal(`/pengeluaran/${id}`, { method: 'DELETE' });
 
+// --- PEMASUKAN LAIN (NON-IURAN) ---
+
+export const getPemasukanLain = async (filter?: any) => fetchLocal('/pemasukan-lain', { method: 'POST', body: JSON.stringify(filter || {}) });
+export const createPemasukanLain = async (data: any) => fetchLocal('/pemasukan-lain', { method: 'POST', body: JSON.stringify(data) });
+export const updatePemasukanLain = async (id: string, data: any) => fetchLocal(`/pemasukan-lain/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deletePemasukanLain = async (id: string) => fetchLocal(`/pemasukan-lain/${id}`, { method: 'DELETE' });
+
 // --- JADWAL & OPERATIONAL ---
 
 export const getSchedule = async () => fetchLocal('/schedule');

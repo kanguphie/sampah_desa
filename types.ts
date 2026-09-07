@@ -56,6 +56,15 @@ export interface Pengeluaran {
     amount: number;
 }
 
+export interface PemasukanLain {
+    id: string;
+    date: Date;
+    description: string;
+    amount: number;
+    source?: string;
+    category?: string;
+}
+
 export interface ContactMessage {
     id: string;
     name: string;

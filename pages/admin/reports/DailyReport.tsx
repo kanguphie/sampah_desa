@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { getReports, getPengeluaran } from '@/services/api';
-import type { Pengeluaran } from '@/types';
+import { getReports, getPengeluaran, getPemasukanLain } from '@/services/api';
+import type { Pengeluaran, PemasukanLain } from '@/types';
 import { DownloadIcon } from '@/components/icons';
 
 const toLocalDateString = (d: Date | string | null | undefined): string => {
@@ -47,14 +46,20 @@ const DailyReport: React.FC = () => {
     const [date, setDate] = useState(toLocalDateString(new Date()));
     const [reports, setReports] = useState<any[]>([]);
     const [expenses, setExpenses] = useState<Pengeluaran[]>([]);
+    const [otherIncomes, setOtherIncomes] = useState<PemasukanLain[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const fetch = async () => {
             setLoading(true);
-            const [r, e] = await Promise.all([getReports({ startDate: date, endDate: date }), getPengeluaran({ startDate: date, endDate: date })]);
-            setReports(r);
-            setExpenses(e);
+            const [r, e, o] = await Promise.all([
+                getReports({ startDate: date, endDate: date }), 
+                getPengeluaran({ startDate: date, endDate: date }),
+                getPemasukanLain({ startDate: date, endDate: date })
+            ]);
+            setReports(Array.isArray(r) ? r : []);
+            setExpenses(Array.isArray(e) ? e : []);
+            setOtherIncomes(Array.isArray(o) ? o : []);
             setLoading(false);
         };
         fetch();
@@ -63,6 +68,13 @@ const DailyReport: React.FC = () => {
     // Filter locally to strictly match the selected target calendar date
     const filteredReports = reports.filter(r => toLocalDateString(r.timestamp) === date);
     const filteredExpenses = expenses.filter(e => toLocalDateString(e.date) === date);
+    const filteredOtherIncomes = otherIncomes.filter(o => toLocalDateString(o.date) === date);
+
+    const totalIuran = filteredReports.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const totalOther = filteredOtherIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const totalIncome = totalIuran + totalOther;
+    const totalExpense = filteredExpenses.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const netBalance = totalIncome - totalExpense;
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
@@ -73,6 +85,14 @@ const DailyReport: React.FC = () => {
                 <td>${new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
                 <td><div class="font-bold">${r.wargaName}</div><div class="text-xs">RT ${r.rtNumber}, ${r.dukuhName}</div></td>
                 <td style="text-align:right">Rp${r.amount.toLocaleString('id-ID')}</td>
+            </tr>
+        `).join('');
+
+        const otherIncomeRows = filteredOtherIncomes.map(o => `
+            <tr>
+                <td>${o.source || 'Lainnya'}</td>
+                <td><div class="font-bold">${o.description || '-'}</div></td>
+                <td style="text-align:right; color:#059669; font-weight:bold;">Rp${(o.amount || 0).toLocaleString('id-ID')}</td>
             </tr>
         `).join('');
 
@@ -115,16 +135,22 @@ const DailyReport: React.FC = () => {
                         <p class="sub-2">SEKRETARIAT: KANTOR DESA ROWOSARI, JAWA TENGAH 51271</p>
                     </div>
                     <div class="header-right">
-                        <div class="report-title">Laporan Harian</div>
+                        <div class="report-title">Laporan Harian Kas</div>
                         <div class="print-date">TGL LAPORAN: ${new Date(date).toLocaleDateString('id-ID', {dateStyle:'long'})}</div>
                         <div class="print-date">WAKTU CETAK: ${new Date().toLocaleString('id-ID')}</div>
                     </div>
                 </div>
 
-                <div class="section-title">RINCIAN PEMASUKAN IURAN</div>
+                <div class="section-title">RINCIAN PEMASUKAN IURAN WARGA</div>
                 <table>
                     <thead><tr><th width="15%">Waktu</th><th>Nama Warga / Wilayah</th><th style="text-align:right">Nominal</th></tr></thead>
-                    <tbody>${incomeRows || '<tr><td colspan="3" style="text-align:center; padding: 20px;">Tidak ada transaksi hari ini</td></tr>'}</tbody>
+                    <tbody>${incomeRows || '<tr><td colspan="3" style="text-align:center; padding: 20px;">Tidak ada iuran sampah pada hari ini</td></tr>'}</tbody>
+                </table>
+
+                <div class="section-title">RINCIAN PEMASUKAN LAIN (NON-IURAN)</div>
+                <table>
+                    <thead><tr><th width="30%">Sumber</th><th>Keterangan / Uraian</th><th style="text-align:right">Nominal</th></tr></thead>
+                    <tbody>${otherIncomeRows || '<tr><td colspan="3" style="text-align:center; padding: 20px;">Tidak ada pemasukan lain pada hari ini</td></tr>'}</tbody>
                 </table>
 
                 <div class="section-title">RINCIAN PENGELUARAN KAS</div>
@@ -136,7 +162,7 @@ const DailyReport: React.FC = () => {
                 <div class="summary-box">
                     <div class="total-line">
                         <span>TOTAL SALDO NETTO</span>
-                        <span style="color: #10b981;">Rp${(filteredReports.reduce((s,i)=>s+i.amount,0) - filteredExpenses.reduce((s,i)=>s+i.amount,0)).toLocaleString('id-ID')}</span>
+                        <span style="color: #10b981;">Rp${netBalance.toLocaleString('id-ID')}</span>
                     </div>
                 </div>
                 <script>window.onload=()=>{window.print();window.close();}</script>
@@ -156,31 +182,86 @@ const DailyReport: React.FC = () => {
                 <button onClick={handlePrint} className="bg-slate-800 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition-all shadow-lg shadow-slate-900/10"><DownloadIcon /> Cetak Laporan</button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-6 rounded-3xl bg-emerald-50 border border-emerald-100"><p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pemasukan</p><p className="text-2xl font-black text-emerald-700 mt-1">Rp{filteredReports.reduce((s,i) => s+i.amount, 0).toLocaleString('id-ID')}</p></div>
-                <div className="p-6 rounded-3xl bg-rose-50 border border-rose-100"><p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Pengeluaran</p><p className="text-2xl font-black text-rose-700 mt-1">Rp{filteredExpenses.reduce((s,i) => s+i.amount, 0).toLocaleString('id-ID')}</p></div>
-                <div className="p-6 rounded-3xl bg-slate-100 border border-slate-200"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Netto</p><p className="text-2xl font-black text-slate-800 mt-1">Rp{(filteredReports.reduce((s,i) => s+i.amount, 0) - filteredExpenses.reduce((s,i) => s+i.amount, 0)).toLocaleString('id-ID')}</p></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-5 rounded-3xl bg-blue-50 border border-blue-100">
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Iuran Warga</p>
+                    <p className="text-xl font-black text-blue-700 mt-1">Rp{totalIuran.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="p-5 rounded-3xl bg-emerald-50 border border-emerald-100">
+                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pemasukan Lain</p>
+                    <p className="text-xl font-black text-emerald-700 mt-1">Rp{totalOther.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="p-5 rounded-3xl bg-rose-50 border border-rose-100">
+                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Pengeluaran</p>
+                    <p className="text-xl font-black text-rose-700 mt-1">Rp{totalExpense.toLocaleString('id-ID')}</p>
+                </div>
+                <div className="p-5 rounded-3xl bg-slate-100 border border-slate-200">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Netto</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">Rp{netBalance.toLocaleString('id-ID')}</p>
+                </div>
             </div>
 
+            {/* Tabel Iuran Warga */}
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="p-5 bg-slate-50/70 border-b border-slate-100 font-bold text-slate-700 text-sm">
+                    Rincian Pembayaran Iuran Sampah ({filteredReports.length})
+                </div>
                 <table className="w-full text-sm text-left">
-                    <thead><tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="p-5">Waktu</th><th className="p-5">Warga</th><th className="p-5">Petugas</th><th className="p-5 text-right">Nominal</th></tr></thead>
+                    <thead>
+                        <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="p-4">Waktu</th>
+                            <th className="p-4">Warga</th>
+                            <th className="p-4">Petugas</th>
+                            <th className="p-4 text-right">Nominal</th>
+                        </tr>
+                    </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr> : 
-                        filteredReports.map(r => (
+                        {loading ? (
+                            <tr><td colSpan={4} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
+                        ) : filteredReports.map(r => (
                             <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-5 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
-                                <td className="p-5">
+                                <td className="p-4 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
+                                <td className="p-4">
                                     <p className="font-bold text-slate-700">{r.wargaName}</p>
                                     <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT {r.rtNumber}, {r.dukuhName}</p>
                                 </td>
-                                <td className="p-5 text-slate-500 font-medium">{r.petugasName}</td>
-                                <td className="p-5 text-right font-bold text-emerald-600">Rp{r.amount.toLocaleString('id-ID')}</td>
+                                <td className="p-4 text-slate-500 font-medium">{r.petugasName}</td>
+                                <td className="p-4 text-right font-bold text-blue-600">Rp{r.amount.toLocaleString('id-ID')}</td>
                             </tr>
                         ))}
+                        {!loading && filteredReports.length === 0 && (
+                            <tr><td colSpan={4} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada pembayaran iuran pada hari ini</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
+
+            {/* Tabel Pemasukan Lain */}
+            {filteredOtherIncomes.length > 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="p-5 bg-emerald-50/50 border-b border-emerald-100 font-bold text-emerald-800 text-sm">
+                        Rincian Pemasukan Lain (Non-Iuran) ({filteredOtherIncomes.length})
+                    </div>
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <th className="p-4">Sumber</th>
+                                <th className="p-4">Keterangan / Uraian</th>
+                                <th className="p-4 text-right">Nominal</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredOtherIncomes.map(o => (
+                                <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-4 font-bold text-slate-800">{o.source || 'Lainnya'}</td>
+                                    <td className="p-4 text-slate-600 font-medium">{o.description || '-'}</td>
+                                    <td className="p-4 text-right font-bold text-emerald-600">+Rp{(o.amount || 0).toLocaleString('id-ID')}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 };

@@ -155,6 +155,7 @@ async function startServer() {
         `CREATE TABLE IF NOT EXISTS admins (id VARCHAR(50) PRIMARY KEY, username VARCHAR(255), name VARCHAR(255), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS transactions (id VARCHAR(50) PRIMARY KEY, wargaId VARCHAR(50), petugasId VARCHAR(50), amount INT, status VARCHAR(20), category VARCHAR(50), timestamp DATETIME)`,
         `CREATE TABLE IF NOT EXISTS pengeluarans (id VARCHAR(50) PRIMARY KEY, description TEXT, amount INT, date DATE, category VARCHAR(50))`,
+        `CREATE TABLE IF NOT EXISTS pemasukan_lain (id VARCHAR(50) PRIMARY KEY, description TEXT, amount INT, date DATE, source VARCHAR(100), category VARCHAR(50))`,
         `CREATE TABLE IF NOT EXISTS contact_messages (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), subject VARCHAR(255), message TEXT, timestamp DATETIME, isRead BOOLEAN DEFAULT FALSE)`,
         `CREATE TABLE IF NOT EXISTS announcements (id VARCHAR(50) PRIMARY KEY, title VARCHAR(255), content TEXT, date DATETIME, isActive BOOLEAN DEFAULT TRUE)`,
         `CREATE TABLE IF NOT EXISTS schedules (day VARCHAR(20) PRIMARY KEY, dukuhIds JSON)`
@@ -281,10 +282,13 @@ async function startServer() {
         console.log(`[API] Fetching transparency report for year: ${year}`);
         
         const [revenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ?', [year]);
+        const [otherIncome]: any = await db.execute('SELECT SUM(amount) as total FROM pemasukan_lain WHERE YEAR(date) = ?', [year]);
         const [expense]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ?', [year]);
         
-        const totalRevenue = revenue[0].total || 0;
-        const totalExpense = expense[0].total || 0;
+        const totalIuran = Number(revenue[0]?.total || 0);
+        const totalOtherIncome = Number(otherIncome[0]?.total || 0);
+        const totalRevenue = totalIuran + totalOtherIncome;
+        const totalExpense = Number(expense[0]?.total || 0);
         
         const [dukuhList]: any = await db.execute('SELECT * FROM dukuhs');
         const dukuhStats = [];
@@ -305,12 +309,17 @@ async function startServer() {
         const monthlyStats = [];
         for (let i = 1; i <= 12; i++) {
             const [inc]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid" AND YEAR(timestamp) = ? AND MONTH(timestamp) = ?', [year, i]);
+            const [otherInc]: any = await db.execute('SELECT SUM(amount) as total FROM pemasukan_lain WHERE YEAR(date) = ? AND MONTH(date) = ?', [year, i]);
             const [exp]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans WHERE YEAR(date) = ? AND MONTH(date) = ?', [year, i]);
-            const income = inc[0].total || 0;
-            const expenseVal = exp[0].total || 0;
+            const iuranVal = Number(inc[0]?.total || 0);
+            const otherVal = Number(otherInc[0]?.total || 0);
+            const income = iuranVal + otherVal;
+            const expenseVal = Number(exp[0]?.total || 0);
             monthlyStats.push({
                 monthName: months[i-1],
                 income,
+                iuranIncome: iuranVal,
+                otherIncome: otherVal,
                 expense: expenseVal,
                 balance: income - expenseVal
             });
@@ -318,6 +327,8 @@ async function startServer() {
 
         res.json({
             totalRevenue,
+            totalIuran,
+            totalOtherIncome,
             totalExpense,
             balance: totalRevenue - totalExpense,
             dukuhStats,
@@ -333,16 +344,24 @@ async function startServer() {
     try {
         const db = await getDB();
         const [wargaCount]: any = await db.execute('SELECT COUNT(*) as total FROM wargas');
-        const [totalRevenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid"');
+        const [iuranRevenue]: any = await db.execute('SELECT SUM(amount) as total FROM transactions WHERE status = "paid"');
+        const [otherRevenue]: any = await db.execute('SELECT SUM(amount) as total FROM pemasukan_lain');
         const [totalDebt]: any = await db.execute('SELECT SUM(totalDebt) as total FROM wargas');
         const [totalExpense]: any = await db.execute('SELECT SUM(amount) as total FROM pengeluarans');
         
-        const balance = (totalRevenue[0].total || 0) - (totalExpense[0].total || 0);
+        const totalIuran = Number(iuranRevenue[0]?.total || 0);
+        const totalOther = Number(otherRevenue[0]?.total || 0);
+        const totalRevenue = totalIuran + totalOther;
+        const totalExp = Number(totalExpense[0]?.total || 0);
+        const balance = totalRevenue - totalExp;
 
         res.json({
-            totalWarga: wargaCount[0].total,
-            totalRevenue: totalRevenue[0].total || 0,
-            totalDebt: totalDebt[0].total || 0,
+            totalWarga: wargaCount[0]?.total || 0,
+            totalRevenue: totalRevenue,
+            totalIuran: totalIuran,
+            totalOtherIncome: totalOther,
+            totalDebt: Number(totalDebt[0]?.total || 0),
+            totalExpense: totalExp,
             balance: balance
         });
     } catch (err: any) {
@@ -1053,6 +1072,73 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  // --- PEMASUKAN LAIN (NON-IURAN) ROUTES ---
+  app.all(['/api/pemasukan-lain', '/api/pemasukan-lains'], async (req, res) => {
+    try {
+        const db = await getDB();
+        const data = req.method === 'GET' ? req.query : req.body;
+        
+        // If GET or Filter request
+        if (req.method === 'GET' || data.startDate || data.endDate || data.source || data.category || (data.description === undefined && data.amount === undefined)) {
+            let query = 'SELECT * FROM pemasukan_lain WHERE 1=1';
+            const params = [];
+            if (data.startDate) { 
+                let adjustedStartDate = data.startDate;
+                if (typeof adjustedStartDate === 'string' && adjustedStartDate.includes('T')) {
+                    adjustedStartDate = adjustedStartDate.split('T')[0];
+                }
+                query += ' AND date >= ?'; 
+                params.push(adjustedStartDate); 
+            }
+            if (data.endDate) { 
+                let adjustedEndDate = data.endDate;
+                if (typeof adjustedEndDate === 'string' && adjustedEndDate.includes('T')) {
+                    adjustedEndDate = adjustedEndDate.split('T')[0];
+                }
+                query += ' AND date <= ?'; 
+                params.push(adjustedEndDate); 
+            }
+            if (data.source) { query += ' AND source = ?'; params.push(data.source); }
+            if (data.category) { query += ' AND category = ?'; params.push(data.category); }
+            query += ' ORDER BY date DESC, id DESC';
+            const [rows] = await db.execute(query, params);
+            return res.json(rows);
+        }
+
+        // It's a create request
+        const { description, amount, date, source, category } = data;
+        const id = `inc-${Date.now()}`;
+        const sourceVal = source || 'Lainnya';
+        const catVal = category || 'PEMASUKAN_LAIN';
+        await db.execute('INSERT INTO pemasukan_lain (id, description, amount, date, source, category) VALUES (?, ?, ?, ?, ?, ?)', [id, description, amount, date, sourceVal, catVal]);
+        res.json({ id, description, amount, date, source: sourceVal, category: catVal });
+    } catch (err: any) { 
+        console.error('[API Error] pemasukan-lain:', err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+  });
+
+  app.put(['/api/pemasukan-lain/:id', '/api/pemasukan-lains/:id'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+        const db = await getDB();
+        const sets = Object.keys(data).map(c => `\`${c}\` = ?`).join(', ');
+        const vals = [...Object.values(data), id];
+        await db.execute(`UPDATE pemasukan_lain SET ${sets} WHERE id = ?`, vals);
+        res.json({ id, ...data });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.delete(['/api/pemasukan-lain/:id', '/api/pemasukan-lains/:id'], async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = await getDB();
+        await db.execute('DELETE FROM pemasukan_lain WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   app.post('/api/profile/admin', async (req, res) => {
     try {
         const { id, name, pin } = req.body;
@@ -1100,7 +1186,7 @@ async function startServer() {
         const tables = [
             'village_config', 'dukuhs', 'rts', 'wargas', 
             'petugases', 'admins', 'schedules',
-            'transactions', 'pengeluarans', 'contact_messages', 'announcements'
+            'transactions', 'pengeluarans', 'pemasukan_lain', 'contact_messages', 'announcements'
         ];
         const backup: any = {};
         for (const table of tables) {
@@ -1441,7 +1527,7 @@ async function startServer() {
         const tables = [
             'village_config', 'dukuhs', 'rts', 'wargas', 
             'petugases', 'admins', 'schedules',
-            'transactions', 'pengeluarans', 'contact_messages', 'announcements'
+            'transactions', 'pengeluarans', 'pemasukan_lain', 'contact_messages', 'announcements'
         ];
 
         for (const table of tables) {
