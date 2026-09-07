@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { FC } from 'react';
 import type { Warga, TransactionStatus, Transaksi, Dukuh, RT } from '@/types';
-import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday, getWargaStatus } from '@/services/api';
+import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday, getWargaStatus, createPartialPayment } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
@@ -25,6 +25,9 @@ const PetugasScanPage: FC = () => {
     
     const [isPayingDebt, setIsPayingDebt] = useState(false);
     const [debtInput, setDebtInput] = useState<number | ''>('');
+
+    const [isPartialPaying, setIsPartialPaying] = useState(false);
+    const [partialInput, setPartialInput] = useState<number | ''>('');
     
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,6 +64,8 @@ const PetugasScanPage: FC = () => {
         setLoading(false);
         setIsPayingDebt(false);
         setDebtInput('');
+        setIsPartialPaying(false);
+        setPartialInput('');
         isProcessingRef.current = false;
         
         if (mode === 'scan') {
@@ -257,16 +262,47 @@ const PetugasScanPage: FC = () => {
     };
 
     const handleSettleTodayDebt = async () => {
-        if (!warga) return;
+        if (!warga || !petugas) return;
         setLoading(true);
         try {
-            await convertDebtToPaidToday(warga.id);
+            await convertDebtToPaidToday(warga.id, petugas.id);
             setModalTitle('Iuran Dilunasi');
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
         } catch (err) { setError('Gagal memperbarui.'); }
         finally { setLoading(false); }
+    };
+
+    const handleSavePartialPayment = async () => {
+        if (!warga || !petugas || partialInput === '' || Number(partialInput) <= 0) return;
+        setLoading(true);
+        try {
+            const nominalTarif = isBulanan ? (warga.monthlyFee || 0) : (warga.dailyFee || 2000);
+            const paid = Number(partialInput);
+            await createPartialPayment({
+                wargaId: warga.id,
+                petugasId: petugas.id,
+                amountPaid: paid,
+                tarif: nominalTarif,
+                category: isBulanan ? 'bulanan' : 'harian'
+            });
+
+            if (paid < nominalTarif) {
+                const deficit = nominalTarif - paid;
+                setModalTitle(`Diterima Rp${paid.toLocaleString('id-ID')} (Tunggakan +Rp${deficit.toLocaleString('id-ID')})`);
+            } else {
+                setModalTitle(`Pembayaran Rp${paid.toLocaleString('id-ID')} Berhasil`);
+            }
+
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2200);
+        } catch (err: any) {
+            setError(err.message || 'Gagal menyimpan pembayaran sebagian.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handlePayDebt = async (amount: number) => {
@@ -294,9 +330,9 @@ const PetugasScanPage: FC = () => {
                     await payDebt(warga.id, petugas.id, warga.totalDebt);
                 }
             } else {
-                if (todayTx?.status === 'HUTANG') {
-                    await convertDebtToPaidToday(warga.id);
-                    const oldDebt = warga.totalDebt - warga.dailyFee;
+                if (todayTx?.status === 'HUTANG' || (todayTx?.status as string)?.toLowerCase() === 'unpaid') {
+                    await convertDebtToPaidToday(warga.id, petugas.id);
+                    const oldDebt = warga.totalDebt - (warga.dailyFee || 2000);
                     if (oldDebt > 0) {
                         await payDebt(warga.id, petugas.id, oldDebt);
                     }
@@ -317,10 +353,27 @@ const PetugasScanPage: FC = () => {
     };
 
     const isBulanan = warga?.billingType === 'BULANAN';
-    const isTodayDebt = todayTx?.status === 'HUTANG';
-    const isTodayPaid = todayTx?.status === 'LUNAS';
+    const isTodayDebt = todayTx?.status === 'HUTANG' || (todayTx?.status as string)?.toLowerCase() === 'unpaid';
+    const isTodayPaid = todayTx?.status === 'LUNAS' || (todayTx?.status as string)?.toLowerCase() === 'paid';
     const isMonthlyPaid = !!monthlyStatus?.monthlyPaid;
     const hasDebt = warga ? warga.totalDebt > 0 : false;
+    const currentTarif = isBulanan ? (warga?.monthlyFee || 0) : (warga?.dailyFee || 2000);
+
+    const quickChips = React.useMemo(() => {
+        if (!currentTarif) return [500, 1000, 2000];
+        if (currentTarif === 2000) return [500, 1000, 1500];
+        if (currentTarif === 3000) return [1000, 1500, 2000];
+        if (currentTarif === 5000) return [1000, 2000, 3000, 4000];
+        if (currentTarif >= 10000) {
+            const quarter = Math.round((currentTarif * 0.25) / 1000) * 1000;
+            const half = Math.round((currentTarif * 0.5) / 1000) * 1000;
+            const threeQuarter = Math.round((currentTarif * 0.75) / 1000) * 1000;
+            const unique = Array.from(new Set([quarter, half, threeQuarter].filter(v => v > 0 && v < currentTarif)));
+            return unique.length > 0 ? unique : [5000, 10000];
+        }
+        const half = Math.round(currentTarif / 2);
+        return [half].filter(v => v > 0);
+    }, [currentTarif]);
     
     const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
     const bulkAmount = warga ? (
@@ -437,6 +490,123 @@ const PetugasScanPage: FC = () => {
                                 </div>
                             </div>
                         </div>
+                    ) : isPartialPaying ? (
+                        <div className="space-y-4 animate-fade-in">
+                            <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl text-white">
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                                            <BanknotesIcon className="text-lg" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xs font-black uppercase tracking-wider text-white">Bayar Tidak Sesuai Tarif</h3>
+                                            <p className="text-[10px] text-slate-400">Input nominal yang dibayarkan warga</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => { setIsPartialPaying(false); setPartialInput(''); }} className="text-slate-400 hover:text-white p-1 rounded-lg">
+                                        <XIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2.5 bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60 text-center mb-4">
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Tarif Resmi</p>
+                                        <p className="text-sm font-black text-white">Rp{currentTarif.toLocaleString('id-ID')}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Tunggakan Saat Ini</p>
+                                        <p className={`text-sm font-black ${hasDebt ? 'text-rose-400' : 'text-slate-300'}`}>
+                                            Rp{(warga.totalDebt || 0).toLocaleString('id-ID')}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">
+                                    Nominal Uang Diterima
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-amber-400 text-lg">Rp</span>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={partialInput === '' ? '' : partialInput.toLocaleString('id-ID')}
+                                        onChange={(e) => setPartialInput(Number(e.target.value.replace(/\D/g, '')))}
+                                        placeholder="0"
+                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-800 border-2 border-amber-500/50 focus:border-amber-400 rounded-2xl text-white font-black text-2xl outline-none transition-all text-center tracking-tight"
+                                        autoFocus
+                                    />
+                                </div>
+
+                                {quickChips.length > 0 && (
+                                    <div className="flex items-center justify-center gap-1.5 mt-3 flex-wrap">
+                                        {quickChips.map((chipVal) => (
+                                            <button
+                                                key={chipVal}
+                                                type="button"
+                                                onClick={() => setPartialInput(chipVal)}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                                                    partialInput === chipVal
+                                                        ? 'bg-amber-400 text-slate-950 font-black shadow-md'
+                                                        : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'
+                                                }`}
+                                            >
+                                                Rp{chipVal.toLocaleString('id-ID')}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {partialInput !== '' && (
+                                    <div className="mt-4 p-3 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-1.5 text-xs">
+                                        <div className="flex justify-between items-center text-[11px]">
+                                            <span className="text-slate-400">Kas Masuk Hari Ini:</span>
+                                            <span className="font-black text-emerald-400">+Rp{Number(partialInput).toLocaleString('id-ID')}</span>
+                                        </div>
+
+                                        {Number(partialInput) < currentTarif ? (
+                                            <>
+                                                <div className="flex justify-between items-center text-[11px]">
+                                                    <span className="text-amber-300 font-bold">Kekurangan (Otomatis Jadi Tunggakan):</span>
+                                                    <span className="font-black text-amber-400">+Rp{(currentTarif - Number(partialInput)).toLocaleString('id-ID')}</span>
+                                                </div>
+                                                <div className="pt-2 border-t border-slate-700 flex justify-between items-center text-[11px]">
+                                                    <span className="text-slate-300">Total Tunggakan Nanti:</span>
+                                                    <span className="font-black text-rose-400">
+                                                        Rp{((warga.totalDebt || 0) + (currentTarif - Number(partialInput))).toLocaleString('id-ID')}
+                                                    </span>
+                                                </div>
+                                            </>
+                                        ) : Number(partialInput) === currentTarif ? (
+                                            <div className="text-emerald-400 font-bold text-center text-[11px] pt-1">
+                                                ✓ Pembayaran pas sesuai tarif penuh
+                                            </div>
+                                        ) : (
+                                            <div className="text-sky-300 font-bold text-center text-[11px] pt-1">
+                                                Kelebihan Rp{(Number(partialInput) - currentTarif).toLocaleString('id-ID')} otomatis memotong tunggakan lama
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-3 mt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsPartialPaying(false); setPartialInput(''); }}
+                                        className="py-3.5 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSavePartialPayment}
+                                        disabled={loading || partialInput === '' || Number(partialInput) <= 0}
+                                        className="py-3.5 rounded-xl font-black bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5"
+                                    >
+                                        <CheckCircleIcon className="text-base" /> Simpan Bayar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     ) : (
                         <div className="space-y-3">
                             {isBulanan ? (
@@ -457,15 +627,19 @@ const PetugasScanPage: FC = () => {
 
                                     {/* Action Buttons for Monthly Warga */}
                                     {!isMonthlyPaid && (
-                                        <>
+                                        <div className="space-y-2.5">
                                             <button onClick={() => handleSaveMonthlyPayment('LUNAS')} disabled={loading} className="w-full bg-purple-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-purple-500/20 hover:bg-purple-700 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                                 <CheckCircleIcon /> Bayar Iuran Bulan Ini (Rp{(warga.monthlyFee || 0).toLocaleString('id-ID')})
                                             </button>
 
-                                            <button onClick={() => handleSaveMonthlyPayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-700 border border-amber-300 font-bold py-3.5 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                            <button onClick={() => { setIsPartialPaying(true); setPartialInput(''); }} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                                <BanknotesIcon /> Bayar Sebagian / Tidak Sesuai Tarif
+                                            </button>
+
+                                            <button onClick={() => handleSaveMonthlyPayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-700 border border-amber-300 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
                                                 <ClockIcon /> Catat Sebagai Tunggakan Bulanan
                                             </button>
-                                        </>
+                                        </div>
                                     )}
 
                                     {/* Daily Pickup check for monthly resident */}
@@ -486,19 +660,28 @@ const PetugasScanPage: FC = () => {
                                             <CheckCircleIcon /> Sudah Lunas Hari Ini
                                         </div>
                                     ) : isTodayDebt ? (
-                                        <button onClick={handleSettleTodayDebt} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                            <CheckCircleIcon /> Lunasi Iuran Hari Ini
-                                        </button>
+                                        <div className="space-y-2.5">
+                                            <button onClick={handleSettleTodayDebt} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                                <CheckCircleIcon /> Lunasi Iuran Hari Ini (Rp{(warga.dailyFee || 2000).toLocaleString('id-ID')})
+                                            </button>
+                                            <button onClick={() => { setIsPartialPaying(true); setPartialInput(''); }} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                                <BanknotesIcon /> Bayar Sebagian (Misal Rp1.000)
+                                            </button>
+                                        </div>
                                     ) : (
-                                        <button onClick={() => handleSavePayment('LUNAS')} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                            <CheckCircleIcon /> Bayar Iuran Hari Ini
-                                        </button>
-                                    )}
+                                        <div className="space-y-2.5">
+                                            <button onClick={() => handleSavePayment('LUNAS')} disabled={loading} className="w-full bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
+                                                <CheckCircleIcon /> Bayar Iuran Hari Ini (Rp{(warga.dailyFee || 2000).toLocaleString('id-ID')})
+                                            </button>
 
-                                    {!isTodayPaid && !isTodayDebt && (
-                                        <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-600 border border-amber-200 font-bold py-4 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                            <ClockIcon /> Jadikan Tunggakan (Nanti)
-                                        </button>
+                                            <button onClick={() => { setIsPartialPaying(true); setPartialInput(''); }} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                                <BanknotesIcon /> Bayar Sebagian / Tidak Sesuai Tarif
+                                            </button>
+
+                                            <button onClick={() => handleSavePayment('HUTANG')} disabled={loading} className="w-full bg-amber-50 text-amber-700 border border-amber-200 font-bold py-3 rounded-2xl hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                                <ClockIcon /> Jadikan Tunggakan (Nanti)
+                                            </button>
+                                        </div>
                                     )}
                                 </>
                             )}

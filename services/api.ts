@@ -162,7 +162,8 @@ export const deleteMessage = async (id: string) => fetchLocal(`/messages/${id}`,
 // --- OPERATIONAL ---
 
 export const payDebt = async (wargaId: string, petugasId: string, amount: number) => fetchLocal('/pay-debt', { method: 'POST', body: JSON.stringify({ wargaId, petugasId, amount }) });
-export const convertDebtToPaidToday = async (wargaId: string) => fetchLocal(`/convert-debt/${wargaId}`, { method: 'POST' });
+export const convertDebtToPaidToday = async (wargaId: string, petugasId?: string) => fetchLocal(`/convert-debt/${wargaId}`, { method: 'POST', body: JSON.stringify({ petugasId }) });
+export const createPartialPayment = async (data: { wargaId: string; petugasId: string; amountPaid: number; tarif: number; category?: string }) => fetchLocal('/transactions/partial', { method: 'POST', body: JSON.stringify(data) });
 export const markDayAsSkipped = async (dukuhIds: number[]) => fetchLocal('/mark-skipped', { method: 'POST', body: JSON.stringify({ dukuhIds }) });
 export const getUnpaidWargaForToday = async () => fetchLocal('/unpaid-today');
 

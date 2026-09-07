@@ -442,17 +442,118 @@ async function startServer() {
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  app.post('/api/transactions/partial', async (req, res) => {
+    try {
+        const { wargaId, petugasId, amountPaid, tarif, category } = req.body;
+        const db = await getDB();
+        const [wRows]: any = await db.execute('SELECT * FROM wargas WHERE id = ?', [wargaId]);
+        if (wRows.length === 0) return res.status(404).json({ error: 'Warga tidak ditemukan' });
+        const warga = wRows[0];
+
+        const isBulanan = (category === 'bulanan' || (!category && warga.billingType === 'BULANAN'));
+        const txCategory = isBulanan ? 'bulanan' : 'harian';
+        const nominalTarif = Number(tarif) || (isBulanan ? (warga.monthlyFee || 0) : (warga.dailyFee || 2000));
+        const paid = Number(amountPaid) || 0;
+        const today = getWIBDateString();
+        const nowStr = getWIBDateTimeString();
+
+        // Bersihkan jika sebelumnya di hari yang sama sempat dicatat sebagai hutang/tunggakan harian
+        const [todayUnpaidRows]: any = await db.execute(
+            'SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? AND status = "unpaid" AND category = ?',
+            [wargaId, today, txCategory]
+        );
+        if (todayUnpaidRows.length > 0) {
+            for (const r of todayUnpaidRows) {
+                await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [r.amount, wargaId]);
+                await db.execute('DELETE FROM transactions WHERE id = ?', [r.id]);
+            }
+        }
+
+        if (paid <= 0) {
+            // Warga tidak membayar sama sekali -> catat hutang penuh
+            const debtId = `tr-debt-${Date.now()}`;
+            await db.execute(
+                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "unpaid", ?, ?)',
+                [debtId, wargaId, petugasId || null, nominalTarif, txCategory, nowStr]
+            );
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [nominalTarif, wargaId]);
+            return res.json({ success: true, type: 'tunggakan', amountPaid: 0, debtAdded: nominalTarif });
+        }
+
+        if (paid < nominalTarif) {
+            // Pembayaran sebagian (misal tarif 2000 dibayar 1000)
+            const deficit = nominalTarif - paid;
+            
+            // 1. Catat transaksi bayar (masuk penerimaan hari ini)
+            const paidId = `tr-part-paid-${Date.now()}`;
+            await db.execute(
+                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", ?, ?)',
+                [paidId, wargaId, petugasId || null, paid, txCategory, nowStr]
+            );
+
+            // 2. Catat sisa kekurangan sebagai tunggakan
+            const debtId = `tr-part-debt-${Date.now()}`;
+            await db.execute(
+                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "unpaid", ?, ?)',
+                [debtId, wargaId, petugasId || null, deficit, txCategory, nowStr]
+            );
+
+            // 3. Tambahkan selisih kekurangan ke totalDebt warga
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [deficit, wargaId]);
+
+            return res.json({ success: true, type: 'sebagian', amountPaid: paid, debtAdded: deficit });
+        }
+
+        // paid >= nominalTarif (Pembayaran pas atau lebih)
+        const paidId = `tr-paid-${Date.now()}`;
+        await db.execute(
+            'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", ?, ?)',
+            [paidId, wargaId, petugasId || null, nominalTarif, txCategory, nowStr]
+        );
+
+        const excess = paid - nominalTarif;
+        if (excess > 0) {
+            // Kelebihan bayar otomatis dialokasikan untuk memotong tunggakan lama
+            const debtPayId = `tr-debt-pay-${Date.now()}`;
+            await db.execute(
+                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", ?)',
+                [debtPayId, wargaId, petugasId || null, excess, nowStr]
+            );
+            await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [excess, wargaId]);
+        }
+
+        return res.json({ success: true, type: 'lunas', amountPaid: paid, excess });
+    } catch (err: any) {
+        console.error('[API Error] partial transaction:', err);
+        res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post('/api/convert-debt/:wargaId', async (req, res) => {
     try {
         const { wargaId } = req.params;
+        const { petugasId } = req.body || {};
         const db = await getDB();
         const today = getWIBDateString();
         const [warga]: any = await db.execute('SELECT * FROM wargas WHERE id = ?', [wargaId]);
         if (warga.length === 0) throw new Error('Warga not found');
-        const amount = warga[0].dailyFee;
-        const id = `tr-debt-${Date.now()}`;
-        await db.execute('INSERT INTO transactions (id, wargaId, status, amount, category, timestamp) VALUES (?, ?, "unpaid", ?, "harian", ?)', [id, wargaId, amount, getWIBDateTimeString()]);
-        await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, wargaId]);
+        const amount = warga[0].dailyFee || 2000;
+        
+        // Cek apakah ada transaksi hutang hari ini
+        const [unpaidRows]: any = await db.execute(
+            'SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? AND status = "unpaid" ORDER BY timestamp DESC LIMIT 1',
+            [wargaId, today]
+        );
+
+        if (unpaidRows.length > 0) {
+            const tx = unpaidRows[0];
+            await db.execute('UPDATE transactions SET status = "paid", petugasId = ? WHERE id = ?', [petugasId || null, tx.id]);
+            await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [tx.amount, wargaId]);
+        } else {
+            const id = `tr-${Date.now()}`;
+            await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "harian", ?)', [id, wargaId, petugasId || null, amount, getWIBDateTimeString()]);
+        }
+
         res.json({ success: true });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
