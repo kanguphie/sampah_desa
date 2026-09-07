@@ -359,21 +359,7 @@ const PetugasScanPage: FC = () => {
     const hasDebt = warga ? warga.totalDebt > 0 : false;
     const currentTarif = isBulanan ? (warga?.monthlyFee || 0) : (warga?.dailyFee || 2000);
 
-    const quickChips = React.useMemo(() => {
-        if (!currentTarif) return [500, 1000, 2000];
-        if (currentTarif === 2000) return [500, 1000, 1500];
-        if (currentTarif === 3000) return [1000, 1500, 2000];
-        if (currentTarif === 5000) return [1000, 2000, 3000, 4000];
-        if (currentTarif >= 10000) {
-            const quarter = Math.round((currentTarif * 0.25) / 1000) * 1000;
-            const half = Math.round((currentTarif * 0.5) / 1000) * 1000;
-            const threeQuarter = Math.round((currentTarif * 0.75) / 1000) * 1000;
-            const unique = Array.from(new Set([quarter, half, threeQuarter].filter(v => v > 0 && v < currentTarif)));
-            return unique.length > 0 ? unique : [5000, 10000];
-        }
-        const half = Math.round(currentTarif / 2);
-        return [half].filter(v => v > 0);
-    }, [currentTarif]);
+    const quickChips = [1000, 3000, 5000];
     
     const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
     const bulkAmount = warga ? (
@@ -483,6 +469,22 @@ const PetugasScanPage: FC = () => {
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
                                     <input type="text" inputMode="numeric" value={debtInput === '' ? '' : debtInput.toLocaleString('id-ID')} onChange={(e) => setDebtInput(Number(e.target.value.replace(/\D/g, '')))} placeholder="0" className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary" autoFocus />
+                                </div>
+                                <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+                                    {quickChips.map((chipVal) => (
+                                        <button
+                                            key={chipVal}
+                                            type="button"
+                                            onClick={() => setDebtInput(chipVal)}
+                                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
+                                                debtInput === chipVal
+                                                    ? 'bg-amber-400 text-slate-950 font-black shadow-md'
+                                                    : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            Rp{chipVal.toLocaleString('id-ID')}
+                                        </button>
+                                    ))}
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 mt-4">
                                     <button onClick={() => setIsPayingDebt(false)} className="py-3 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 text-xs">Batal</button>
