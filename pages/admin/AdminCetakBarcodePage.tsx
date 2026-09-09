@@ -12,7 +12,14 @@ const AdminCetakBarcodePage: React.FC = () => {
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState({ dukuhId: 'all', rtId: 'all' });
+    const [paperSize, setPaperSize] = useState<'A4' | 'A3' | 'A3+'>('A4');
     const printRef = useRef<HTMLDivElement>(null);
+
+    const paperDimensions = {
+        'A4': 'A4',
+        'A3': 'A3',
+        'A3+': '329mm 483mm'
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -74,7 +81,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                                     padding: 0;
                                     color: #1e293b;
                                 }
-                                .print-container { padding: 1cm; }
+                                .print-container { padding: 0.5cm; }
                                 .barcode-grid-print { 
                                     display: grid; 
                                     grid-template-columns: repeat(auto-fill, minmax(5.8cm, 1fr)); 
@@ -136,7 +143,11 @@ const AdminCetakBarcodePage: React.FC = () => {
                                 }
                                 
                                 @media print {
-                                    @page { margin: 0.5cm; }
+                                    @page { 
+                                        size: ${paperDimensions[paperSize]}; 
+                                        margin: 0; 
+                                    }
+                                    body { padding: 1cm; }
                                     .barcode-item-print { border-color: #cbd5e1; }
                                 }
                             </style>
@@ -168,11 +179,25 @@ const AdminCetakBarcodePage: React.FC = () => {
                 <div className="flex justify-between items-center">
                     <div>
                         <h1 className="text-2xl font-bold font-display text-slate-800">Cetak Barcode Warga</h1>
-                        <p className="mt-1 text-slate-500">Gunakan filter untuk memilih warga yang akan dicetak QR Code-nya.</p>
+                        <p className="mt-1 text-slate-500">Gunakan filter untuk memilih warga dan ukuran kertas.</p>
                     </div>
-                    <button onClick={handlePrint} disabled={filteredWarga.length === 0} className="bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus disabled:bg-slate-400 transition-colors">
-                        Cetak ({filteredWarga.length})
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+                            <span className="text-xs font-bold text-slate-500 uppercase">Ukuran Kertas:</span>
+                            <select 
+                                value={paperSize} 
+                                onChange={(e) => setPaperSize(e.target.value as any)}
+                                className="bg-transparent border-none text-sm font-bold text-slate-800 outline-none focus:ring-0"
+                            >
+                                <option value="A4">A4 (Standar)</option>
+                                <option value="A3">A3</option>
+                                <option value="A3+">A3+ (Stiker 32.9cm x 48.3cm)</option>
+                            </select>
+                        </div>
+                        <button onClick={handlePrint} disabled={filteredWarga.length === 0} className="bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus disabled:bg-slate-400 transition-colors">
+                            Cetak ({filteredWarga.length})
+                        </button>
+                    </div>
                 </div>
             </div>
 
