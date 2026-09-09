@@ -5,7 +5,7 @@ import Modal from '@/components/Modal';
 import { PencilIcon, HomeIcon, ClockIcon, XIcon, CheckCircleIcon, PhoneIcon, EnvelopeIcon, DatabaseIcon, DownloadIcon, UploadIcon, ScaleBalancedIcon, InfoIcon, AlertCircleIcon } from '@/components/icons';
 import { useVillageProfile } from '@/context/VillageProfileContext';
 import { BrandLogo } from '@/components/BrandLogo';
-import { Upload, Trash2, Image as ImageIcon, Check, Sparkles, FolderCheck, ArrowUpRight } from 'lucide-react';
+import { Upload, Trash2, Image as ImageIcon, Check, Sparkles, FolderCheck, ArrowUpRight, AlertCircle } from 'lucide-react';
 import type { Dukuh, VillageProfile } from '@/types';
 
 type Schedule = Record<string, number[] | 'libur'>;
