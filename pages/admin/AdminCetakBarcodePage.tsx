@@ -145,10 +145,21 @@ const AdminCetakBarcodePage: React.FC = () => {
                                 @media print {
                                     @page { 
                                         size: ${paperDimensions[paperSize]}; 
-                                        margin: 0; 
+                                        margin: 15mm; 
                                     }
-                                    body { padding: 1cm; }
-                                    .barcode-item-print { border-color: #cbd5e1; }
+                                    body { 
+                                        padding: 0; 
+                                        margin: 0;
+                                    }
+                                    .barcode-grid-print {
+                                        gap: 8mm;
+                                    }
+                                    .barcode-item-print { 
+                                        border-color: #cbd5e1; 
+                                        break-inside: avoid;
+                                        page-break-inside: avoid;
+                                        margin-bottom: 2mm;
+                                    }
                                 }
                             </style>
                         </head>
