@@ -3,8 +3,10 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
+import { useVillageProfile } from '@/context/VillageProfileContext';
 
 const AdminCetakBarcodePage: React.FC = () => {
+    const { profile } = useVillageProfile();
     const [wargaList, setWargaList] = useState<Warga[]>([]);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
@@ -64,8 +66,15 @@ const AdminCetakBarcodePage: React.FC = () => {
                         <head>
                             <title>${title}</title>
                             <style>
-                                body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; }
-                                .print-container { padding: 0.5cm; }
+                                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+                                body { 
+                                    font-family: 'Plus Jakarta Sans', sans-serif; 
+                                    -webkit-print-color-adjust: exact; 
+                                    margin: 0;
+                                    padding: 0;
+                                    color: #1e293b;
+                                }
+                                .print-container { padding: 1cm; }
                                 .barcode-grid-print { 
                                     display: grid; 
                                     grid-template-columns: repeat(3, 1fr); 
@@ -77,32 +86,68 @@ const AdminCetakBarcodePage: React.FC = () => {
                                     align-items: center; 
                                     justify-content: center; 
                                     page-break-inside: avoid; 
-                                    border: 1px dashed #94a3b8; 
-                                    padding: 15px; 
-                                    border-radius: 8px; 
+                                    border: 1px solid #e2e8f0; 
+                                    padding: 20px; 
+                                    border-radius: 12px; 
                                     text-align: center; 
                                     background: white;
+                                    min-height: 5.5cm;
                                 }
-                                .qr-container { margin-bottom: 10px; }
-                                .name-text { margin: 5px 0 2px; font-size: 11pt; font-weight: 800; text-transform: uppercase; color: #0f172a; line-height: 1.2; }
-                                .id-text { margin: 0; font-size: 10pt; font-family: 'Courier New', Courier, monospace; font-weight: bold; color: #334152; }
-                                .loc-text { margin-top: 2px; font-size: 9pt; color: #64748b; font-weight: 500; }
+                                .logo-print { 
+                                    height: 24px; 
+                                    margin-bottom: 12px; 
+                                    object-fit: contain; 
+                                }
+                                .branding-fallback {
+                                    font-size: 11pt;
+                                    font-weight: 800;
+                                    color: #0f172a;
+                                    margin-bottom: 12px;
+                                    letter-spacing: -0.02em;
+                                }
+                                .qr-container { 
+                                    padding: 5px;
+                                    background: white;
+                                    margin-bottom: 5px;
+                                }
+                                .name-text { 
+                                    margin: 10px 0 2px; 
+                                    font-size: 11pt; 
+                                    font-weight: 800; 
+                                    text-transform: uppercase; 
+                                    color: #0f172a; 
+                                    line-height: 1.2; 
+                                }
+                                .id-text { 
+                                    margin: 0; 
+                                    font-size: 10pt; 
+                                    font-family: 'Courier New', Courier, monospace; 
+                                    font-weight: 700; 
+                                    color: #475569; 
+                                }
+                                .loc-text { 
+                                    margin-top: 6px; 
+                                    font-size: 9pt; 
+                                    color: #64748b; 
+                                    font-weight: 600; 
+                                }
                                 
                                 @media print {
-                                    @page { size: A4; margin: 1cm; }
-                                    .barcode-item-print { box-shadow: none; }
+                                    @page { size: A4; margin: 0.5cm; }
+                                    .barcode-item-print { border-color: #cbd5e1; }
                                 }
                             </style>
                         </head>
                         <body>
                             <div class="print-container">
-                                <h2 style="text-align: center; font-size: 14pt; margin-bottom: 20px;">${title}</h2>
                                 <div class="barcode-grid-print">${contentToPrint}</div>
                             </div>
                              <script>
                                 window.addEventListener('load', () => {
-                                    window.print();
-                                    window.close();
+                                    setTimeout(() => {
+                                        window.print();
+                                        window.close();
+                                    }, 500);
                                 });
                             </script>
                         </body>
@@ -150,14 +195,24 @@ const AdminCetakBarcodePage: React.FC = () => {
             {loading ? <p className="text-center text-slate-500 py-10">Memuat data warga...</p> : (
                 <div ref={printRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {filteredWarga.map(warga => (
-                        <div key={warga.id} className="barcode-item-print border border-slate-300 p-4 rounded-lg flex flex-col items-center text-center bg-white shadow-sm hover:shadow-md transition-shadow">
-                            <div className="qr-container p-1 bg-white">
-                                <QRCodeSVG value={warga.id} size={120} />
+                        <div key={warga.id} className="barcode-item-print border border-slate-200 p-6 rounded-2xl flex flex-col items-center text-center bg-white shadow-sm hover:shadow-md transition-all">
+                            {/* Logo / Branding Header */}
+                            {profile?.logo_horizontal_url ? (
+                                <img src={profile.logo_horizontal_url} alt="Logo" className="logo-print mb-3 h-7 object-contain" />
+                            ) : profile?.logo_url ? (
+                                <img src={profile.logo_url} alt="Logo" className="logo-print mb-3 h-7 object-contain" />
+                            ) : (
+                                <div className="branding-fallback mb-3 font-black text-slate-800 text-sm">{profile?.branding_title || 'SapaDesa'}</div>
+                            )}
+
+                            <div className="qr-container p-1 bg-white mb-2">
+                                <QRCodeSVG value={warga.id} size={140} />
                             </div>
-                            <h3 className="name-text mt-3 font-bold text-sm text-slate-900 uppercase">{warga.name}</h3>
-                            <p className="id-text text-sm text-slate-700 font-mono font-bold">{warga.id}</p>
-                            <p className="loc-text text-xs text-slate-500 mt-1 font-medium">
-                                {getDukuhName(warga.dukuhId)} - RT {getRTNumber(warga.rtId)}
+                            
+                            <h3 className="name-text mt-3 font-black text-base text-slate-900 uppercase tracking-tight leading-tight">{warga.name}</h3>
+                            <p className="id-text text-sm text-slate-500 font-mono font-bold tracking-widest">{warga.id}</p>
+                            <p className="loc-text text-[11px] text-slate-400 mt-2 font-semibold uppercase tracking-wider">
+                                {getDukuhName(warga.dukuhId)} — RT {getRTNumber(warga.rtId)}
                             </p>
                         </div>
                     ))}

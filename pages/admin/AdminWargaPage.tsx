@@ -6,6 +6,7 @@ import Modal from '@/components/Modal';
 import { TrashIcon, PencilIcon, SearchIcon, QrCodeIcon, DownloadIcon, UploadIcon, FileExcelIcon, CheckCircleIcon, XIcon, AlertCircleIcon } from '@/components/icons';
 import { QRCodeSVG } from 'qrcode.react';
 import { exportToExcel, readWargaExcel } from '@/services/excel';
+import { useVillageProfile } from '@/context/VillageProfileContext';
 
 const WargaForm: React.FC<{
   warga?: Warga | null;
@@ -101,6 +102,7 @@ const WargaForm: React.FC<{
 };
 
 const AdminWargaPage: React.FC = () => {
+    const { profile } = useVillageProfile();
     const [wargaList, setWargaList] = useState<Warga[]>([]);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
@@ -761,15 +763,84 @@ const AdminWargaPage: React.FC = () => {
             <Modal isOpen={!!qrToShow} onClose={() => setQrToShow(null)} title="Kartu Warga (Barcode)">
                 {qrToShow && (
                     <div className="text-center py-6 flex flex-col items-center">
-                        <div className="p-8 bg-white border-2 border-slate-100 rounded-[2.5rem] shadow-sm mb-6 flex flex-col items-center w-full max-w-xs">
-                            <div className="bg-emerald-500 w-full h-12 -mt-8 -mx-8 mb-6 rounded-t-[2.5rem] flex items-center justify-center">
-                              <span className="text-white font-black uppercase tracking-widest text-xs">SAPADESA CARD</span>
+                        <div id="qr-card-printable" className="p-8 bg-white border-2 border-slate-100 rounded-[2.5rem] shadow-sm mb-6 flex flex-col items-center w-full max-w-xs relative overflow-hidden">
+                            {/* Card Header Branding */}
+                            {profile?.logo_horizontal_url ? (
+                                <img src={profile.logo_horizontal_url} alt="Logo" className="h-8 mb-6 object-contain" />
+                            ) : profile?.logo_url ? (
+                                <img src={profile.logo_url} alt="Logo" className="h-8 mb-6 object-contain" />
+                            ) : (
+                                <div className="bg-emerald-500 w-full h-12 -mt-8 -mx-8 mb-6 flex items-center justify-center">
+                                    <span className="text-white font-black uppercase tracking-widest text-[10px]">{profile?.branding_title || 'SAPADESA CARD'}</span>
+                                </div>
+                            )}
+
+                            <div className="qr-container p-2 bg-white border border-slate-100 rounded-2xl mb-2">
+                                <QRCodeSVG value={qrToShow.id || ''} size={180} />
                             </div>
-                            <QRCodeSVG value={qrToShow.id || ''} size={180} />
-                            <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mt-6">{(qrToShow.name || 'N/A')}</h4>
-                            <p className="text-sm font-bold text-slate-400 mt-1">ID: {(qrToShow.id || 'N/A')}</p>
+
+                            <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mt-6 leading-tight">{(qrToShow.name || 'N/A')}</h4>
+                            <p className="text-sm font-bold text-slate-500 font-mono mt-1 tracking-wider">ID: {(qrToShow.id || 'N/A')}</p>
+                            
+                            <p className="text-[11px] text-slate-400 mt-4 font-bold uppercase tracking-widest border-t border-slate-50 pt-3 w-full">
+                                {dukuhList.find(d => d.id === qrToShow.dukuhId)?.name || '?'} — RT {rtList.find(r => r.id === qrToShow.rtId)?.number || '?'}
+                            </p>
                         </div>
-                        <button onClick={() => window.print()} className="w-full py-4 rounded-2xl bg-slate-800 text-white font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-slate-900 transition-all"><DownloadIcon /> Unduh / Cetak Slip</button>
+                        
+                        <div className="flex flex-col gap-2 w-full">
+                            <button 
+                                onClick={() => {
+                                    const printContent = document.getElementById('qr-card-printable')?.innerHTML;
+                                    const win = window.open('', '_blank');
+                                    if (win) {
+                                        win.document.write(`
+                                            <html>
+                                                <head>
+                                                    <title>Cetak Kartu - ${qrToShow.name}</title>
+                                                    <style>
+                                                        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
+                                                        body { font-family: 'Plus Jakarta Sans', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+                                                        .card { 
+                                                            border: 1px solid #e2e8f0; 
+                                                            padding: 40px; 
+                                                            border-radius: 30px; 
+                                                            text-align: center; 
+                                                            display: flex; 
+                                                            flex-direction: column; 
+                                                            align-items: center;
+                                                            width: 8cm;
+                                                            min-height: 10cm;
+                                                            box-sizing: border-box;
+                                                        }
+                                                        img { height: 30px; margin-bottom: 20px; object-fit: contain; }
+                                                        .qr-container { margin: 10px 0; }
+                                                        h4 { margin: 20px 0 5px; font-size: 18pt; font-weight: 800; text-transform: uppercase; color: #0f172a; }
+                                                        p { margin: 0; font-size: 12pt; font-weight: 700; color: #64748b; font-family: monospace; }
+                                                        .loc { margin-top: 20px; font-size: 10pt; font-weight: 700; color: #94a3b8; text-transform: uppercase; border-top: 1px solid #f1f5f9; padding-top: 15px; width: 100%; }
+                                                    </style>
+                                                </head>
+                                                <body>
+                                                    <div class="card">${printContent}</div>
+                                                    <script>
+                                                        window.addEventListener('load', () => {
+                                                            setTimeout(() => {
+                                                                window.print();
+                                                                window.close();
+                                                            }, 500);
+                                                        });
+                                                    </script>
+                                                </body>
+                                            </html>
+                                        `);
+                                        win.document.close();
+                                    }
+                                }} 
+                                className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-black transition-all"
+                            >
+                                <QrCodeIcon /> Cetak Kartu QR
+                            </button>
+                            <button onClick={() => setQrToShow(null)} className="text-slate-400 font-bold text-xs py-2">Tutup</button>
+                        </div>
                     </div>
                 )}
             </Modal>
