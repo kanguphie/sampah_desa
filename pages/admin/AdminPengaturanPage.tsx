@@ -103,6 +103,11 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [imgLoadError, setImgLoadError] = useState(false);
+
+    useEffect(() => {
+        setImgLoadError(false);
+    }, [currentUrl]);
 
     const handleFile = async (file: File) => {
         // Validation
@@ -121,6 +126,7 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
         try {
             const res = await uploadLogoFile(file, type);
             if (res.url) {
+                setImgLoadError(false);
                 onUploaded(res.url);
                 onNotify('success', `${title} berhasil disimpan di folder /uploads/!`);
             } else {
@@ -218,7 +224,7 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
                         <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
                         <span className="text-xs font-bold text-teal-700">Menyimpan file ke folder server...</span>
                     </div>
-                ) : currentUrl ? (
+                ) : currentUrl && !imgLoadError ? (
                     <div className="flex flex-col items-center gap-2 w-full py-1">
                         <div className={`flex items-center justify-center p-2 rounded-xl bg-white shadow-sm border border-slate-200/80 ${
                             aspectRatio === 'square' ? 'w-24 h-24' : 'w-full max-w-xs h-20'
@@ -227,11 +233,22 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
                                 src={currentUrl}
                                 alt={title}
                                 className="max-h-full max-w-full object-contain"
+                                onError={() => setImgLoadError(true)}
                             />
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-teal-700 font-semibold mt-1">
                             <Check className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Klik atau seret file baru untuk mengganti</span>
+                        </div>
+                    </div>
+                ) : currentUrl && imgLoadError ? (
+                    <div className="flex flex-col items-center gap-2 w-full py-3 text-amber-700">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100/70 border border-amber-300 flex items-center justify-center text-amber-700">
+                            <AlertCircle className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-800 block">File gambar belum ditemukan di container ini</span>
+                            <span className="text-[11px] text-amber-700 block mt-0.5 font-medium">Klik di sini untuk unggah ulang file logo Anda</span>
                         </div>
                     </div>
                 ) : (
@@ -331,7 +348,21 @@ const VillageProfileForm: React.FC = () => {
         setSaving(true);
         setMessage(null);
         try {
-            await updateVillageProfile(profile);
+            // Clean accidental image path inputs from branding title and subtitle
+            const cleanTitle = (profile.branding_title && !profile.branding_title.startsWith('/uploads/') && !profile.branding_title.match(/\.(png|jpe?g|webp|svg)$/i))
+                ? profile.branding_title.trim()
+                : 'SapaDesa';
+            const cleanSubtitle = (profile.branding_subtitle && !profile.branding_subtitle.startsWith('/uploads/') && !profile.branding_subtitle.match(/\.(png|jpe?g|webp|svg)$/i))
+                ? profile.branding_subtitle.trim()
+                : 'Platform Pengelolaan Sampah Desa';
+
+            const payload = {
+                ...profile,
+                branding_title: cleanTitle,
+                branding_subtitle: cleanSubtitle
+            };
+            setProfile(payload);
+            await updateVillageProfile(payload);
             await refreshProfile();
             showNotification('success', 'Profil Desa dan pengaturan logo berhasil disimpan!');
         } catch (err) {
@@ -386,20 +417,18 @@ const VillageProfileForm: React.FC = () => {
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                             Preview 1: Logo Aplikasi (Emblem)
                         </span>
-                        {profile.logo_url ? (
-                            <img
-                                src={profile.logo_url}
-                                alt="Logo Aplikasi"
-                                className="h-28 w-28 object-contain drop-shadow-md rounded-xl"
-                            />
-                        ) : (
-                            <BrandLogo variant="emblem" showTagline={false} imageClassName="h-24 w-24" />
-                        )}
+                        <div className="h-28 flex items-center justify-center">
+                            <BrandLogo variant="emblem" showTagline={false} imageClassName="h-28 w-28 drop-shadow-md rounded-xl" />
+                        </div>
                         <span className="font-extrabold text-slate-800 text-sm mt-3 tracking-tight">
-                            {profile.branding_title || 'SapaDesa'}
+                            {(profile.branding_title && !profile.branding_title.startsWith('/uploads/') && !profile.branding_title.match(/\.(png|jpe?g|webp|svg)$/i))
+                                ? profile.branding_title
+                                : 'SapaDesa'}
                         </span>
                         <span className="text-[11px] text-slate-500 font-medium">
-                            {profile.branding_subtitle || 'Platform Pengelolaan Sampah Desa'}
+                            {(profile.branding_subtitle && !profile.branding_subtitle.startsWith('/uploads/') && !profile.branding_subtitle.match(/\.(png|jpe?g|webp|svg)$/i))
+                                ? profile.branding_subtitle
+                                : 'Platform Pengelolaan Sampah Desa'}
                         </span>
                     </div>
 
@@ -409,15 +438,7 @@ const VillageProfileForm: React.FC = () => {
                             Preview 2: Tulisan Branding Logo (Horizontal)
                         </span>
                         <div className="h-24 w-full flex items-center justify-center px-4">
-                            {profile.logo_horizontal_url ? (
-                                <img
-                                    src={profile.logo_horizontal_url}
-                                    alt="Logo Branding Horizontal"
-                                    className="max-h-16 max-w-full object-contain drop-shadow-sm"
-                                />
-                            ) : (
-                                <BrandLogo variant="horizontal" showTagline={true} />
-                            )}
+                            <BrandLogo variant="horizontal" showTagline={true} />
                         </div>
                         <span className="text-[11px] text-slate-400 font-semibold mt-3">
                             Header & Kop Laporan Desa {profile.name || 'Rowosari'}
@@ -476,10 +497,32 @@ const VillageProfileForm: React.FC = () => {
 
             {/* Tulisan Branding Fields */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4">
-                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-teal-600" />
-                    Kustomisasi Teks Branding & Tagline
-                </h4>
+                <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-teal-600" />
+                        Kustomisasi Teks Branding & Tagline
+                    </h4>
+                    {(profile.branding_title?.includes('/uploads/') || profile.branding_subtitle?.includes('/uploads/') || profile.branding_title?.match(/\.(png|jpe?g|webp|svg)$/i)) && (
+                        <button
+                            type="button"
+                            onClick={() => setProfile(prev => ({ ...prev, branding_title: 'SapaDesa', branding_subtitle: 'Platform Pengelolaan Sampah Desa' }))}
+                            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors shadow-sm"
+                        >
+                            Reset ke SapaDesa
+                        </button>
+                    )}
+                </div>
+
+                {(profile.branding_title?.includes('/uploads/') || profile.branding_subtitle?.includes('/uploads/') || profile.branding_title?.match(/\.(png|jpe?g|webp|svg)$/i)) && (
+                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-900 text-xs">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="leading-relaxed">
+                            <strong className="block font-bold">Kolom ini khusus Teks Nama & Slogan, bukan file gambar.</strong>
+                            <span>File gambar logo diunggah pada kotak upload di atas. Klik tombol <b>"Reset ke SapaDesa"</b> untuk mengembalikan teks judul.</span>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">

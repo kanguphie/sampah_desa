@@ -154,6 +154,19 @@
         }).catch(function(){});
       }
 
+      // Safe filter for third-party browser extension noise (e.g. password managers, translators)
+      window.addEventListener('unhandledrejection', function(event) {
+        var msg = event && event.reason ? (event.reason.message || String(event.reason)) : '';
+        if (
+          msg.indexOf('A listener indicated an asynchronous response') !== -1 ||
+          msg.indexOf('message channel closed before a response was received') !== -1
+        ) {
+          // Benign browser extension communication error - suppress so it doesn't pollute console
+          event.preventDefault();
+          return;
+        }
+      });
+
       // Visual Error Trap so screen never stays blank on unexpected error
       window.addEventListener('error', function(e) {
         console.error('Captured window error:', e);

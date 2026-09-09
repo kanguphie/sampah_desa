@@ -15,8 +15,10 @@ WORKDIR /app
 RUN apk add --no-cache curl
 
 COPY --from=build-stage /app/dist ./dist
+COPY --from=build-stage /app/public ./public
 COPY --from=build-stage /app/package*.json ./
 COPY --from=build-stage /app/node_modules ./node_modules
+RUN mkdir -p /app/public/uploads && chmod -R 777 /app/public/uploads
 
 ENV NODE_ENV=production
 

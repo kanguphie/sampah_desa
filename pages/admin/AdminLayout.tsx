@@ -127,18 +127,25 @@ const AdminLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
         <>
             <div className="p-6 pb-5 flex justify-between items-center border-b border-slate-800/80 mb-2">
                  <div className="flex items-center gap-3 min-w-0">
-                    {profile?.logo_url ? (
-                        <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 overflow-hidden">
-                            <img src={profile.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
-                        </div>
-                    ) : (
-                        <div className="bg-gradient-to-br from-emerald-400 to-teal-600 text-white font-extrabold text-xl w-10 h-10 flex items-center justify-center rounded-xl shadow-lg shadow-emerald-500/30 shrink-0">
-                            SD
-                        </div>
-                    )}
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white font-extrabold text-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0 overflow-hidden relative">
+                        {profile?.logo_url ? (
+                            <img 
+                                src={profile.logo_url} 
+                                alt="Logo" 
+                                className="w-full h-full object-contain p-1 bg-white absolute inset-0"
+                                onError={(e) => {
+                                    // If image fails to load, hide the image and display the fallback "SD" gradient
+                                    (e.target as HTMLElement).style.display = 'none';
+                                }} 
+                            />
+                        ) : null}
+                        <span>SD</span>
+                    </div>
                     <div className="flex flex-col min-w-0">
                         <span className="font-display font-black text-lg text-white tracking-tight truncate leading-tight">
-                            {profile?.branding_title || 'SapaDesa'}
+                            {(profile?.branding_title && !profile.branding_title.startsWith('/uploads/') && !profile.branding_title.match(/\.(png|jpe?g|webp|svg)$/i)) 
+                                ? profile.branding_title 
+                                : 'SapaDesa'}
                         </span>
                         <span className="text-[10px] font-bold text-emerald-400/90 uppercase tracking-wider truncate">
                             {profile?.name ? `Desa ${profile.name}` : 'Admin Panel'}

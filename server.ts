@@ -68,8 +68,49 @@ async function startServer() {
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
-  // Serve /uploads directly via Express static
-  app.use('/uploads', express.static(uploadsDir));
+
+  // Serve /uploads and /api/uploads directly via Express static
+  app.use(['/uploads', '/api/uploads'], express.static(uploadsDir));
+
+  // Dynamic recovery: If file is missing on disk (e.g., container was redeployed without volume), recover from MySQL DB!
+  app.get(['/uploads/:filename', '/api/uploads/:filename'], async (req, res) => {
+    const filename = req.params.filename;
+    const diskFile = path.join(uploadsDir, filename);
+
+    // 1. Check if file exists on disk
+    if (fs.existsSync(diskFile)) {
+      return res.sendFile(diskFile);
+    }
+
+    // 2. Try recovering from MySQL database
+    try {
+      const db = await getDB();
+      const [rows]: any = await db.execute('SELECT logo_url, logo_horizontal_url, logo_base64, logo_horizontal_base64 FROM village_config WHERE id = 1');
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        let base64Data: string | null = null;
+        if (row.logo_url && row.logo_url.includes(filename) && row.logo_base64) {
+          base64Data = row.logo_base64;
+        } else if (row.logo_horizontal_url && row.logo_horizontal_url.includes(filename) && row.logo_horizontal_base64) {
+          base64Data = row.logo_horizontal_base64;
+        }
+
+        if (base64Data && typeof base64Data === 'string') {
+          const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          const buffer = matches ? Buffer.from(matches[2], 'base64') : Buffer.from(base64Data, 'base64');
+          fs.writeFileSync(diskFile, buffer);
+          console.log(`[Logo Recovery] Successfully restored missing upload from DB to disk: ${diskFile}`);
+          return res.sendFile(diskFile);
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Logo Recovery] Warning recovering file from DB:', e.message);
+    }
+
+    // 3. If file cannot be found, NEVER return index.html (which causes broken image decoding errors in browser)!
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.status(404).send('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" rx="16" fill="#f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="bold" fill="#94a3b8">Logo</text></svg>');
+  });
 
   // Local file-based config backup to guarantee persistence even if MySQL is offline
   const villageConfigFile = path.join(uploadsDir, 'village_config.json');
@@ -246,10 +287,21 @@ async function startServer() {
       try {
         const [vCols]: any = await db.execute('DESCRIBE village_config');
         const existingVCols = new Set(vCols.map((c: any) => String(c.Field || c.field || '').toLowerCase()));
-        const neededVCols = ['district', 'regency', 'phone', 'email', 'logo_url', 'logo_horizontal_url', 'branding_title', 'branding_subtitle'];
+        const neededVCols: { name: string; type: string }[] = [
+          { name: 'district', type: 'VARCHAR(255)' },
+          { name: 'regency', type: 'VARCHAR(255)' },
+          { name: 'phone', type: 'VARCHAR(50)' },
+          { name: 'email', type: 'VARCHAR(100)' },
+          { name: 'logo_url', type: 'TEXT' },
+          { name: 'logo_horizontal_url', type: 'TEXT' },
+          { name: 'logo_base64', type: 'MEDIUMTEXT' },
+          { name: 'logo_horizontal_base64', type: 'MEDIUMTEXT' },
+          { name: 'branding_title', type: 'VARCHAR(255)' },
+          { name: 'branding_subtitle', type: 'VARCHAR(255)' }
+        ];
         for (const col of neededVCols) {
-          if (!existingVCols.has(col.toLowerCase())) {
-            await db.execute(`ALTER TABLE village_config ADD COLUMN ${col} VARCHAR(255)`);
+          if (!existingVCols.has(col.name.toLowerCase())) {
+            await db.execute(`ALTER TABLE village_config ADD COLUMN ${col.name} ${col.type}`);
           }
         }
       } catch (err: any) {
@@ -501,13 +553,22 @@ async function startServer() {
 
   // --- FRIENDLY ROUTES (Mapping to tables) ---
   
+  const sanitizeBrandingText = (text: any, fallback: string) => {
+    if (!text || typeof text !== 'string') return fallback;
+    const trimmed = text.trim();
+    if (trimmed.startsWith('/uploads/') || trimmed.match(/\.(png|jpe?g|webp|svg)$/i)) {
+      return fallback;
+    }
+    return trimmed;
+  };
+
   app.get('/api/village-profile', async (req, res) => {
     const fileBackup = readVillageConfigBackup();
     try {
         const db = await getDB();
         const [rows]: any = await db.execute('SELECT * FROM village_config LIMIT 1');
         const profile = rows[0] || {};
-        res.json({
+        const combined = {
           name: 'Rowosari',
           district: 'Limpung',
           regency: 'Batang',
@@ -518,7 +579,13 @@ async function startServer() {
           branding_subtitle: 'Platform Pengelolaan Sampah Desa',
           ...fileBackup,
           ...profile
-        });
+        };
+
+        // Ensure title/subtitle never display raw image paths
+        combined.branding_title = sanitizeBrandingText(combined.branding_title, 'SapaDesa');
+        combined.branding_subtitle = sanitizeBrandingText(combined.branding_subtitle, 'Platform Pengelolaan Sampah Desa');
+
+        res.json(combined);
     } catch (err: any) { 
         res.json({
           name: 'Rowosari',
@@ -527,15 +594,22 @@ async function startServer() {
           address: '',
           phone: '',
           email: '',
-          branding_title: 'SapaDesa',
-          branding_subtitle: 'Platform Pengelolaan Sampah Desa',
+          branding_title: sanitizeBrandingText(fileBackup.branding_title, 'SapaDesa'),
+          branding_subtitle: sanitizeBrandingText(fileBackup.branding_subtitle, 'Platform Pengelolaan Sampah Desa'),
           ...fileBackup
         }); 
     }
   });
 
   app.post('/api/village-profile', async (req, res) => {
-    const data = req.body;
+    const data = req.body || {};
+    if (data.branding_title) {
+      data.branding_title = sanitizeBrandingText(data.branding_title, 'SapaDesa');
+    }
+    if (data.branding_subtitle) {
+      data.branding_subtitle = sanitizeBrandingText(data.branding_subtitle, 'Platform Pengelolaan Sampah Desa');
+    }
+
     writeVillageConfigBackup(data);
     try {
         const db = await getDB();
@@ -555,7 +629,7 @@ async function startServer() {
     }
   });
 
-  // Physical Logo Upload endpoint (Saved into /public/uploads/ folder, NOT stored as base64 in DB)
+  // Physical Logo Upload endpoint (Saved into /public/uploads/ folder AND backed up in DB as base64)
   app.post('/api/upload-logo-single', (req, res, next) => {
     upload.single('logo')(req, res, (err: any) => {
       if (err) {
@@ -573,17 +647,28 @@ async function startServer() {
       const isHorizontal = type === 'logo_horizontal';
       const relativePath = `/uploads/${req.file.filename}`;
       const column = isHorizontal ? 'logo_horizontal_url' : 'logo_url';
+      const base64Column = isHorizontal ? 'logo_horizontal_base64' : 'logo_base64';
+
+      // Read file and create base64 backup to ensure survival across container recreates
+      let base64String = '';
+      try {
+        const fileBuf = fs.readFileSync(req.file.path);
+        const mime = req.file.mimetype || 'image/png';
+        base64String = `data:${mime};base64,${fileBuf.toString('base64')}`;
+      } catch (readErr: any) {
+        console.warn('[Logo Upload] Could not read file buffer for base64 backup:', readErr.message);
+      }
 
       console.log(`[Logo Upload] File saved to disk: ${req.file.path} -> Path: ${relativePath}`);
-      writeVillageConfigBackup({ [column]: relativePath });
+      writeVillageConfigBackup({ [column]: relativePath, [base64Column]: base64String });
 
       try {
         const db = await getDB();
         const [existing]: any = await db.execute('SELECT id FROM village_config WHERE id = 1');
         if (existing.length === 0) {
-          await db.execute(`INSERT INTO village_config (id, ${column}) VALUES (1, ?)`, [relativePath]);
+          await db.execute(`INSERT INTO village_config (id, ${column}, ${base64Column}) VALUES (1, ?, ?)`, [relativePath, base64String]);
         } else {
-          await db.execute(`UPDATE village_config SET ${column} = ? WHERE id = 1`, [relativePath]);
+          await db.execute(`UPDATE village_config SET ${column} = ?, ${base64Column} = ? WHERE id = 1`, [relativePath, base64String]);
         }
       } catch (dbErr: any) {
         console.warn("[Logo Upload] Database update note:", dbErr.message);
@@ -595,7 +680,7 @@ async function startServer() {
         filename: req.file.filename,
         column,
         type,
-        message: 'File berhasil disimpan ke folder /public/uploads/!'
+        message: 'File berhasil disimpan ke folder /public/uploads/ dan dicadangkan ke database!'
       });
     } catch (err: any) {
       console.error('[Upload Logo Error]:', err);
@@ -609,8 +694,9 @@ async function startServer() {
       const { type } = req.params;
       const isHorizontal = type === 'logo_horizontal';
       const column = isHorizontal ? 'logo_horizontal_url' : 'logo_url';
+      const base64Column = isHorizontal ? 'logo_horizontal_base64' : 'logo_base64';
 
-      writeVillageConfigBackup({ [column]: null });
+      writeVillageConfigBackup({ [column]: null, [base64Column]: null });
 
       try {
         const db = await getDB();
@@ -621,7 +707,7 @@ async function startServer() {
             try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
           }
         }
-        await db.execute(`UPDATE village_config SET ${column} = NULL WHERE id = 1`);
+        await db.execute(`UPDATE village_config SET ${column} = NULL, ${base64Column} = NULL WHERE id = 1`);
       } catch (dbErr: any) {
         console.warn("[Remove Logo] DB note:", dbErr.message);
       }

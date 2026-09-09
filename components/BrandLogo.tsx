@@ -15,11 +15,22 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   showTagline = true,
 }) => {
   const { profile } = useVillageProfile();
+  const [appImgFailed, setAppImgFailed] = React.useState(false);
+  const [horizontalImgFailed, setHorizontalImgFailed] = React.useState(false);
 
-  const title = profile?.branding_title || 'SapaDesa';
-  const subtitle = profile?.branding_subtitle || 'Platform Pengelolaan Sampah Desa';
-  const logoAppUrl = profile?.logo_url;
-  const logoHorizontalUrl = profile?.logo_horizontal_url;
+  const rawTitle = profile?.branding_title;
+  const rawSubtitle = profile?.branding_subtitle;
+
+  const title = (rawTitle && !rawTitle.startsWith('/uploads/') && !rawTitle.match(/\.(png|jpe?g|webp|svg)$/i)) 
+    ? rawTitle 
+    : 'SapaDesa';
+
+  const subtitle = (rawSubtitle && !rawSubtitle.startsWith('/uploads/') && !rawSubtitle.match(/\.(png|jpe?g|webp|svg)$/i)) 
+    ? rawSubtitle 
+    : 'Platform Pengelolaan Sampah Desa';
+
+  const logoAppUrl = !appImgFailed ? profile?.logo_url : null;
+  const logoHorizontalUrl = !horizontalImgFailed ? profile?.logo_horizontal_url : null;
 
   // 1. Icon Only Variant (For avatars, compact sidebar, mobile header icon)
   if (variant === 'icon-only') {
@@ -30,6 +41,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
             src={logoAppUrl}
             alt={title}
             className={`object-contain max-h-full max-w-full ${imageClassName}`}
+            onError={() => setAppImgFailed(true)}
           />
         </div>
       );
@@ -57,6 +69,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
               src={logoAppUrl}
               alt={title}
               className={`object-contain max-h-36 max-w-36 drop-shadow-sm ${imageClassName}`}
+              onError={() => setAppImgFailed(true)}
             />
           </div>
           {showTagline && (
@@ -123,6 +136,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
           src={logoHorizontalUrl}
           alt={title}
           className={`object-contain max-h-12 w-auto ${imageClassName}`}
+          onError={() => setHorizontalImgFailed(true)}
         />
       </div>
     );
@@ -132,7 +146,12 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   return (
     <div className={`inline-flex items-center gap-2 font-black tracking-tight ${className}`}>
       {logoAppUrl ? (
-        <img src={logoAppUrl} alt={title} className="w-8 h-8 object-contain rounded-lg" />
+        <img 
+          src={logoAppUrl} 
+          alt={title} 
+          className="w-8 h-8 object-contain rounded-lg" 
+          onError={() => setAppImgFailed(true)}
+        />
       ) : (
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-600 to-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-sm">
           SD
