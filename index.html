@@ -126,42 +126,43 @@
          color: white;
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react/": "https://esm.sh/react@19.0.0/",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
-    "react-router-dom": "https://esm.sh/react-router-dom@7.1.3?external=react,react-dom",
-    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
-    "qrcode.react": "https://esm.sh/qrcode.react@4.2.0?external=react,react-dom",
-    "jsqr": "https://esm.sh/jsqr@1.4.0",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mjs",
-    "immer": "https://esm.sh/immer@9.0.21",
-    "@/": "./",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "url": "https://esm.sh/url@^0.11.4",
-    "path": "https://esm.sh/path@^0.12.7",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0"
-  }
-}
-</script>
-</head>
-  <body class="text-slate-800">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+  </head>
+  <body class="text-slate-800 bg-slate-50 antialiased">
+    <div id="root">
+      <div id="initial-loader" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;">
+        <div style="background: rgba(255, 255, 255, 0.9); padding: 32px; border-radius: 24px; box-shadow: 0 20px 40px -15px rgba(0,0,0,0.07); border: 1px solid #e2e8f0; text-align: center; max-width: 320px; width: 90%;">
+          <div style="display: inline-block; width: 44px; height: 44px; border: 4px solid #10b981; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;"></div>
+          <h3 style="margin: 0 0 6px 0; font-size: 16px; font-weight: 800; color: #0f172a;">SapaDesa</h3>
+          <p style="margin: 0; font-size: 12px; color: #64748b; font-weight: 600;">Menyiapkan aplikasi...</p>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+
     <script>
+      // Active SW and Cache cleanup for development/preview iframe
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Service worker registered', reg))
-            .catch(err => console.log('Service worker registration failed', err));
-        });
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          for (var reg of regs) reg.unregister();
+        }).catch(function(){});
       }
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          for (var key of keys) caches.delete(key);
+        }).catch(function(){});
+      }
+
+      // Visual Error Trap so screen never stays blank on unexpected error
+      window.addEventListener('error', function(e) {
+        console.error('Captured window error:', e);
+        var loader = document.getElementById('initial-loader');
+        if (loader) {
+          loader.innerHTML = '<div style="background:#fff; padding:24px; border-radius:20px; border:1px solid #fecdd3; max-width:380px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.05);"><div style="font-size:24px; color:#ef4444; margin-bottom:8px;">⚠️</div><h4 style="margin:0 0 8px; color:#991b1b; font-weight:800; font-size:14px;">Gagal Memuat Script</h4><p style="margin:0 0 14px; font-size:11px; color:#64748b; font-family:monospace; word-break:break-all;">' + (e.message || 'Error executing script') + '</p><button onclick="location.reload()" style="background:#10b981; color:#fff; border:none; padding:8px 18px; border-radius:12px; font-weight:700; font-size:12px; cursor:pointer;">Muat Ulang</button></div>';
+        }
+      });
     </script>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

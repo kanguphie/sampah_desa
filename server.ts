@@ -2,7 +2,9 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
 import cors from 'cors';
+import multer from 'multer';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -60,6 +62,69 @@ async function startServer() {
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Physical directory for uploaded logos and assets (stored on disk, NOT base64)
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  // Serve /uploads directly via Express static
+  app.use('/uploads', express.static(uploadsDir));
+
+  // Local file-based config backup to guarantee persistence even if MySQL is offline
+  const villageConfigFile = path.join(uploadsDir, 'village_config.json');
+
+  const readVillageConfigBackup = (): Record<string, any> => {
+    try {
+      if (fs.existsSync(villageConfigFile)) {
+        const raw = fs.readFileSync(villageConfigFile, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn("Error reading village config backup:", e);
+    }
+    return {};
+  };
+
+  const writeVillageConfigBackup = (updates: Record<string, any>) => {
+    try {
+      const current = readVillageConfigBackup();
+      const updated = { ...current, ...updates };
+      fs.writeFileSync(villageConfigFile, JSON.stringify(updated, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn("Error writing village config backup:", e);
+    }
+  };
+
+  // Multer disk storage configuration
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.png';
+      const isHorizontal = (req.body?.type || file.fieldname || '').toString().toLowerCase().includes('horizontal');
+      const prefix = isHorizontal ? 'logo-branding' : 'logo-app';
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e4)}`;
+      cb(null, `${prefix}-${uniqueSuffix}${ext}`);
+    }
+  });
+
+  const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (_req, file, cb) => {
+      const allowedExts = /\.(jpe?g|png|webp|svg)$/i;
+      const allowedMimes = /^(image\/(jpeg|png|webp|svg\+xml|svg))$/i;
+      if (allowedExts.test(file.originalname) || allowedMimes.test(file.mimetype)) {
+        return cb(null, true);
+      }
+      cb(new Error('Format file tidak didukung. Harap unggah format JPG, PNG, WebP, atau SVG.'));
+    }
+  });
 
   // Database Connection Pool
   let pool: mysql.Pool | null = null;
@@ -173,7 +238,7 @@ async function startServer() {
       try {
         const [vCols]: any = await db.execute('DESCRIBE village_config');
         const existingVCols = new Set(vCols.map((c: any) => String(c.Field || c.field || '').toLowerCase()));
-        const neededVCols = ['district', 'regency', 'phone', 'email', 'logo_url'];
+        const neededVCols = ['district', 'regency', 'phone', 'email', 'logo_url', 'logo_horizontal_url', 'branding_title', 'branding_subtitle'];
         for (const col of neededVCols) {
           if (!existingVCols.has(col.toLowerCase())) {
             await db.execute(`ALTER TABLE village_config ADD COLUMN ${col} VARCHAR(255)`);
@@ -427,17 +492,43 @@ async function startServer() {
   // --- FRIENDLY ROUTES (Mapping to tables) ---
   
   app.get('/api/village-profile', async (req, res) => {
+    const fileBackup = readVillageConfigBackup();
     try {
         const db = await getDB();
         const [rows]: any = await db.execute('SELECT * FROM village_config LIMIT 1');
-        res.json(rows[0] || {});
-    } catch (err: any) { res.status(500).json({ error: err.message }); }
+        const profile = rows[0] || {};
+        res.json({
+          name: 'Rowosari',
+          district: 'Limpung',
+          regency: 'Batang',
+          address: '',
+          phone: '',
+          email: '',
+          branding_title: 'SapaDesa',
+          branding_subtitle: 'Platform Pengelolaan Sampah Desa',
+          ...fileBackup,
+          ...profile
+        });
+    } catch (err: any) { 
+        res.json({
+          name: 'Rowosari',
+          district: 'Limpung',
+          regency: 'Batang',
+          address: '',
+          phone: '',
+          email: '',
+          branding_title: 'SapaDesa',
+          branding_subtitle: 'Platform Pengelolaan Sampah Desa',
+          ...fileBackup
+        }); 
+    }
   });
 
   app.post('/api/village-profile', async (req, res) => {
+    const data = req.body;
+    writeVillageConfigBackup(data);
     try {
         const db = await getDB();
-        const data = req.body;
         const [colsInfo]: any = await db.execute(`DESCRIBE village_config`);
         const validCols = colsInfo.map((c: any) => c.Field);
         const filteredRow: any = {};
@@ -448,7 +539,87 @@ async function startServer() {
         const values = Object.values(filteredRow);
         await db.execute(`REPLACE INTO village_config (id, ${columns}) VALUES (1, ${placeholders})`, [1, ...values]);
         res.json({ success: true });
-    } catch (err: any) { res.status(500).json({ error: err.message }); }
+    } catch (err: any) { 
+        // File backup was already written, so acknowledge success with fallback note
+        res.json({ success: true, warning: err.message }); 
+    }
+  });
+
+  // Physical Logo Upload endpoint (Saved into /public/uploads/ folder, NOT stored as base64 in DB)
+  app.post('/api/upload-logo-single', (req, res, next) => {
+    upload.single('logo')(req, res, (err: any) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || 'Gagal mengunggah file' });
+      }
+      next();
+    });
+  }, async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Tidak ada file gambar yang diunggah' });
+      }
+
+      const type = req.body.type || 'logo_app';
+      const isHorizontal = type === 'logo_horizontal';
+      const relativePath = `/uploads/${req.file.filename}`;
+      const column = isHorizontal ? 'logo_horizontal_url' : 'logo_url';
+
+      console.log(`[Logo Upload] File saved to disk: ${req.file.path} -> Path: ${relativePath}`);
+      writeVillageConfigBackup({ [column]: relativePath });
+
+      try {
+        const db = await getDB();
+        const [existing]: any = await db.execute('SELECT id FROM village_config WHERE id = 1');
+        if (existing.length === 0) {
+          await db.execute(`INSERT INTO village_config (id, ${column}) VALUES (1, ?)`, [relativePath]);
+        } else {
+          await db.execute(`UPDATE village_config SET ${column} = ? WHERE id = 1`, [relativePath]);
+        }
+      } catch (dbErr: any) {
+        console.warn("[Logo Upload] Database update note:", dbErr.message);
+      }
+
+      res.json({
+        success: true,
+        url: relativePath,
+        filename: req.file.filename,
+        column,
+        type,
+        message: 'File berhasil disimpan ke folder /public/uploads/!'
+      });
+    } catch (err: any) {
+      console.error('[Upload Logo Error]:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Remove/reset logo endpoint
+  app.delete('/api/remove-logo/:type', async (req, res) => {
+    try {
+      const { type } = req.params;
+      const isHorizontal = type === 'logo_horizontal';
+      const column = isHorizontal ? 'logo_horizontal_url' : 'logo_url';
+
+      writeVillageConfigBackup({ [column]: null });
+
+      try {
+        const db = await getDB();
+        const [rows]: any = await db.execute(`SELECT ${column} as path FROM village_config WHERE id = 1`);
+        if (rows[0]?.path && typeof rows[0].path === 'string' && rows[0].path.startsWith('/uploads/')) {
+          const filePath = path.join(process.cwd(), 'public', rows[0].path);
+          if (fs.existsSync(filePath)) {
+            try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+          }
+        }
+        await db.execute(`UPDATE village_config SET ${column} = NULL WHERE id = 1`);
+      } catch (dbErr: any) {
+        console.warn("[Remove Logo] DB note:", dbErr.message);
+      }
+
+      res.json({ success: true, message: 'Logo berhasil dihapus' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post('/api/pay-debt', async (req, res) => {

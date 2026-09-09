@@ -105,5 +105,9 @@ export interface VillageProfile {
     address: string;
     phone: string;
     email: string;
+    logo_url?: string;
+    logo_horizontal_url?: string;
+    branding_title?: string;
+    branding_subtitle?: string;
     lastUpdated?: string;
 }

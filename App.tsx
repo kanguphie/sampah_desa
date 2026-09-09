@@ -25,6 +25,7 @@ import AdminInboxPage from './pages/admin/AdminInboxPage';
 import AdminPengumumanPage from './pages/admin/AdminPengumumanPage';
 import AdminProfilePage from './pages/admin/AdminProfilePage';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { VillageProfileProvider } from './context/VillageProfileContext';
 
 const PetugasRoutes: React.FC = () => {
     const { petugas } = useAuth();
@@ -71,7 +72,8 @@ const AdminRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
+    <VillageProfileProvider>
+      <AuthProvider>
         <HashRouter>
             <Routes>
                 <Route path="/" element={<PublicHomePage />} />
@@ -86,7 +88,8 @@ const App: React.FC = () => {
                 <Route path="/petugas/login" element={<Navigate to="/login" />} />
             </Routes>
         </HashRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </VillageProfileProvider>
   );
 };
 

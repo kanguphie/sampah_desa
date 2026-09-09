@@ -2,6 +2,7 @@
 import React, { ReactNode, useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useVillageProfile } from '@/context/VillageProfileContext';
 import { HomeIcon, ChartBarIcon, LogoutIcon, DatabaseIcon, ChevronDownIcon, QrCodeIcon, UserCircleIcon, MenuIcon, XIcon, CogIcon, BanknotesIcon, ClipboardListIcon, ClockIcon, EnvelopeIcon, MegaphoneIcon, UserIcon } from '@/components/icons';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
@@ -91,6 +92,7 @@ const LiveClock: React.FC = () => {
 
 const AdminLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
     const location = useLocation();
+    const { profile } = useVillageProfile();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const masterDataPaths = ['/admin/dukuh', '/admin/warga', '/admin/petugas'];
@@ -123,14 +125,27 @@ const AdminLayout: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     const SidebarContent = () => (
         <>
-            <div className="p-8 pb-6 flex justify-between items-center">
-                 <div className="flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-emerald-400 to-teal-600 text-white font-extrabold text-xl w-10 h-10 flex items-center justify-center rounded-xl shadow-lg shadow-emerald-500/30">
-                        SD
+            <div className="p-6 pb-5 flex justify-between items-center border-b border-slate-800/80 mb-2">
+                 <div className="flex items-center gap-3 min-w-0">
+                    {profile?.logo_url ? (
+                        <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 overflow-hidden">
+                            <img src={profile.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                        </div>
+                    ) : (
+                        <div className="bg-gradient-to-br from-emerald-400 to-teal-600 text-white font-extrabold text-xl w-10 h-10 flex items-center justify-center rounded-xl shadow-lg shadow-emerald-500/30 shrink-0">
+                            SD
+                        </div>
+                    )}
+                    <div className="flex flex-col min-w-0">
+                        <span className="font-display font-black text-lg text-white tracking-tight truncate leading-tight">
+                            {profile?.branding_title || 'SapaDesa'}
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-400/90 uppercase tracking-wider truncate">
+                            {profile?.name ? `Desa ${profile.name}` : 'Admin Panel'}
+                        </span>
                     </div>
-                    <span className="font-display font-bold text-xl text-white tracking-tight">SapaDesa</span>
                  </div>
-                 <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-white transition-colors rounded-full hover:bg-slate-800" aria-label="Close sidebar">
+                 <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-slate-400 hover:text-white transition-colors rounded-full hover:bg-slate-800 shrink-0" aria-label="Close sidebar">
                     <XIcon className="text-xl" />
                 </button>
             </div>

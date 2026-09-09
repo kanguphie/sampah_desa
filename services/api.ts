@@ -194,6 +194,30 @@ export const updatePetugasProfile = async (id: string, name: string, phone: stri
 export const getVillageProfile = async () => fetchLocal('/village-profile');
 export const updateVillageProfile = async (data: any) => fetchLocal('/village-profile', { method: 'POST', body: JSON.stringify(data) });
 
+export const uploadLogoFile = async (file: File, type: 'logo_app' | 'logo_horizontal') => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    formData.append('type', type);
+
+    const cleanEndpoint = '/upload-logo-single';
+    const fullUrl = API_URL.endsWith('/') ? `${API_URL.slice(0, -1)}${cleanEndpoint}` : `${API_URL}${cleanEndpoint}`;
+    
+    console.log(`[API] Uploading logo: POST ${fullUrl} (${type})`);
+    const res = await fetch(fullUrl, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Gagal mengunggah logo');
+    }
+    return res.json();
+};
+
+export const removeLogo = async (type: 'logo_app' | 'logo_horizontal') => {
+    return fetchLocal(`/remove-logo/${type}`, { method: 'DELETE' });
+};
+
 // --- BACKUP & RESTORE ---
 
 export const exportFullBackup = async () => {

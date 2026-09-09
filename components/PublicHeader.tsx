@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MenuIcon, XIcon } from './icons';
+import { BrandLogo } from './BrandLogo';
 
 const PublicHeader: React.FC = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -24,9 +25,7 @@ const PublicHeader: React.FC = () => {
                     <div className="flex h-20 items-center justify-between">
                         {/* Logo Area */}
                         <Link to="/" className="flex items-center gap-2 group transition-transform hover:scale-[1.02]">
-                            <div className="bg-slate-900 text-white font-black text-lg px-4 py-2 rounded-xl shadow-lg shadow-slate-200 -skew-x-6 group-hover:bg-emerald-600 transition-colors">
-                                SapaDesa
-                            </div>
+                            <BrandLogo variant="horizontal" />
                         </Link>
                         
                         {/* Desktop Navigation */}
@@ -75,7 +74,7 @@ const PublicHeader: React.FC = () => {
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] lg:hidden animate-fade-in">
                     <div className="fixed inset-x-0 top-0 bg-white shadow-2xl rounded-b-[2.5rem] p-6 animate-slide-in-up">
                         <div className="flex justify-between items-center mb-8">
-                            <div className="bg-slate-900 text-white font-bold text-base px-4 py-2 rounded-lg">SapaDesa</div>
+                            <BrandLogo variant="horizontal" />
                             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-rose-50 text-rose-500 rounded-xl">
                                 <XIcon className="text-xl" />
                             </button>

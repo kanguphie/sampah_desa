@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { loginAdmin, loginPetugas } from '@/services/api';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const UnifiedLoginPage: React.FC = () => {
     const [pin, setPin] = useState('');
@@ -100,10 +101,8 @@ const UnifiedLoginPage: React.FC = () => {
             <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
 
             <div className="w-full max-w-sm relative z-10">
-                <div className="text-center mb-10 animate-fade-in">
-                    <div className="w-20 h-20 bg-slate-900 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl -rotate-6 font-black text-3xl">SD</div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">SapaDesa</h1>
-                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Akses Sistem Terpadu</p>
+                <div className="text-center mb-8 animate-fade-in flex flex-col items-center">
+                    <BrandLogo variant="emblem" showTagline={true} />
                 </div>
 
                 <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-2xl shadow-slate-200/60 border border-white animate-slide-in-up">
