@@ -13,6 +13,7 @@ const AdminCetakBarcodePage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState({ dukuhId: 'all', rtId: 'all' });
     const [paperSize, setPaperSize] = useState<'A4' | 'A3' | 'A3+'>('A4');
+    const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
     const printRef = useRef<HTMLDivElement>(null);
 
     const paperDimensions = {
@@ -85,7 +86,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                                 .barcode-grid-print { 
                                     display: grid; 
                                     grid-template-columns: repeat(auto-fill, minmax(5.8cm, 1fr)); 
-                                    gap: 0.5cm; 
+                                    gap: 4mm; 
                                     width: 100%;
                                 }
                                 .barcode-item-print { 
@@ -95,70 +96,70 @@ const AdminCetakBarcodePage: React.FC = () => {
                                     justify-content: center; 
                                     page-break-inside: avoid; 
                                     border: 1px solid #e2e8f0; 
-                                    padding: 20px; 
+                                    padding: 15px; 
                                     border-radius: 12px; 
                                     text-align: center; 
                                     background: white;
-                                    min-height: 5.5cm;
+                                    min-height: 5.4cm;
                                     box-sizing: border-box;
                                 }
                                 .logo-print { 
-                                    height: 24px; 
-                                    margin-bottom: 12px; 
+                                    height: 22px; 
+                                    margin-bottom: 10px; 
                                     object-fit: contain; 
                                 }
                                 .branding-fallback {
-                                    font-size: 11pt;
+                                    font-size: 10pt;
                                     font-weight: 800;
                                     color: #0f172a;
-                                    margin-bottom: 12px;
+                                    margin-bottom: 10px;
                                     letter-spacing: -0.02em;
                                 }
                                 .qr-container { 
-                                    padding: 5px;
+                                    padding: 4px;
                                     background: white;
-                                    margin-bottom: 5px;
+                                    margin-bottom: 4px;
                                 }
                                 .name-text { 
-                                    margin: 10px 0 2px; 
-                                    font-size: 11pt; 
+                                    margin: 8px 0 2px; 
+                                    font-size: 10pt; 
                                     font-weight: 800; 
                                     text-transform: uppercase; 
                                     color: #0f172a; 
-                                    line-height: 1.2; 
+                                    line-height: 1.1; 
                                     word-break: break-word;
                                 }
                                 .id-text { 
                                     margin: 0; 
-                                    font-size: 10pt; 
+                                    font-size: 9pt; 
                                     font-family: 'Courier New', Courier, monospace; 
                                     font-weight: 700; 
                                     color: #475569; 
                                 }
                                 .loc-text { 
-                                    margin-top: 6px; 
-                                    font-size: 9pt; 
+                                    margin-top: 5px; 
+                                    font-size: 8pt; 
                                     color: #64748b; 
                                     font-weight: 600; 
                                 }
                                 
                                 @media print {
                                     @page { 
-                                        size: ${paperDimensions[paperSize]}; 
-                                        margin: 15mm; 
+                                        size: ${paperDimensions[paperSize]} ${orientation}; 
+                                        margin: 10mm; 
                                     }
                                     body { 
                                         padding: 0; 
                                         margin: 0;
                                     }
                                     .barcode-grid-print {
-                                        gap: 8mm;
+                                        gap: 4mm;
                                     }
                                     .barcode-item-print { 
                                         border-color: #cbd5e1; 
                                         break-inside: avoid;
                                         page-break-inside: avoid;
-                                        margin-bottom: 2mm;
+                                        margin-bottom: 1mm;
                                     }
                                 }
                             </style>
@@ -187,22 +188,33 @@ const AdminCetakBarcodePage: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                     <div>
                         <h1 className="text-2xl font-bold font-display text-slate-800">Cetak Barcode Warga</h1>
-                        <p className="mt-1 text-slate-500">Gunakan filter untuk memilih warga dan ukuran kertas.</p>
+                        <p className="mt-1 text-slate-500">Pilih warga, ukuran kertas, dan orientasi cetak.</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-                            <span className="text-xs font-bold text-slate-500 uppercase">Ukuran Kertas:</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase">Kertas:</span>
                             <select 
                                 value={paperSize} 
                                 onChange={(e) => setPaperSize(e.target.value as any)}
                                 className="bg-transparent border-none text-sm font-bold text-slate-800 outline-none focus:ring-0"
                             >
-                                <option value="A4">A4 (Standar)</option>
+                                <option value="A4">A4</option>
                                 <option value="A3">A3</option>
-                                <option value="A3+">A3+ (Stiker 32.9cm x 48.3cm)</option>
+                                <option value="A3+">A3+</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+                            <span className="text-xs font-bold text-slate-500 uppercase">Orientasi:</span>
+                            <select 
+                                value={orientation} 
+                                onChange={(e) => setOrientation(e.target.value as any)}
+                                className="bg-transparent border-none text-sm font-bold text-slate-800 outline-none focus:ring-0"
+                            >
+                                <option value="portrait">Tegak (Portrait)</option>
+                                <option value="landscape">Miring (Landscape)</option>
                             </select>
                         </div>
                         <button onClick={handlePrint} disabled={filteredWarga.length === 0} className="bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus disabled:bg-slate-400 transition-colors">
