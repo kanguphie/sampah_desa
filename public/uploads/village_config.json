@@ -1,3 +1,11 @@
 {
-  "logo_url": "/uploads/logo-app-1788937906083-7088.png"
+  "logo_url": "/uploads/logo-app-1788937906083-7088.png",
+  "name": "Desa Rowosari",
+  "district": "Limpung",
+  "regency": "Batang",
+  "address": "Jl. Pemuda No. 5",
+  "phone": "081234567890",
+  "email": "pemdes@rowosari.desa.id",
+  "branding_title": "SapaDesa",
+  "branding_subtitle": "Platform Pengelolaan Sampah Desa"
 }

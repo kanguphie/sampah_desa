@@ -304,6 +304,38 @@ async function startServer() {
             await db.execute(`ALTER TABLE village_config ADD COLUMN ${col.name} ${col.type}`);
           }
         }
+
+        // Auto-heal corrupted/shifted rows in village_config from previous bugs
+        try {
+          const [vRows]: any = await db.execute('SELECT id, name, district, logo_url, regency, address, phone, email FROM village_config WHERE id = 1');
+          if (vRows && vRows.length > 0) {
+            const vr = vRows[0];
+            const isCorrupted = vr.name === '1' || 
+              (typeof vr.district === 'string' && vr.district.startsWith('/uploads/')) || 
+              (typeof vr.logo_url === 'string' && !vr.logo_url.startsWith('/uploads/') && !vr.logo_url.startsWith('http') && !vr.logo_url.startsWith('data:'));
+            
+            if (isCorrupted) {
+              console.log("[Auto-Heal DB] Detected shifted/corrupted columns in village_config. Normalizing row 1 to clean defaults...");
+              await db.execute(`
+                UPDATE village_config 
+                SET name = 'Rowosari',
+                    district = 'Limpung',
+                    regency = 'Batang',
+                    address = '',
+                    phone = '',
+                    email = '',
+                    logo_url = NULL,
+                    logo_horizontal_url = NULL,
+                    branding_title = 'SapaDesa',
+                    branding_subtitle = 'Platform Pengelolaan Sampah Desa'
+                WHERE id = 1
+              `);
+              console.log("[Auto-Heal DB] Row 1 in village_config successfully normalized!");
+            }
+          }
+        } catch (repairErr: any) {
+          console.warn("[Auto-Heal Note]:", repairErr.message);
+        }
       } catch (err: any) {
         console.warn("[Migration village_config]:", err.message);
         if (err.code === 'ECONNREFUSED') throw err;
@@ -566,66 +598,203 @@ async function startServer() {
     const fileBackup = readVillageConfigBackup();
     try {
         const db = await getDB();
-        const [rows]: any = await db.execute('SELECT * FROM village_config LIMIT 1');
-        const profile = rows[0] || {};
-        const combined = {
-          name: 'Rowosari',
-          district: 'Limpung',
-          regency: 'Batang',
-          address: '',
-          phone: '',
-          email: '',
-          branding_title: 'SapaDesa',
-          branding_subtitle: 'Platform Pengelolaan Sampah Desa',
-          ...fileBackup,
-          ...profile
-        };
+        const [rows]: any = await db.execute('SELECT * FROM village_config WHERE id = 1');
+        let profile = rows[0] || {};
+        
+        // Auto-heal corrupted/shifted rows if found
+        const isCorrupted = profile.name === '1' || 
+          (typeof profile.district === 'string' && profile.district.startsWith('/uploads/')) || 
+          (typeof profile.logo_url === 'string' && !profile.logo_url.startsWith('/uploads/') && !profile.logo_url.startsWith('http') && !profile.logo_url.startsWith('data:'));
 
-        // Ensure title/subtitle never display raw image paths
-        combined.branding_title = sanitizeBrandingText(combined.branding_title, 'SapaDesa');
-        combined.branding_subtitle = sanitizeBrandingText(combined.branding_subtitle, 'Platform Pengelolaan Sampah Desa');
+        if (isCorrupted) {
+          console.warn("[Village Profile GET] Detected corrupted shifted row in MySQL! Repairing now...");
+          profile.name = 'Rowosari';
+          profile.district = 'Limpung';
+          profile.regency = 'Batang';
+          if (profile.address === 'Batang' || profile.address === 'Rowosari') profile.address = '';
+          if (profile.phone === 'Batang' || profile.phone === '0') profile.phone = '';
+          if (profile.email === '0' || profile.email === 'Rowosari') profile.email = '';
+          if (profile.logo_url && !profile.logo_url.startsWith('/uploads/') && !profile.logo_url.startsWith('http')) profile.logo_url = null;
+          if (profile.logo_horizontal_url && !profile.logo_horizontal_url.startsWith('/uploads/') && !profile.logo_horizontal_url.startsWith('http')) profile.logo_horizontal_url = null;
+          
+          try {
+            await db.execute(
+              `UPDATE village_config 
+               SET name = 'Rowosari', district = 'Limpung', regency = 'Batang', address = ?, phone = ?, email = ?, logo_url = ?, logo_horizontal_url = ? 
+               WHERE id = 1`,
+              [profile.address || '', profile.phone || '', profile.email || '', profile.logo_url, profile.logo_horizontal_url]
+            );
+          } catch (e: any) {
+            console.warn("[Auto-Heal GET Error]:", e.message);
+          }
+        }
+
+        const cleanName = (profile.name && profile.name !== '1' && !profile.name.startsWith('/uploads/')) ? profile.name : (fileBackup.name || 'Rowosari');
+        const cleanDistrict = (profile.district && !profile.district.startsWith('/uploads/')) ? profile.district : (fileBackup.district || 'Limpung');
+        const cleanRegency = (profile.regency && profile.regency !== '1') ? profile.regency : (fileBackup.regency || 'Batang');
+        const cleanAddress = (profile.address === 'Batang' || profile.address === 'Rowosari') ? (fileBackup.address || '') : (profile.address || fileBackup.address || '');
+        const cleanPhone = (profile.phone === 'Batang' || profile.phone === '0') ? (fileBackup.phone || '') : (profile.phone || fileBackup.phone || '');
+        const cleanEmail = (profile.email === '0' || profile.email === 'Rowosari') ? (fileBackup.email || '') : (profile.email || fileBackup.email || '');
+
+        const cleanLogoUrl = (profile.logo_url && (profile.logo_url.startsWith('/uploads/') || profile.logo_url.startsWith('http') || profile.logo_url.startsWith('data:'))) 
+          ? profile.logo_url 
+          : (fileBackup.logo_url && (fileBackup.logo_url.startsWith('/uploads/') || fileBackup.logo_url.startsWith('http') || fileBackup.logo_url.startsWith('data:')) ? fileBackup.logo_url : null);
+
+        const cleanLogoHorizUrl = (profile.logo_horizontal_url && (profile.logo_horizontal_url.startsWith('/uploads/') || profile.logo_horizontal_url.startsWith('http') || profile.logo_horizontal_url.startsWith('data:'))) 
+          ? profile.logo_horizontal_url 
+          : (fileBackup.logo_horizontal_url && (fileBackup.logo_horizontal_url.startsWith('/uploads/') || fileBackup.logo_horizontal_url.startsWith('http') || fileBackup.logo_horizontal_url.startsWith('data:')) ? fileBackup.logo_horizontal_url : null);
+
+        const combined = {
+          name: cleanName,
+          district: cleanDistrict,
+          regency: cleanRegency,
+          address: cleanAddress,
+          phone: cleanPhone,
+          email: cleanEmail,
+          branding_title: sanitizeBrandingText(profile.branding_title || fileBackup.branding_title, 'SapaDesa'),
+          branding_subtitle: sanitizeBrandingText(profile.branding_subtitle || fileBackup.branding_subtitle, 'Platform Pengelolaan Sampah Desa'),
+          logo_url: cleanLogoUrl,
+          logo_horizontal_url: cleanLogoHorizUrl,
+          logo_base64: profile.logo_base64 || fileBackup.logo_base64 || null,
+          logo_horizontal_base64: profile.logo_horizontal_base64 || fileBackup.logo_horizontal_base64 || null
+        };
 
         res.json(combined);
     } catch (err: any) { 
         res.json({
-          name: 'Rowosari',
-          district: 'Limpung',
-          regency: 'Batang',
-          address: '',
-          phone: '',
-          email: '',
+          name: fileBackup.name || 'Rowosari',
+          district: fileBackup.district || 'Limpung',
+          regency: fileBackup.regency || 'Batang',
+          address: fileBackup.address || '',
+          phone: fileBackup.phone || '',
+          email: fileBackup.email || '',
           branding_title: sanitizeBrandingText(fileBackup.branding_title, 'SapaDesa'),
           branding_subtitle: sanitizeBrandingText(fileBackup.branding_subtitle, 'Platform Pengelolaan Sampah Desa'),
-          ...fileBackup
+          logo_url: fileBackup.logo_url || null,
+          logo_horizontal_url: fileBackup.logo_horizontal_url || null
         }); 
     }
   });
 
   app.post('/api/village-profile', async (req, res) => {
     const data = req.body || {};
-    if (data.branding_title) {
-      data.branding_title = sanitizeBrandingText(data.branding_title, 'SapaDesa');
-    }
-    if (data.branding_subtitle) {
-      data.branding_subtitle = sanitizeBrandingText(data.branding_subtitle, 'Platform Pengelolaan Sampah Desa');
+    
+    // Explicit sanitization of fields
+    let name = typeof data.name === 'string' ? data.name.trim() : '';
+    if (name === '1' || name.startsWith('/uploads/')) name = 'Rowosari';
+
+    let district = typeof data.district === 'string' ? data.district.trim() : '';
+    if (district.startsWith('/uploads/')) district = 'Limpung';
+
+    let regency = typeof data.regency === 'string' ? data.regency.trim() : '';
+    if (regency.startsWith('/uploads/')) regency = 'Batang';
+
+    let address = typeof data.address === 'string' ? data.address.trim() : '';
+    let phone = typeof data.phone === 'string' ? data.phone.trim() : '';
+    let email = typeof data.email === 'string' ? data.email.trim() : '';
+
+    const branding_title = sanitizeBrandingText(data.branding_title, 'SapaDesa');
+    const branding_subtitle = sanitizeBrandingText(data.branding_subtitle, 'Platform Pengelolaan Sampah Desa');
+
+    // Keep or sanitize logo URLs (prevent shifted text like "Rowosari" entering logo_url)
+    let logo_url = data.logo_url;
+    if (logo_url !== undefined) {
+      if (typeof logo_url !== 'string' || (!logo_url.startsWith('/uploads/') && !logo_url.startsWith('http') && !logo_url.startsWith('data:'))) {
+        logo_url = null;
+      }
     }
 
-    writeVillageConfigBackup(data);
+    let logo_horizontal_url = data.logo_horizontal_url;
+    if (logo_horizontal_url !== undefined) {
+      if (typeof logo_horizontal_url !== 'string' || (!logo_horizontal_url.startsWith('/uploads/') && !logo_horizontal_url.startsWith('http') && !logo_horizontal_url.startsWith('data:'))) {
+        logo_horizontal_url = null;
+      }
+    }
+
+    const payloadToSave: Record<string, any> = {
+      name: name || 'Rowosari',
+      district: district || 'Limpung',
+      regency: regency || 'Batang',
+      address,
+      phone,
+      email,
+      branding_title,
+      branding_subtitle
+    };
+
+    if (logo_url !== undefined) payloadToSave.logo_url = logo_url;
+    if (logo_horizontal_url !== undefined) payloadToSave.logo_horizontal_url = logo_horizontal_url;
+
+    writeVillageConfigBackup(payloadToSave);
+
     try {
-        const db = await getDB();
-        const [colsInfo]: any = await db.execute(`DESCRIBE village_config`);
-        const validCols = colsInfo.map((c: any) => c.Field);
-        const filteredRow: any = {};
-        validCols.forEach((col: string) => { if (data[col] !== undefined) filteredRow[col] = data[col]; });
-        if (Object.keys(filteredRow).length === 0) return res.json({ success: true });
-        const columns = Object.keys(filteredRow).map(c => `\`${c}\``).join(', ');
-        const placeholders = Object.keys(filteredRow).map(() => '?').join(', ');
-        const values = Object.values(filteredRow);
-        await db.execute(`REPLACE INTO village_config (id, ${columns}) VALUES (1, ${placeholders})`, [1, ...values]);
-        res.json({ success: true });
-    } catch (err: any) { 
-        // File backup was already written, so acknowledge success with fallback note
-        res.json({ success: true, warning: err.message }); 
+      const db = await getDB();
+      const [existing]: any = await db.execute('SELECT id FROM village_config WHERE id = 1');
+      if (existing.length === 0) {
+        await db.execute(
+          `INSERT INTO village_config (id, name, district, regency, address, phone, email, branding_title, branding_subtitle, logo_url, logo_horizontal_url)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            payloadToSave.name,
+            payloadToSave.district,
+            payloadToSave.regency,
+            payloadToSave.address,
+            payloadToSave.phone,
+            payloadToSave.email,
+            payloadToSave.branding_title,
+            payloadToSave.branding_subtitle,
+            payloadToSave.logo_url || null,
+            payloadToSave.logo_horizontal_url || null
+          ]
+        );
+      } else {
+        const updateParts = [
+          '`name` = ?',
+          '`district` = ?',
+          '`regency` = ?',
+          '`address` = ?',
+          '`phone` = ?',
+          '`email` = ?',
+          '`branding_title` = ?',
+          '`branding_subtitle` = ?'
+        ];
+        const updateVals = [
+          payloadToSave.name,
+          payloadToSave.district,
+          payloadToSave.regency,
+          payloadToSave.address,
+          payloadToSave.phone,
+          payloadToSave.email,
+          payloadToSave.branding_title,
+          payloadToSave.branding_subtitle
+        ];
+
+        if (payloadToSave.logo_url !== undefined) {
+          updateParts.push('`logo_url` = ?');
+          updateVals.push(payloadToSave.logo_url);
+        }
+        if (payloadToSave.logo_horizontal_url !== undefined) {
+          updateParts.push('`logo_horizontal_url` = ?');
+          updateVals.push(payloadToSave.logo_horizontal_url);
+        }
+
+        updateVals.push(1); // WHERE id = 1
+        await db.execute(
+          `UPDATE village_config SET ${updateParts.join(', ')} WHERE id = ?`,
+          updateVals
+        );
+      }
+      res.json({ success: true, profile: payloadToSave });
+    } catch (err: any) {
+      console.error('[Village Profile Save Error]:', err);
+      const isConnectionError = err.code === 'ECONNREFUSED' || 
+        err.code === 'PROTOCOL_CONNECTION_LOST' || 
+        err.code === 'ETIMEDOUT' ||
+        (typeof err.message === 'string' && (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')));
+      if (isConnectionError) {
+        return res.json({ success: true, profile: payloadToSave, dbOffline: true });
+      }
+      res.status(500).json({ error: err.message });
     }
   });
 

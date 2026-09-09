@@ -105,6 +105,14 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
     const [isDragging, setIsDragging] = useState(false);
     const [imgLoadError, setImgLoadError] = useState(false);
 
+    // Validate that currentUrl is a valid file path, not corrupted shifted text
+    const isValidImg = Boolean(
+        currentUrl && 
+        typeof currentUrl === 'string' && 
+        (currentUrl.startsWith('/uploads/') || currentUrl.startsWith('http') || currentUrl.startsWith('data:'))
+    );
+    const effectiveUrl = isValidImg ? currentUrl : null;
+
     useEffect(() => {
         setImgLoadError(false);
     }, [currentUrl]);
@@ -206,7 +214,7 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
                 className={`relative group cursor-pointer border-2 border-dashed rounded-xl transition-all p-4 flex flex-col items-center justify-center text-center ${
                     isDragging
                         ? 'border-teal-500 bg-teal-50/50 scale-[1.01]'
-                        : currentUrl
+                        : effectiveUrl
                         ? 'border-emerald-200 bg-slate-50/80 hover:bg-teal-50/30'
                         : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400'
                 } ${aspectRatio === 'square' ? 'min-h-[160px]' : 'min-h-[130px]'}`}
@@ -224,13 +232,13 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
                         <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
                         <span className="text-xs font-bold text-teal-700">Menyimpan file ke folder server...</span>
                     </div>
-                ) : currentUrl && !imgLoadError ? (
+                ) : effectiveUrl && !imgLoadError ? (
                     <div className="flex flex-col items-center gap-2 w-full py-1">
                         <div className={`flex items-center justify-center p-2 rounded-xl bg-white shadow-sm border border-slate-200/80 ${
                             aspectRatio === 'square' ? 'w-24 h-24' : 'w-full max-w-xs h-20'
                         }`}>
                             <img
-                                src={currentUrl}
+                                src={effectiveUrl}
                                 alt={title}
                                 className="max-h-full max-w-full object-contain"
                                 onError={() => setImgLoadError(true)}
@@ -241,7 +249,7 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
                             <span>Klik atau seret file baru untuk mengganti</span>
                         </div>
                     </div>
-                ) : currentUrl && imgLoadError ? (
+                ) : effectiveUrl && imgLoadError ? (
                     <div className="flex flex-col items-center gap-2 w-full py-3 text-amber-700">
                         <div className="w-10 h-10 rounded-xl bg-amber-100/70 border border-amber-300 flex items-center justify-center text-amber-700">
                             <AlertCircle className="w-6 h-6" />
@@ -266,12 +274,12 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
 
             {/* Storage Info Badge & Delete Action */}
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
-                {currentUrl ? (
+                {effectiveUrl ? (
                     <>
                         <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 truncate max-w-[240px]">
                             <FolderCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                            <span className="truncate" title={`File fisik: ${currentUrl}`}>
-                                Folder: <code className="font-mono text-[10px]">{currentUrl}</code>
+                            <span className="truncate" title={`File fisik: ${effectiveUrl}`}>
+                                Folder: <code className="font-mono text-[10px]">{effectiveUrl}</code>
                             </span>
                         </div>
                         <button
@@ -325,12 +333,38 @@ const VillageProfileForm: React.FC = () => {
             const data = await getVillageProfile();
             if (data) {
                 const { id, lastUpdated, ...cleanProfile } = data;
-                setProfile(prev => ({
-                    ...prev,
-                    ...cleanProfile,
+                
+                // Sanitize corrupted/shifted fields so they never display in input fields
+                const name = (cleanProfile.name && cleanProfile.name !== '1' && !cleanProfile.name.startsWith('/uploads/')) 
+                    ? cleanProfile.name : 'Rowosari';
+                const district = (cleanProfile.district && !cleanProfile.district.startsWith('/uploads/')) 
+                    ? cleanProfile.district : 'Limpung';
+                const regency = (cleanProfile.regency && cleanProfile.regency !== '1') 
+                    ? cleanProfile.regency : 'Batang';
+                const address = (cleanProfile.address === 'Batang' || cleanProfile.address === 'Rowosari') 
+                    ? '' : (cleanProfile.address || '');
+                const phone = (cleanProfile.phone === 'Batang' || cleanProfile.phone === '0') 
+                    ? '' : (cleanProfile.phone || '');
+                const email = (cleanProfile.email === '0' || cleanProfile.email === 'Rowosari') 
+                    ? '' : (cleanProfile.email || '');
+
+                const logo_url = (cleanProfile.logo_url && (cleanProfile.logo_url.startsWith('/uploads/') || cleanProfile.logo_url.startsWith('http') || cleanProfile.logo_url.startsWith('data:'))) 
+                    ? cleanProfile.logo_url : '';
+                const logo_horizontal_url = (cleanProfile.logo_horizontal_url && (cleanProfile.logo_horizontal_url.startsWith('/uploads/') || cleanProfile.logo_horizontal_url.startsWith('http') || cleanProfile.logo_horizontal_url.startsWith('data:'))) 
+                    ? cleanProfile.logo_horizontal_url : '';
+
+                setProfile({
+                    name,
+                    district,
+                    regency,
+                    address,
+                    phone,
+                    email,
                     branding_title: cleanProfile.branding_title || 'SapaDesa',
-                    branding_subtitle: cleanProfile.branding_subtitle || 'Platform Pengelolaan Sampah Desa'
-                }));
+                    branding_subtitle: cleanProfile.branding_subtitle || 'Platform Pengelolaan Sampah Desa',
+                    logo_url,
+                    logo_horizontal_url
+                });
             }
         } catch (err) {
             console.error('Error fetching village profile:', err);
