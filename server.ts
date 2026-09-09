@@ -202,6 +202,10 @@ async function startServer() {
   const initializeDatabase = async () => {
     try {
       const db = await getDB();
+      // First, test connection! If connection is refused or db is still booting, throw so retry loop can wait for MySQL
+      await db.query('SELECT 1');
+      console.log("[DB] MySQL connection established. Checking table schemas and migrations...");
+
       const queries = [
         `CREATE TABLE IF NOT EXISTS village_config (
             id INT PRIMARY KEY, 
@@ -231,6 +235,10 @@ async function startServer() {
           await db.execute(q);
         } catch (e: any) {
           console.warn("[Init Table Note]:", e.message);
+          // If the error is a connection failure, rethrow so retry loop catches it
+          if (e.code === 'ECONNREFUSED' || e.code === 'PROTOCOL_CONNECTION_LOST' || e.code === 'ETIMEDOUT') {
+            throw e;
+          }
         }
       }
 
@@ -246,6 +254,7 @@ async function startServer() {
         }
       } catch (err: any) {
         console.warn("[Migration village_config]:", err.message);
+        if (err.code === 'ECONNREFUSED') throw err;
       }
 
       // Migration for admins table to add username
@@ -257,6 +266,7 @@ async function startServer() {
         }
       } catch (err: any) {
         console.warn("[Migration admins]:", err.message);
+        if (err.code === 'ECONNREFUSED') throw err;
       }
 
       // Migration for wargas table to add billingType, monthlyFee, totalDebt, dailyFee
@@ -2017,7 +2027,7 @@ async function startServer() {
     
     // Non-blocking retry loop for database initialization (vital for Portainer/Docker startup)
     (async () => {
-      let retries = 15;
+      let retries = 30; // 30 retries * 3 seconds = 90 seconds wait for MySQL to fully boot
       while (retries > 0) {
         try {
           await initializeDatabase();
@@ -2027,7 +2037,7 @@ async function startServer() {
           retries--;
           console.warn(`[DB Init] Waiting for database (${e.message}). Retrying in 3s... (${retries} left)`);
           if (retries === 0) {
-            console.error("Database connection failed after 15 attempts. Schema migration will run on first API request.");
+            console.error("Database connection failed after 30 attempts. Schema migration will run on first API request.");
           } else {
             await new Promise(r => setTimeout(r, 3000));
           }

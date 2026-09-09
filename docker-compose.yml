@@ -18,7 +18,12 @@ services:
       - TZ=Asia/Jakarta
       - VITE_API_URL=
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    volumes:
+      - sapadesa_uploads:/app/public/uploads
+    mem_limit: 256m
+    cpus: 0.5
     deploy:
       resources:
         limits:
@@ -26,9 +31,10 @@ services:
           cpus: '0.5'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     logging:
       driver: "json-file"
       options:
@@ -53,14 +59,17 @@ services:
       - TZ=Asia/Jakarta
     volumes:
       - sapadesa_db_data:/var/lib/mysql
+    mem_limit: 512m
     deploy:
       resources:
         limits:
           memory: 512M # DB needs more RAM but still limited
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -proot_password || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
     logging:
       driver: "json-file"
       options:
@@ -69,3 +78,5 @@ services:
 
 volumes:
   sapadesa_db_data:
+  sapadesa_uploads:
+
