@@ -4,7 +4,6 @@ version: '3.8'
 services:
   app:
     build: .
-    image: sapadesa:latest
     container_name: sapadesa_app
     restart: always
     ports:
