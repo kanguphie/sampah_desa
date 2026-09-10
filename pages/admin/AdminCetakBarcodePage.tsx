@@ -4,6 +4,9 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
 import { useVillageProfile } from '@/context/VillageProfileContext';
+import { DownloadIcon } from '@/components/icons';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 
 const AdminCetakBarcodePage: React.FC = () => {
     const { profile } = useVillageProfile();
@@ -11,6 +14,7 @@ const AdminCetakBarcodePage: React.FC = () => {
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [filters, setFilters] = useState({ dukuhId: 'all', rtId: 'all' });
     const [paperSize, setPaperSize] = useState<'A4' | 'A3' | 'A3+'>('A4');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
@@ -20,6 +24,12 @@ const AdminCetakBarcodePage: React.FC = () => {
         'A4': 'A4',
         'A3': 'A3',
         'A3+': '329mm 483mm'
+    };
+
+    const paperFormat = {
+        'A4': [210, 297],
+        'A3': [297, 420],
+        'A3+': [329, 483]
     };
 
     useEffect(() => {
@@ -190,6 +200,91 @@ const AdminCetakBarcodePage: React.FC = () => {
         }
     };
 
+    const handleDownloadPDF = async () => {
+        if (!printRef.current || filteredWarga.length === 0) return;
+        
+        setIsDownloading(true);
+        
+        const dukuhName = filters.dukuhId !== 'all' ? dukuhList.find(d => d.id === Number(filters.dukuhId))?.name : 'Semua-Dukuh';
+        const rtNumber = filters.rtId !== 'all' ? `RT-${rtList.find(r => r.id === Number(filters.rtId))?.number}` : 'Semua-RT';
+        const fileName = `Barcode-Warga-${dukuhName}-${rtNumber}-${paperSize}.pdf`;
+
+        // Create a temporary container for PDF generation
+        const element = document.createElement('div');
+        element.style.padding = '10mm';
+        element.style.width = orientation === 'landscape' 
+            ? `${paperFormat[paperSize][1]}mm` 
+            : `${paperFormat[paperSize][0]}mm`;
+        element.innerHTML = `
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+                .barcode-grid-pdf { 
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fill, 6cm); 
+                    gap: 4mm; 
+                    width: 100%;
+                    justify-content: center;
+                }
+                .barcode-item-pdf { 
+                    display: flex; 
+                    flex-direction: column; 
+                    align-items: center; 
+                    justify-content: center; 
+                    border: 1px solid #cbd5e1; 
+                    padding: 10px; 
+                    border-radius: 12px; 
+                    text-align: center; 
+                    background: white;
+                    width: 6cm;
+                    height: 8cm;
+                    box-sizing: border-box;
+                    font-family: 'Plus Jakarta Sans', sans-serif;
+                }
+                .logo-pdf { height: 20px; margin-bottom: 8px; object-fit: contain; }
+                .branding-fallback-pdf { font-size: 9pt; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+                .qr-container-pdf { padding: 4px; background: white; margin-bottom: 4px; }
+                .name-text-pdf { margin: 6px 0 2px; font-size: 10pt; font-weight: 800; text-transform: uppercase; color: #0f172a; line-height: 1.1; max-width: 5.5cm; }
+                .id-text-pdf { margin: 0; font-size: 9pt; font-family: monospace; font-weight: 700; color: #475569; }
+                .loc-text-pdf { margin-top: 4px; font-size: 8pt; color: #64748b; font-weight: 600; }
+            </style>
+            <div class="barcode-grid-pdf">
+                ${printRef.current.innerHTML.replace(/barcode-item-print/g, 'barcode-item-pdf')
+                                           .replace(/logo-print/g, 'logo-pdf')
+                                           .replace(/branding-fallback/g, 'branding-fallback-pdf')
+                                           .replace(/qr-container/g, 'qr-container-pdf')
+                                           .replace(/name-text/g, 'name-text-pdf')
+                                           .replace(/id-text/g, 'id-text-pdf')
+                                           .replace(/loc-text/g, 'loc-text-pdf')}
+            </div>
+        `;
+
+        const opt = {
+            margin: 10,
+            filename: fileName,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true, 
+                logging: false,
+                letterRendering: true
+            },
+            jsPDF: { 
+                unit: 'mm', 
+                format: orientation === 'landscape' 
+                    ? [paperFormat[paperSize][1], paperFormat[paperSize][0]] 
+                    : paperFormat[paperSize], 
+                orientation: orientation 
+            }
+        };
+
+        try {
+            await html2pdf().set(opt).from(element).save();
+        } catch (error) {
+            console.error("PDF Generation failed", error);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -223,7 +318,14 @@ const AdminCetakBarcodePage: React.FC = () => {
                                 <option value="landscape">Miring (Landscape)</option>
                             </select>
                         </div>
-                        <button onClick={handlePrint} disabled={filteredWarga.length === 0} className="bg-primary text-primary-content font-semibold px-4 py-2 rounded-lg shadow-sm shadow-primary/30 hover:bg-primary-focus disabled:bg-slate-400 transition-colors">
+                        <button 
+                            onClick={handleDownloadPDF} 
+                            disabled={filteredWarga.length === 0 || isDownloading} 
+                            className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow-sm shadow-blue-200 hover:bg-blue-700 disabled:bg-slate-400 transition-colors flex items-center gap-2"
+                        >
+                            <DownloadIcon /> {isDownloading ? 'Memproses...' : 'Unduh PDF'}
+                        </button>
+                        <button onClick={handlePrint} disabled={filteredWarga.length === 0} className="bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg shadow-sm shadow-emerald-200 hover:bg-emerald-600 disabled:bg-slate-400 transition-colors">
                             Cetak ({filteredWarga.length})
                         </button>
                     </div>
