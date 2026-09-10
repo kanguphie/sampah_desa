@@ -21,7 +21,7 @@ services:
       - db
     volumes:
       - sapadesa_uploads:/app/public/uploads
-    mem_limit: 512m
+    mem_limit: 1024m
     logging:
       driver: "json-file"
       options:
