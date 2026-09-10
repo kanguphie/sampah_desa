@@ -192,12 +192,12 @@ const AdminCetakBarcodePage: React.FC = () => {
                             display: flex !important; 
                             flex-direction: column !important; 
                             align-items: center !important; 
-                            justify-content: center !important; 
+                            justify-content: flex-start !important; 
                             border: 1px solid #cbd5e1 !important; 
-                            padding: 2.5mm 2mm !important; 
+                            padding: 3.5mm 2.5mm !important; 
                             border-radius: 8px !important; 
                             text-align: center !important; 
-                            background: white !important;
+                            background: #ffffff !important;
                             box-sizing: border-box !important;
                             margin: 0 !important;
                             overflow: hidden !important;
@@ -208,7 +208,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                         .logo-print { 
                             height: 18px !important; 
                             max-height: 18px !important;
-                            margin-bottom: 3px !important; 
+                            margin-bottom: 2mm !important; 
                             object-fit: contain !important; 
                         }
 
@@ -216,54 +216,74 @@ const AdminCetakBarcodePage: React.FC = () => {
                             font-size: 8pt !important;
                             font-weight: 800 !important;
                             color: #0f172a !important;
-                            margin-bottom: 3px !important;
+                            margin-bottom: 2mm !important;
                             letter-spacing: -0.02em !important;
-                            line-height: 1 !important;
+                            line-height: 1.2 !important;
                         }
 
                         .qr-container { 
-                            padding: 1px !important;
-                            background: white !important;
-                            margin-bottom: 2px !important;
+                            width: 124px !important;
+                            height: 124px !important;
+                            min-width: 124px !important;
+                            min-height: 124px !important;
+                            max-width: 124px !important;
+                            max-height: 124px !important;
+                            padding: 2px !important;
+                            background: #ffffff !important;
+                            margin: 0 auto 2.5mm auto !important;
                             display: flex !important;
                             align-items: center !important;
                             justify-content: center !important;
+                            overflow: hidden !important;
+                            box-sizing: border-box !important;
                         }
 
                         .qr-container svg {
-                            width: 125px !important;
-                            height: 125px !important;
+                            width: 120px !important;
+                            height: 120px !important;
+                            min-width: 120px !important;
+                            min-height: 120px !important;
+                            max-width: 120px !important;
+                            max-height: 120px !important;
                             display: block !important;
                         }
 
                         .name-text { 
-                            margin: 3px 0 1px !important; 
-                            font-size: 9pt !important; 
+                            margin: 0 0 1.5mm 0 !important; 
+                            padding: 2px 2px !important;
+                            font-size: 8.5pt !important; 
                             font-weight: 800 !important; 
                             text-transform: uppercase !important; 
                             color: #0f172a !important; 
-                            line-height: 1.1 !important; 
+                            line-height: 1.35 !important; 
                             max-width: 55mm !important;
-                            overflow: hidden !important;
-                            text-overflow: ellipsis !important;
-                            white-space: nowrap !important;
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                            overflow: visible !important;
+                            word-break: break-word !important;
+                            text-align: center !important;
                         }
 
                         .id-text { 
-                            margin: 0 !important; 
+                            margin: 0 0 1.2mm 0 !important; 
                             font-size: 8pt !important; 
                             font-family: 'Courier New', Courier, monospace !important; 
                             font-weight: 700 !important; 
                             color: #475569 !important; 
-                            line-height: 1 !important;
+                            line-height: 1.2 !important;
+                            letter-spacing: 0.08em !important;
+                            text-align: center !important;
                         }
 
                         .loc-text { 
-                            margin-top: 2px !important; 
-                            font-size: 7.5pt !important; 
+                            margin: 0 !important; 
+                            font-size: 7pt !important; 
                             color: #64748b !important; 
                             font-weight: 600 !important; 
-                            line-height: 1 !important;
+                            text-transform: uppercase !important;
+                            letter-spacing: 0.03em !important;
+                            line-height: 1.2 !important;
+                            text-align: center !important;
                         }
                     </style>
                 </head>
@@ -358,12 +378,12 @@ const AdminCetakBarcodePage: React.FC = () => {
                             display: flex !important;
                             flex-direction: column !important;
                             align-items: center !important;
-                            justify-content: center !important;
+                            justify-content: flex-start !important;
                             border: 1px solid #cbd5e1 !important;
-                            padding: 2.5mm 2mm !important;
+                            padding: 3.5mm 2.5mm !important;
                             border-radius: 8px !important;
                             text-align: center !important;
-                            background: white !important;
+                            background: #ffffff !important;
                             box-sizing: border-box !important;
                             margin: 0 !important;
                             overflow: hidden !important;
@@ -371,55 +391,75 @@ const AdminCetakBarcodePage: React.FC = () => {
                         .logo-print {
                             height: 18px !important;
                             max-height: 18px !important;
-                            margin-bottom: 3px !important;
+                            margin-bottom: 2mm !important;
                             object-fit: contain !important;
                         }
                         .branding-fallback {
                             font-size: 8pt !important;
                             font-weight: 800 !important;
                             color: #0f172a !important;
-                            margin-bottom: 3px !important;
-                            line-height: 1 !important;
+                            margin-bottom: 2mm !important;
+                            line-height: 1.2 !important;
                         }
                         .qr-container {
-                            padding: 1px !important;
-                            background: white !important;
-                            margin-bottom: 2px !important;
+                            width: 124px !important;
+                            height: 124px !important;
+                            min-width: 124px !important;
+                            min-height: 124px !important;
+                            max-width: 124px !important;
+                            max-height: 124px !important;
+                            padding: 2px !important;
+                            background: #ffffff !important;
+                            margin: 0 auto 2.5mm auto !important;
                             display: flex !important;
                             align-items: center !important;
                             justify-content: center !important;
+                            overflow: hidden !important;
+                            box-sizing: border-box !important;
                         }
                         .qr-container svg {
-                            width: 125px !important;
-                            height: 125px !important;
+                            width: 120px !important;
+                            height: 120px !important;
+                            min-width: 120px !important;
+                            min-height: 120px !important;
+                            max-width: 120px !important;
+                            max-height: 120px !important;
                             display: block !important;
                         }
                         .name-text {
-                            margin: 3px 0 1px !important;
-                            font-size: 9pt !important;
+                            margin: 0 0 1.5mm 0 !important;
+                            padding: 2px 2px !important;
+                            font-size: 8.5pt !important;
                             font-weight: 800 !important;
                             text-transform: uppercase !important;
                             color: #0f172a !important;
-                            line-height: 1.1 !important;
+                            line-height: 1.35 !important;
                             max-width: 55mm !important;
-                            overflow: hidden !important;
-                            text-overflow: ellipsis !important;
-                            white-space: nowrap !important;
+                            width: 100% !important;
+                            box-sizing: border-box !important;
+                            overflow: visible !important;
+                            word-break: break-word !important;
+                            text-align: center !important;
                         }
                         .id-text {
-                            margin: 0 !important;
+                            margin: 0 0 1.2mm 0 !important;
                             font-size: 8pt !important;
                             font-family: 'Courier New', Courier, monospace !important;
                             font-weight: 700 !important;
                             color: #475569 !important;
-                            line-height: 1 !important;
+                            line-height: 1.2 !important;
+                            letter-spacing: 0.08em !important;
+                            text-align: center !important;
                         }
                         .loc-text {
-                            margin-top: 2px !important;
-                            font-size: 7.5pt !important;
+                            margin: 0 !important;
+                            font-size: 7pt !important;
                             color: #64748b !important;
                             font-weight: 600 !important;
-                            line-height: 1 !important;
+                            text-transform: uppercase !important;
+                            letter-spacing: 0.03em !important;
+                            line-height: 1.2 !important;
+                            text-align: center !important;
                         }
                     </style>
                     <div class="temp-grid">
@@ -585,13 +625,13 @@ const AdminCetakBarcodePage: React.FC = () => {
                                 <div className="branding-fallback mb-3 font-black text-slate-800 text-sm">{profile?.branding_title || 'SapaDesa'}</div>
                             )}
 
-                            <div className="qr-container p-1 bg-white mb-2">
-                                <QRCodeSVG value={warga.id} size={140} xmlns="http://www.w3.org/2000/svg" />
+                            <div className="qr-container p-1 bg-white mb-2 overflow-hidden flex items-center justify-center">
+                                <QRCodeSVG value={warga.id} size={120} xmlns="http://www.w3.org/2000/svg" />
                             </div>
                             
-                            <h3 className="name-text mt-3 font-black text-base text-slate-900 uppercase tracking-tight leading-tight">{warga.name}</h3>
-                            <p className="id-text text-sm text-slate-500 font-mono font-bold tracking-widest">{warga.id}</p>
-                            <p className="loc-text text-[11px] text-slate-400 mt-2 font-semibold uppercase tracking-wider">
+                            <h3 className="name-text font-extrabold text-sm text-slate-900 uppercase tracking-tight text-center">{warga.name}</h3>
+                            <p className="id-text text-xs text-slate-600 font-mono font-bold tracking-wider text-center">{warga.id}</p>
+                            <p className="loc-text text-[11px] text-slate-500 font-semibold uppercase tracking-wider text-center">
                                 {getDukuhName(warga.dukuhId)} — RT {getRTNumber(warga.rtId)}
                             </p>
                         </div>
