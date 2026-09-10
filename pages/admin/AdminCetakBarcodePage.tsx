@@ -13,22 +13,52 @@ const AdminCetakBarcodePage: React.FC = () => {
     const [rtList, setRtList] = useState<RT[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState<string>('');
     const [filters, setFilters] = useState({ dukuhId: 'all', rtId: 'all' });
-    const [paperSize, setPaperSize] = useState<'A4' | 'A3' | 'A3+'>('A4');
+    const [paperSize, setPaperSize] = useState<'A4' | 'A3' | 'A3+'>('A3+');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
     const printRef = useRef<HTMLDivElement>(null);
 
-    const paperDimensions = {
-        'A4': 'A4',
-        'A3': 'A3',
-        'A3+': '329mm 483mm'
+    // Exact layout calculation based on paper dimensions, 1cm margins, 6x8cm cards, and 0.22cm gap
+    const getPageLayout = (paper: 'A4' | 'A3' | 'A3+', orient: 'portrait' | 'landscape') => {
+        const baseDimensions: Record<'A4' | 'A3' | 'A3+', [number, number]> = {
+            'A4': [210, 297],
+            'A3': [297, 420],
+            'A3+': [329, 483]
+        };
+
+        const [rawW, rawH] = baseDimensions[paper];
+        const pageWidth = orient === 'landscape' ? rawH : rawW;
+        const pageHeight = orient === 'landscape' ? rawW : rawH;
+
+        const margin = 10;  // 10 mm (1 cm)
+        const gap = 2.2;    // 2.2 mm (0.22 cm)
+        const cardW = 60;   // 60 mm (6.0 cm)
+        const cardH = 80;   // 80 mm (8.0 cm)
+
+        const printableW = pageWidth - (2 * margin);
+        const printableH = pageHeight - (2 * margin);
+
+        const cols = Math.floor((printableW + gap) / (cardW + gap));
+        const rows = Math.floor((printableH + gap) / (cardH + gap));
+        const cardsPerPage = cols * rows;
+
+        return {
+            pageWidth,
+            pageHeight,
+            margin,
+            gap,
+            cardW,
+            cardH,
+            cols,
+            rows,
+            cardsPerPage
+        };
     };
 
-    const paperFormat = {
-        'A4': [210, 297],
-        'A3': [297, 420],
-        'A3+': [329, 483]
-    };
+    const currentLayout = useMemo(() => {
+        return getPageLayout(paperSize, orientation);
+    }, [paperSize, orientation]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -69,221 +99,372 @@ const AdminCetakBarcodePage: React.FC = () => {
     const getRTNumber = (id: number) => rtList.find(r => r.id === id)?.number || 'N/A';
 
     const handlePrint = () => {
-        const contentToPrint = printRef.current?.innerHTML;
+        if (!printRef.current || filteredWarga.length === 0) return;
+
+        const layout = currentLayout;
         const dukuhName = filters.dukuhId !== 'all' ? dukuhList.find(d => d.id === Number(filters.dukuhId))?.name : 'Semua Dukuh';
         const rtNumber = filters.rtId !== 'all' ? `RT ${rtList.find(r => r.id === Number(filters.rtId))?.number}` : 'Semua RT';
         const title = `Barcode Warga - ${dukuhName}, ${rtNumber}`;
 
-        if (contentToPrint) {
-            const printWindow = window.open('', '_blank');
-            if(printWindow) {
-                printWindow.document.write(`
-                    <html>
-                        <head>
-                            <title>${title}</title>
-                            <style>
-                                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-                                body { 
-                                    font-family: 'Plus Jakarta Sans', sans-serif; 
-                                    -webkit-print-color-adjust: exact; 
-                                    margin: 0;
-                                    padding: 0;
-                                    color: #1e293b;
-                                }
-                                .print-container { 
-                                    padding: 0; 
-                                    margin: 0;
-                                }
-                                .barcode-grid-print { 
-                                    display: grid; 
-                                    grid-template-columns: repeat(auto-fill, 6cm); 
-                                    gap: 4mm; 
-                                    width: 100%;
-                                    justify-content: center;
-                                }
-                                .barcode-item-print { 
-                                    display: flex; 
-                                    flex-direction: column; 
-                                    align-items: center; 
-                                    justify-content: center; 
-                                    page-break-inside: avoid; 
-                                    border: 1px solid #e2e8f0; 
-                                    padding: 10px; 
-                                    border-radius: 12px; 
-                                    text-align: center; 
-                                    background: white;
-                                    width: 6cm;
-                                    height: 8cm;
-                                    min-height: 8cm;
-                                    box-sizing: border-box;
-                                }
-                                .logo-print { 
-                                    height: 20px; 
-                                    margin-bottom: 8px; 
-                                    object-fit: contain; 
-                                }
-                                .branding-fallback {
-                                    font-size: 9pt;
-                                    font-weight: 800;
-                                    color: #0f172a;
-                                    margin-bottom: 8px;
-                                    letter-spacing: -0.02em;
-                                }
-                                .qr-container { 
-                                    padding: 4px;
-                                    background: white;
-                                    margin-bottom: 4px;
-                                }
-                                .name-text { 
-                                    margin: 6px 0 2px; 
-                                    font-size: 10pt; 
-                                    font-weight: 800; 
-                                    text-transform: uppercase; 
-                                    color: #0f172a; 
-                                    line-height: 1.1; 
-                                    word-break: break-word;
-                                    max-width: 5.5cm;
-                                }
-                                .id-text { 
-                                    margin: 0; 
-                                    font-size: 9pt; 
-                                    font-family: 'Courier New', Courier, monospace; 
-                                    font-weight: 700; 
-                                    color: #475569; 
-                                }
-                                .loc-text { 
-                                    margin-top: 4px; 
-                                    font-size: 8pt; 
-                                    color: #64748b; 
-                                    font-weight: 600; 
-                                }
-                                
-                                @media print {
-                                    @page { 
-                                        size: ${paperDimensions[paperSize]} ${orientation}; 
-                                        margin: 1cm; 
-                                    }
-                                    body { 
-                                        padding: 0; 
-                                        margin: 0;
-                                    }
-                                    .barcode-grid-print {
-                                        gap: 4mm;
-                                    }
-                                    .barcode-item-print { 
-                                        border-color: #cbd5e1; 
-                                        break-inside: avoid;
-                                        page-break-inside: avoid;
-                                    }
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="print-container">
-                                <div class="barcode-grid-print">${contentToPrint}</div>
-                            </div>
-                             <script>
-                                window.addEventListener('load', () => {
-                                    setTimeout(() => {
-                                        window.print();
-                                        window.close();
-                                    }, 500);
-                                });
-                            </script>
-                        </body>
-                    </html>
-                `);
-                printWindow.document.close();
-            }
+        const cardElements = Array.from(printRef.current.children) as HTMLElement[];
+        const pages: HTMLElement[][] = [];
+        for (let i = 0; i < cardElements.length; i += layout.cardsPerPage) {
+            pages.push(cardElements.slice(i, i + layout.cardsPerPage));
         }
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const pagesHtml = pages.map((pageCards, idx) => `
+            <div class="print-page ${idx === pages.length - 1 ? 'last-page' : ''}">
+                <div class="barcode-grid-print">
+                    ${pageCards.map(c => c.outerHTML).join('')}
+                </div>
+            </div>
+        `).join('');
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>${title}</title>
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+                        
+                        * {
+                            box-sizing: border-box;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+
+                        @page { 
+                            size: ${layout.pageWidth}mm ${layout.pageHeight}mm; 
+                            margin: 0; 
+                        }
+                        
+                        html, body { 
+                            margin: 0;
+                            padding: 0;
+                            background: #ffffff;
+                            font-family: 'Plus Jakarta Sans', sans-serif; 
+                            color: #1e293b;
+                        }
+
+                        .print-page { 
+                            width: ${layout.pageWidth}mm;
+                            height: ${layout.pageHeight}mm;
+                            max-height: ${layout.pageHeight}mm;
+                            padding: ${layout.margin}mm;
+                            box-sizing: border-box;
+                            page-break-after: always;
+                            break-after: page;
+                            overflow: hidden;
+                            background: #ffffff;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: flex-start;
+                        }
+
+                        .print-page.last-page {
+                            page-break-after: auto;
+                            break-after: auto;
+                        }
+
+                        .barcode-grid-print { 
+                            display: grid; 
+                            grid-template-columns: repeat(${layout.cols}, ${layout.cardW}mm); 
+                            gap: ${layout.gap}mm; 
+                            justify-content: center;
+                            width: 100%;
+                            margin: 0;
+                            padding: 0;
+                        }
+
+                        .barcode-item-print { 
+                            width: ${layout.cardW}mm !important;
+                            height: ${layout.cardH}mm !important;
+                            min-width: ${layout.cardW}mm !important;
+                            max-width: ${layout.cardW}mm !important;
+                            min-height: ${layout.cardH}mm !important;
+                            max-height: ${layout.cardH}mm !important;
+                            display: flex !important; 
+                            flex-direction: column !important; 
+                            align-items: center !important; 
+                            justify-content: center !important; 
+                            border: 1px solid #cbd5e1 !important; 
+                            padding: 2.5mm 2mm !important; 
+                            border-radius: 8px !important; 
+                            text-align: center !important; 
+                            background: white !important;
+                            box-sizing: border-box !important;
+                            margin: 0 !important;
+                            overflow: hidden !important;
+                            page-break-inside: avoid !important;
+                            break-inside: avoid !important;
+                        }
+
+                        .logo-print { 
+                            height: 18px !important; 
+                            max-height: 18px !important;
+                            margin-bottom: 3px !important; 
+                            object-fit: contain !important; 
+                        }
+
+                        .branding-fallback {
+                            font-size: 8pt !important;
+                            font-weight: 800 !important;
+                            color: #0f172a !important;
+                            margin-bottom: 3px !important;
+                            letter-spacing: -0.02em !important;
+                            line-height: 1 !important;
+                        }
+
+                        .qr-container { 
+                            padding: 1px !important;
+                            background: white !important;
+                            margin-bottom: 2px !important;
+                            display: flex !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                        }
+
+                        .qr-container svg {
+                            width: 125px !important;
+                            height: 125px !important;
+                            display: block !important;
+                        }
+
+                        .name-text { 
+                            margin: 3px 0 1px !important; 
+                            font-size: 9pt !important; 
+                            font-weight: 800 !important; 
+                            text-transform: uppercase !important; 
+                            color: #0f172a !important; 
+                            line-height: 1.1 !important; 
+                            max-width: 55mm !important;
+                            overflow: hidden !important;
+                            text-overflow: ellipsis !important;
+                            white-space: nowrap !important;
+                        }
+
+                        .id-text { 
+                            margin: 0 !important; 
+                            font-size: 8pt !important; 
+                            font-family: 'Courier New', Courier, monospace !important; 
+                            font-weight: 700 !important; 
+                            color: #475569 !important; 
+                            line-height: 1 !important;
+                        }
+
+                        .loc-text { 
+                            margin-top: 2px !important; 
+                            font-size: 7.5pt !important; 
+                            color: #64748b !important; 
+                            font-weight: 600 !important; 
+                            line-height: 1 !important;
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${pagesHtml}
+                    <script>
+                        window.addEventListener('load', () => {
+                            setTimeout(() => {
+                                window.print();
+                                window.close();
+                            }, 500);
+                        });
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     const handleDownloadPDF = async () => {
         if (!printRef.current || filteredWarga.length === 0) return;
         
         setIsDownloading(true);
+        setDownloadProgress('Menyiapkan dokumen...');
         
+        const layout = currentLayout;
         const dukuhName = filters.dukuhId !== 'all' ? dukuhList.find(d => d.id === Number(filters.dukuhId))?.name : 'Semua-Dukuh';
         const rtNumber = filters.rtId !== 'all' ? `RT-${rtList.find(r => r.id === Number(filters.rtId))?.number}` : 'Semua-RT';
-        const fileName = `Barcode-Warga-${dukuhName}-${rtNumber}-${paperSize}.pdf`;
+        const fileName = `Barcode-Warga-${dukuhName}-${rtNumber}-${paperSize}-${orientation}.pdf`;
 
-        // Create a temporary container for PDF generation
-        const element = document.createElement('div');
-        element.style.padding = '10mm';
-        element.style.width = orientation === 'landscape' 
-            ? `${paperFormat[paperSize][1]}mm` 
-            : `${paperFormat[paperSize][0]}mm`;
-        element.innerHTML = `
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-                .barcode-grid-pdf { 
-                    display: grid; 
-                    grid-template-columns: repeat(auto-fill, 6cm); 
-                    gap: 4mm; 
-                    width: 100%;
-                    justify-content: center;
-                }
-                .barcode-item-pdf { 
-                    display: flex; 
-                    flex-direction: column; 
-                    align-items: center; 
-                    justify-content: center; 
-                    border: 1px solid #cbd5e1; 
-                    padding: 10px; 
-                    border-radius: 12px; 
-                    text-align: center; 
-                    background: white;
-                    width: 6cm;
-                    height: 8cm;
-                    box-sizing: border-box;
-                    font-family: 'Plus Jakarta Sans', sans-serif;
-                }
-                .logo-pdf { height: 20px; margin-bottom: 8px; object-fit: contain; }
-                .branding-fallback-pdf { font-size: 9pt; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
-                .qr-container-pdf { padding: 4px; background: white; margin-bottom: 4px; }
-                .name-text-pdf { margin: 6px 0 2px; font-size: 10pt; font-weight: 800; text-transform: uppercase; color: #0f172a; line-height: 1.1; max-width: 5.5cm; }
-                .id-text-pdf { margin: 0; font-size: 9pt; font-family: monospace; font-weight: 700; color: #475569; }
-                .loc-text-pdf { margin-top: 4px; font-size: 8pt; color: #64748b; font-weight: 600; }
-            </style>
-            <div class="barcode-grid-pdf">
-                ${printRef.current.innerHTML.replace(/barcode-item-print/g, 'barcode-item-pdf')
-                                           .replace(/logo-print/g, 'logo-pdf')
-                                           .replace(/branding-fallback/g, 'branding-fallback-pdf')
-                                           .replace(/qr-container/g, 'qr-container-pdf')
-                                           .replace(/name-text/g, 'name-text-pdf')
-                                           .replace(/id-text/g, 'id-text-pdf')
-                                           .replace(/loc-text/g, 'loc-text-pdf')}
-            </div>
-        `;
-
-        const opt = {
-            margin: 10,
-            filename: fileName,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 2, 
-                useCORS: true, 
-                logging: false,
-                letterRendering: true
-            },
-            jsPDF: { 
-                unit: 'mm', 
-                format: orientation === 'landscape' 
-                    ? [paperFormat[paperSize][1], paperFormat[paperSize][0]] 
-                    : paperFormat[paperSize], 
-                orientation: orientation 
-            }
-        };
+        const cardElements = Array.from(printRef.current.children) as HTMLElement[];
+        const pages: HTMLElement[][] = [];
+        for (let i = 0; i < cardElements.length; i += layout.cardsPerPage) {
+            pages.push(cardElements.slice(i, i + layout.cardsPerPage));
+        }
 
         try {
             // @ts-ignore
-            const html2pdf = (await import('html2pdf.js')).default;
-            await html2pdf().set(opt).from(element).save();
+            const { jsPDF } = await import('jspdf');
+            // @ts-ignore
+            const html2canvas = (await import('html2canvas')).default;
+
+            const pdf = new jsPDF({
+                orientation: orientation,
+                unit: 'mm',
+                format: [layout.pageWidth, layout.pageHeight]
+            });
+
+            for (let i = 0; i < pages.length; i++) {
+                setDownloadProgress(`Memproses lembar ${i + 1} dari ${pages.length}...`);
+
+                // Create a temporary container for this specific page
+                const tempPage = document.createElement('div');
+                tempPage.style.position = 'fixed';
+                tempPage.style.top = '0';
+                tempPage.style.left = '0';
+                tempPage.style.zIndex = '-9999';
+                tempPage.style.opacity = '0';
+                tempPage.style.pointerEvents = 'none';
+                tempPage.style.width = `${layout.pageWidth}mm`;
+                tempPage.style.height = `${layout.pageHeight}mm`;
+                tempPage.style.padding = `${layout.margin}mm`;
+                tempPage.style.boxSizing = 'border-box';
+                tempPage.style.background = '#ffffff';
+                tempPage.style.display = 'flex';
+                tempPage.style.flexDirection = 'column';
+                tempPage.style.alignItems = 'center';
+                tempPage.style.justifyContent = 'flex-start';
+                tempPage.style.overflow = 'hidden';
+
+                tempPage.innerHTML = `
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+                        * { box-sizing: border-box; }
+                        body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+                        .temp-grid {
+                            display: grid;
+                            grid-template-columns: repeat(${layout.cols}, ${layout.cardW}mm);
+                            gap: ${layout.gap}mm;
+                            justify-content: center;
+                            width: 100%;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        .barcode-item-print {
+                            width: ${layout.cardW}mm !important;
+                            height: ${layout.cardH}mm !important;
+                            min-width: ${layout.cardW}mm !important;
+                            max-width: ${layout.cardW}mm !important;
+                            min-height: ${layout.cardH}mm !important;
+                            max-height: ${layout.cardH}mm !important;
+                            display: flex !important;
+                            flex-direction: column !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                            border: 1px solid #cbd5e1 !important;
+                            padding: 2.5mm 2mm !important;
+                            border-radius: 8px !important;
+                            text-align: center !important;
+                            background: white !important;
+                            box-sizing: border-box !important;
+                            margin: 0 !important;
+                            overflow: hidden !important;
+                        }
+                        .logo-print {
+                            height: 18px !important;
+                            max-height: 18px !important;
+                            margin-bottom: 3px !important;
+                            object-fit: contain !important;
+                        }
+                        .branding-fallback {
+                            font-size: 8pt !important;
+                            font-weight: 800 !important;
+                            color: #0f172a !important;
+                            margin-bottom: 3px !important;
+                            line-height: 1 !important;
+                        }
+                        .qr-container {
+                            padding: 1px !important;
+                            background: white !important;
+                            margin-bottom: 2px !important;
+                            display: flex !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                        }
+                        .qr-container svg {
+                            width: 125px !important;
+                            height: 125px !important;
+                            display: block !important;
+                        }
+                        .name-text {
+                            margin: 3px 0 1px !important;
+                            font-size: 9pt !important;
+                            font-weight: 800 !important;
+                            text-transform: uppercase !important;
+                            color: #0f172a !important;
+                            line-height: 1.1 !important;
+                            max-width: 55mm !important;
+                            overflow: hidden !important;
+                            text-overflow: ellipsis !important;
+                            white-space: nowrap !important;
+                        }
+                        .id-text {
+                            margin: 0 !important;
+                            font-size: 8pt !important;
+                            font-family: 'Courier New', Courier, monospace !important;
+                            font-weight: 700 !important;
+                            color: #475569 !important;
+                            line-height: 1 !important;
+                        }
+                        .loc-text {
+                            margin-top: 2px !important;
+                            font-size: 7.5pt !important;
+                            color: #64748b !important;
+                            font-weight: 600 !important;
+                            line-height: 1 !important;
+                        }
+                    </style>
+                    <div class="temp-grid">
+                        ${pages[i].map(c => c.outerHTML).join('')}
+                    </div>
+                `;
+
+                document.body.appendChild(tempPage);
+
+                // Wait for any images or font layout
+                const imgs = Array.from(tempPage.querySelectorAll('img'));
+                await Promise.all(imgs.map(img => {
+                    if (img.complete) return Promise.resolve();
+                    return new Promise(resolve => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    });
+                }));
+
+                await new Promise(r => setTimeout(r, 60));
+
+                const canvas = await html2canvas(tempPage, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
+
+                document.body.removeChild(tempPage);
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+                if (i > 0) {
+                    pdf.addPage([layout.pageWidth, layout.pageHeight], orientation);
+                }
+                pdf.addImage(imgData, 'JPEG', 0, 0, layout.pageWidth, layout.pageHeight, undefined, 'FAST');
+            }
+
+            pdf.save(fileName);
         } catch (error) {
             console.error("PDF Generation failed", error);
             alert("Gagal membuat PDF. Silakan coba lagi.");
         } finally {
             setIsDownloading(false);
+            setDownloadProgress('');
         }
     };
 
@@ -324,12 +505,40 @@ const AdminCetakBarcodePage: React.FC = () => {
                             disabled={filteredWarga.length === 0 || isDownloading} 
                             className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow-sm shadow-blue-200 hover:bg-blue-700 disabled:bg-slate-400 transition-colors flex items-center gap-2"
                         >
-                            <DownloadIcon /> {isDownloading ? 'Memproses...' : 'Unduh PDF'}
+                            <DownloadIcon /> {isDownloading ? (downloadProgress || 'Memproses...') : 'Unduh PDF'}
                         </button>
                         <button onClick={handlePrint} disabled={filteredWarga.length === 0} className="bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg shadow-sm shadow-emerald-200 hover:bg-emerald-600 disabled:bg-slate-400 transition-colors">
                             Cetak ({filteredWarga.length})
                         </button>
                     </div>
+                </div>
+
+                {/* Layout Specification Info Banner */}
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600 bg-slate-50/70 p-3 rounded-xl">
+                    <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        <span>Format: <strong className="text-slate-800">{paperSize} ({currentLayout.pageWidth / 10} × {currentLayout.pageHeight / 10} cm)</strong></span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span>Kapasitas: <strong className="text-emerald-700 font-bold">{currentLayout.cardsPerPage} Kartu / Lembar</strong> ({currentLayout.cols} kolom × {currentLayout.rows} baris)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span>Ukuran Kartu: <strong className="text-slate-800">6 × 8 cm</strong></span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                        <span>Margin: <strong className="text-slate-800">1 cm</strong> • Jarak Antar Kartu: <strong className="text-slate-800">0.22 cm</strong></span>
+                    </div>
+                    {filteredWarga.length > 0 && (
+                        <div className="flex items-center gap-1.5 ml-auto">
+                            <span className="text-slate-500">Estimasi Kebutuhan:</span>
+                            <strong className="text-blue-700 font-bold bg-blue-100/70 border border-blue-200 px-2.5 py-0.5 rounded-md">
+                                {Math.ceil(filteredWarga.length / currentLayout.cardsPerPage)} Lembar
+                            </strong>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -358,9 +567,9 @@ const AdminCetakBarcodePage: React.FC = () => {
                         <div key={warga.id} className="barcode-item-print border border-slate-200 p-6 rounded-2xl flex flex-col items-center text-center bg-white shadow-sm hover:shadow-md transition-all">
                             {/* Logo / Branding Header */}
                             {profile?.logo_horizontal_url ? (
-                                <img src={profile.logo_horizontal_url} alt="Logo" className="logo-print mb-3 h-7 object-contain" />
+                                <img src={profile.logo_horizontal_url} alt="Logo" className="logo-print mb-3 h-7 object-contain" crossOrigin="anonymous" />
                             ) : profile?.logo_url ? (
-                                <img src={profile.logo_url} alt="Logo" className="logo-print mb-3 h-7 object-contain" />
+                                <img src={profile.logo_url} alt="Logo" className="logo-print mb-3 h-7 object-contain" crossOrigin="anonymous" />
                             ) : (
                                 <div className="branding-fallback mb-3 font-black text-slate-800 text-sm">{profile?.branding_title || 'SapaDesa'}</div>
                             )}
