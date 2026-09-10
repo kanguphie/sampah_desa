@@ -5,8 +5,6 @@ import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
 import { useVillageProfile } from '@/context/VillageProfileContext';
 import { DownloadIcon } from '@/components/icons';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
 
 const AdminCetakBarcodePage: React.FC = () => {
     const { profile } = useVillageProfile();
@@ -278,9 +276,12 @@ const AdminCetakBarcodePage: React.FC = () => {
         };
 
         try {
+            // @ts-ignore
+            const html2pdf = (await import('html2pdf.js')).default;
             await html2pdf().set(opt).from(element).save();
         } catch (error) {
             console.error("PDF Generation failed", error);
+            alert("Gagal membuat PDF. Silakan coba lagi.");
         } finally {
             setIsDownloading(false);
         }
