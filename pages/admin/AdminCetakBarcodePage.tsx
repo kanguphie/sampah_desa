@@ -82,12 +82,16 @@ const AdminCetakBarcodePage: React.FC = () => {
                                     padding: 0;
                                     color: #1e293b;
                                 }
-                                .print-container { padding: 0.5cm; }
+                                .print-container { 
+                                    padding: 0; 
+                                    margin: 0;
+                                }
                                 .barcode-grid-print { 
                                     display: grid; 
-                                    grid-template-columns: repeat(auto-fill, minmax(5.8cm, 1fr)); 
+                                    grid-template-columns: repeat(auto-fill, 6cm); 
                                     gap: 4mm; 
                                     width: 100%;
+                                    justify-content: center;
                                 }
                                 .barcode-item-print { 
                                     display: flex; 
@@ -96,23 +100,25 @@ const AdminCetakBarcodePage: React.FC = () => {
                                     justify-content: center; 
                                     page-break-inside: avoid; 
                                     border: 1px solid #e2e8f0; 
-                                    padding: 15px; 
+                                    padding: 10px; 
                                     border-radius: 12px; 
                                     text-align: center; 
                                     background: white;
-                                    min-height: 5.4cm;
+                                    width: 6cm;
+                                    height: 8cm;
+                                    min-height: 8cm;
                                     box-sizing: border-box;
                                 }
                                 .logo-print { 
-                                    height: 22px; 
-                                    margin-bottom: 10px; 
+                                    height: 20px; 
+                                    margin-bottom: 8px; 
                                     object-fit: contain; 
                                 }
                                 .branding-fallback {
-                                    font-size: 10pt;
+                                    font-size: 9pt;
                                     font-weight: 800;
                                     color: #0f172a;
-                                    margin-bottom: 10px;
+                                    margin-bottom: 8px;
                                     letter-spacing: -0.02em;
                                 }
                                 .qr-container { 
@@ -121,13 +127,14 @@ const AdminCetakBarcodePage: React.FC = () => {
                                     margin-bottom: 4px;
                                 }
                                 .name-text { 
-                                    margin: 8px 0 2px; 
+                                    margin: 6px 0 2px; 
                                     font-size: 10pt; 
                                     font-weight: 800; 
                                     text-transform: uppercase; 
                                     color: #0f172a; 
                                     line-height: 1.1; 
                                     word-break: break-word;
+                                    max-width: 5.5cm;
                                 }
                                 .id-text { 
                                     margin: 0; 
@@ -137,7 +144,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                                     color: #475569; 
                                 }
                                 .loc-text { 
-                                    margin-top: 5px; 
+                                    margin-top: 4px; 
                                     font-size: 8pt; 
                                     color: #64748b; 
                                     font-weight: 600; 
@@ -146,7 +153,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                                 @media print {
                                     @page { 
                                         size: ${paperDimensions[paperSize]} ${orientation}; 
-                                        margin: 10mm; 
+                                        margin: 1cm; 
                                     }
                                     body { 
                                         padding: 0; 
@@ -159,7 +166,6 @@ const AdminCetakBarcodePage: React.FC = () => {
                                         border-color: #cbd5e1; 
                                         break-inside: avoid;
                                         page-break-inside: avoid;
-                                        margin-bottom: 1mm;
                                     }
                                 }
                             </style>
