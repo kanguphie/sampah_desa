@@ -320,8 +320,8 @@ const AdminCetakBarcodePage: React.FC = () => {
                 tempPage.style.position = 'fixed';
                 tempPage.style.top = '0';
                 tempPage.style.left = '0';
-                tempPage.style.zIndex = '-9999';
-                tempPage.style.opacity = '0';
+                tempPage.style.zIndex = '50000';
+                tempPage.style.opacity = '1';
                 tempPage.style.pointerEvents = 'none';
                 tempPage.style.width = `${layout.pageWidth}mm`;
                 tempPage.style.height = `${layout.pageHeight}mm`;
@@ -338,7 +338,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                     <style>
                         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
                         * { box-sizing: border-box; }
-                        body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+                        body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; background: #ffffff; }
                         .temp-grid {
                             display: grid;
                             grid-template-columns: repeat(${layout.cols}, ${layout.cardW}mm);
@@ -439,13 +439,24 @@ const AdminCetakBarcodePage: React.FC = () => {
                     });
                 }));
 
-                await new Promise(r => setTimeout(r, 60));
+                await new Promise(r => setTimeout(r, 120));
+
+                const targetW = tempPage.offsetWidth;
+                const targetH = tempPage.offsetHeight;
 
                 const canvas = await html2canvas(tempPage, {
                     scale: 2,
                     useCORS: true,
                     logging: false,
-                    backgroundColor: '#ffffff'
+                    backgroundColor: '#ffffff',
+                    width: targetW,
+                    height: targetH,
+                    windowWidth: targetW + 100,
+                    windowHeight: targetH + 100,
+                    x: 0,
+                    y: 0,
+                    scrollX: 0,
+                    scrollY: 0
                 });
 
                 document.body.removeChild(tempPage);
@@ -575,7 +586,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                             )}
 
                             <div className="qr-container p-1 bg-white mb-2">
-                                <QRCodeSVG value={warga.id} size={140} />
+                                <QRCodeSVG value={warga.id} size={140} xmlns="http://www.w3.org/2000/svg" />
                             </div>
                             
                             <h3 className="name-text mt-3 font-black text-base text-slate-900 uppercase tracking-tight leading-tight">{warga.name}</h3>
@@ -591,6 +602,18 @@ const AdminCetakBarcodePage: React.FC = () => {
                 <div className="text-center py-10 bg-white rounded-xl shadow-sm border border-slate-200/80">
                     <p className="text-slate-500 font-semibold">Tidak ada data warga sesuai filter</p>
                     <p className="text-sm text-slate-400 mt-1">Silakan ubah filter di atas untuk menampilkan data.</p>
+                </div>
+            )}
+
+            {/* Download Progress Full-Screen Overlay */}
+            {isDownloading && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[99999] flex flex-col items-center justify-center text-white p-6 text-center">
+                    <div className="w-14 h-14 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-5 shadow-lg"></div>
+                    <h3 className="text-xl font-bold font-display text-white">Menyusun Dokumen PDF...</h3>
+                    <p className="text-base text-blue-300 mt-2 font-semibold tracking-wide">{downloadProgress || 'Memproses lembar...'}</p>
+                    <p className="text-xs text-slate-400 mt-3 max-w-sm">
+                        Mohon tunggu sejenak hingga seluruh lembar selesai diproses dan berkas otomatis terunduh.
+                    </p>
                 </div>
             )}
         </div>
