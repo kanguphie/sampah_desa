@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Warga, Dukuh, RT } from '@/types';
 import { getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
@@ -1129,9 +1130,15 @@ const AdminCetakBarcodePage: React.FC = () => {
             </div>
 
             {/* Modal: List of Selected Citizens */}
-            {showSelectedModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {showSelectedModal && createPortal(
+                <div 
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 sm:p-6"
+                    onClick={() => setShowSelectedModal(false)}
+                >
+                    <div 
+                        className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-slide-in-up"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         {/* Modal Header */}
                         <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
                             <div>
@@ -1167,7 +1174,7 @@ const AdminCetakBarcodePage: React.FC = () => {
                                                         <i className="fa-solid fa-map-pin text-blue-500"></i>
                                                         Dukuh {dukuhInfo.name}
                                                     </span>
-                                                    <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.2 rounded-full">
+                                                    <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
                                                         {wargaInDukuh.length} warga
                                                     </span>
                                                 </div>
@@ -1234,7 +1241,8 @@ const AdminCetakBarcodePage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Download Progress Full-Screen Overlay */}
