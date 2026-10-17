@@ -273,14 +273,22 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
             </div>
 
             {/* Storage Info Badge & Delete Action */}
-            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
                 {effectiveUrl ? (
                     <>
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 truncate max-w-[240px]">
-                            <FolderCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                            <span className="truncate" title={`File fisik: ${effectiveUrl}`}>
-                                Folder: <code className="font-mono text-[10px]">{effectiveUrl}</code>
-                            </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 truncate max-w-[200px]">
+                                <FolderCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                                <span className="truncate" title={`File fisik: ${effectiveUrl}`}>
+                                    Folder: <code className="font-mono text-[10px]">{effectiveUrl}</code>
+                                </span>
+                            </div>
+                            {type === 'logo_app' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-teal-800 bg-teal-100/70 border border-teal-300 px-2 py-0.5 rounded-lg shadow-2xs">
+                                    <Sparkles className="w-3 h-3 text-teal-600" />
+                                    Favicon Aktif
+                                </span>
+                            )}
                         </div>
                         <button
                             type="button"
@@ -288,7 +296,7 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
                                 e.stopPropagation();
                                 handleRemove();
                             }}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors ml-auto"
                         >
                             <Trash2 className="w-3.5 h-3.5" />
                             Hapus
@@ -296,7 +304,7 @@ const LogoUploadBox: React.FC<LogoUploadBoxProps> = ({
                     </>
                 ) : (
                     <div className="text-[11px] text-slate-400 italic">
-                        Belum ada logo terunggah (menggunakan visual default)
+                        {type === 'logo_app' ? 'Belum ada logo terunggah (menggunakan favicon default SapaDesa)' : 'Belum ada logo terunggah (menggunakan visual default)'}
                     </div>
                 )}
             </div>
@@ -495,7 +503,7 @@ const VillageProfileForm: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <LogoUploadBox
                         title="Logo Aplikasi (Emblem / Lambang)"
-                        subtitle="Format proporsional 1:1. Tampil di ikon aplikasi, avatar sistem, & mobile header."
+                        subtitle="Format proporsional 1:1. Otomatis dijadikan Favicon (ikon tab browser), ikon aplikasi, & mobile header."
                         type="logo_app"
                         aspectRatio="square"
                         currentUrl={profile.logo_url}

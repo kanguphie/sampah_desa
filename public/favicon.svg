@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#064e3b" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#grad)"/>
+  <g filter="url(#shadow)">
+    <!-- Village House with recycling eco leaf -->
+    <path d="M32 14L15 28h5v18h24V28h5L32 14z" fill="#ffffff" fill-opacity="0.95"/>
+    <rect x="28" y="32" width="8" height="14" rx="2" fill="#059669"/>
+    <!-- Leaf accents on roof -->
+    <path d="M32 9c0 0 11 5 13 15-7-2-13-5-13-15z" fill="#d1fae5"/>
+    <path d="M32 9c0 0-11 5-13 15 7-2 13-5 13-15z" fill="#a7f3d0"/>
+  </g>
+</svg>

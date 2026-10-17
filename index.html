@@ -3,12 +3,36 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" id="app-favicon" />
+    <link rel="shortcut icon" href="/favicon.svg" id="app-shortcut-icon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SapaDesa - Sampah Pintar Desa</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#10b981">
-    <link rel="apple-touch-icon" href="/vite.svg">
+    <link rel="apple-touch-icon" href="/favicon.svg" id="app-apple-touch-icon">
+    <script>
+      // Immediately set custom favicon from cache if uploaded by admin
+      (function() {
+        try {
+          var saved = localStorage.getItem('sapadesa_custom_favicon');
+          if (saved) {
+            var f = document.getElementById('app-favicon');
+            var s = document.getElementById('app-shortcut-icon');
+            var a = document.getElementById('app-apple-touch-icon');
+            var ext = saved.split('?')[0].toLowerCase();
+            var mime = 'image/png';
+            if (ext.endsWith('.svg')) mime = 'image/svg+xml';
+            else if (ext.endsWith('.webp')) mime = 'image/webp';
+            else if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) mime = 'image/jpeg';
+            else if (ext.endsWith('.ico')) mime = 'image/x-icon';
+
+            if (f) { f.href = saved; f.type = mime; }
+            if (s) { s.href = saved; s.type = mime; }
+            if (a) { a.href = saved; }
+          }
+        } catch(e) {}
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

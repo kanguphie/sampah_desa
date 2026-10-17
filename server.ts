@@ -136,6 +136,101 @@ async function startServer() {
     }
   };
 
+  const updateManifestIcons = (logoUrl: string | null) => {
+    try {
+      const manifestPath = path.join(process.cwd(), 'public', 'manifest.webmanifest');
+      if (fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        if (logoUrl && (logoUrl.startsWith('/uploads/') || logoUrl.startsWith('http'))) {
+          const ext = path.extname(logoUrl.split('?')[0]).toLowerCase();
+          const mime = ext === '.svg' ? 'image/svg+xml' : ext === '.webp' ? 'image/webp' : 'image/png';
+          manifest.icons = [
+            {
+              src: logoUrl,
+              sizes: '192x192',
+              type: mime,
+              purpose: 'any maskable'
+            },
+            {
+              src: logoUrl,
+              sizes: '512x512',
+              type: mime,
+              purpose: 'any maskable'
+            }
+          ];
+        } else {
+          manifest.icons = [
+            {
+              src: '/favicon.svg',
+              sizes: '192x192',
+              type: 'image/svg+xml',
+              purpose: 'any maskable'
+            },
+            {
+              src: '/favicon.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              purpose: 'any maskable'
+            }
+          ];
+        }
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      }
+    } catch (e) {
+      console.warn('[Manifest Sync] Note:', e);
+    }
+  };
+
+  // Sync manifest icons with current logo on startup
+  try {
+    const initCfg = readVillageConfigBackup();
+    if (initCfg.logo_url) {
+      updateManifestIcons(initCfg.logo_url);
+    }
+  } catch (e) {}
+
+  // Dynamic Favicon endpoint: directly serves the uploaded logo or fallback SVG
+  app.get(['/favicon.ico', '/favicon.png'], async (req, res) => {
+    try {
+      const fileBackup = readVillageConfigBackup();
+      let logoUrl = fileBackup.logo_url;
+      if (!logoUrl) {
+        try {
+          const db = await getDB();
+          const [rows]: any = await db.execute('SELECT logo_url FROM village_config WHERE id = 1');
+          if (rows && rows.length > 0 && rows[0].logo_url) {
+            logoUrl = rows[0].logo_url;
+          }
+        } catch (e) {}
+      }
+
+      if (logoUrl && typeof logoUrl === 'string') {
+        if (logoUrl.startsWith('/uploads/')) {
+          const filename = path.basename(logoUrl.split('?')[0]);
+          const diskFile = path.join(uploadsDir, filename);
+          if (fs.existsSync(diskFile)) {
+            const ext = path.extname(diskFile).toLowerCase();
+            if (ext === '.png') res.setHeader('Content-Type', 'image/png');
+            else if (ext === '.svg') res.setHeader('Content-Type', 'image/svg+xml');
+            else if (ext === '.webp') res.setHeader('Content-Type', 'image/webp');
+            else if (ext === '.jpg' || ext === '.jpeg') res.setHeader('Content-Type', 'image/jpeg');
+            else if (ext === '.ico') res.setHeader('Content-Type', 'image/x-icon');
+            return res.sendFile(diskFile);
+          }
+        } else if (logoUrl.startsWith('http')) {
+          return res.redirect(logoUrl);
+        }
+      }
+    } catch (e) {}
+
+    const defaultSvg = path.join(process.cwd(), 'public', 'favicon.svg');
+    if (fs.existsSync(defaultSvg)) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+      return res.sendFile(defaultSvg);
+    }
+    res.status(204).end();
+  });
+
   // Multer disk storage configuration
   const storage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -842,6 +937,10 @@ async function startServer() {
         console.warn("[Logo Upload] Database update note:", dbErr.message);
       }
 
+      if (type === 'logo_app') {
+        updateManifestIcons(relativePath);
+      }
+
       res.json({
         success: true,
         url: relativePath,
@@ -865,6 +964,9 @@ async function startServer() {
       const base64Column = isHorizontal ? 'logo_horizontal_base64' : 'logo_base64';
 
       writeVillageConfigBackup({ [column]: null, [base64Column]: null });
+      if (type === 'logo_app') {
+        updateManifestIcons(null);
+      }
 
       try {
         const db = await getDB();
