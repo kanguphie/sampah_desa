@@ -231,6 +231,17 @@ async function startServer() {
     res.status(204).end();
   });
 
+  // Explicit route for manifest to avoid stale browser caching
+  app.get(['/manifest.webmanifest', '/manifest.json'], (_req, res) => {
+    const manifestPath = path.join(process.cwd(), 'public', 'manifest.webmanifest');
+    if (fs.existsSync(manifestPath)) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.sendFile(manifestPath);
+    }
+    res.status(404).end();
+  });
+
   // Multer disk storage configuration
   const storage = multer.diskStorage({
     destination: (_req, _file, cb) => {
