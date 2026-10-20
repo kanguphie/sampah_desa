@@ -20,6 +20,7 @@ import {
     CheckCircleIcon, 
     ClockIcon,
     ChartBarIcon,
+    ReportIcon,
     UsersIcon,
     ClipboardListIcon,
     IdentificationIcon,
@@ -106,8 +107,8 @@ const PublicHomePage: React.FC = () => {
 
         <main className="flex-grow overflow-x-hidden">
             {/* Hero Section */}
-            <section ref={searchSectionRef} className="relative overflow-hidden bg-gradient-to-b from-[#e9f9ee] via-[#f4fcf6] to-white">
-                <div className="absolute -top-32 -right-32 w-[34rem] h-[34rem] bg-emerald-100/60 rounded-full blur-3xl pointer-events-none"></div>
+            <section ref={searchSectionRef} className="relative overflow-hidden bg-gradient-to-b from-white via-[#f2fbf5] to-white">
+                <div className="absolute -top-48 -right-32 w-[44rem] h-[44rem] bg-emerald-100/70 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="absolute top-64 -left-40 w-96 h-96 bg-emerald-50 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="container relative mx-auto px-6 pt-10 pb-28 md:pt-16 md:pb-32">
                 <div className="grid lg:grid-cols-2 gap-10 items-center">
@@ -162,22 +163,16 @@ const PublicHomePage: React.FC = () => {
                                 <span className="flex items-center gap-2">
                                     <i className="fa-solid fa-lock text-emerald-500"></i> Layanan Aman &amp; Terpercaya
                                 </span>
-                                <span className="hidden md:block w-px h-4 bg-slate-300"></span>
-                                <Link to="/contact" className="text-slate-500 hover:text-emerald-600 underline underline-offset-4 decoration-slate-300">Lupa Nomor ID?</Link>
                             </div>
                         </div>
                     </div>
 
                     {/* Illustration */}
                     <div className="relative animate-fade-in delay-200">
-                        <p style={{ fontFamily: "'Caveat', cursive" }} className="hidden lg:block absolute -top-4 right-10 z-10 text-[1.9rem] font-bold leading-tight text-emerald-600 -rotate-3">
-                            Desa Bersih<br />Masyarakat Sehat
-                            <svg className="w-24 h-4 mt-0.5 text-emerald-500" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M2 8 Q 50 -2 98 6" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" /></svg>
-                        </p>
                         <img
                             src="/images/hero-sampah.png"
                             alt="Ilustrasi pengelolaan sampah Desa Rowosari"
-                            className="relative w-full h-auto max-w-xl mx-auto mix-blend-multiply [mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)] [-webkit-mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)]"
+                            className="relative w-full h-auto max-w-xl lg:max-w-none lg:w-[112%] mx-auto mix-blend-multiply [mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)] [-webkit-mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)]"
                         />
                     </div>
                 </div>
@@ -189,7 +184,7 @@ const PublicHomePage: React.FC = () => {
                 <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-[0_25px_60px_-25px_rgba(15,60,40,0.25)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-slate-100 overflow-hidden">
                     {[
                         { icon: ClipboardListIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Cek Iuran Mudah', desc: 'Cukup masukkan ID warga, langsung ketahuan statusnya.', to: null as string | null },
-                        { icon: ChartBarIcon, tint: 'bg-blue-50 text-blue-500', title: 'Laporan Transparan', desc: 'Data pembayaran dapat diakses kapan saja.', to: '/laporan-publik' },
+                        { icon: ReportIcon, tint: 'bg-blue-50 text-blue-500', title: 'Laporan Transparan', desc: 'Data pembayaran dapat diakses kapan saja.', to: '/laporan-publik' },
                         { icon: LeafIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Pengelolaan Sampah', desc: 'Dukung lingkungan bersih dan berkelanjutan.', to: null },
                         { icon: UsersIcon, tint: 'bg-violet-50 text-violet-500', title: 'Untuk Semua Warga', desc: 'Mudah diakses di mana saja dan kapan saja.', to: null },
                     ].map((f, i) => {
@@ -233,9 +228,9 @@ const PublicHomePage: React.FC = () => {
                             { icon: SearchIcon, title: 'Klik Cek', desc: 'Sistem akan menampilkan informasi pembayaran Anda.' },
                             { icon: CheckCircleIcon, title: 'Lihat Hasil', desc: 'Status iuran, riwayat pembayaran, dan informasi lainnya.' },
                         ].map((s, i) => (
-                            <div key={i} className="relative">
-                                <div className="flex items-start gap-3">
-                                    <span className="text-emerald-500 font-extrabold text-lg leading-none pt-1">{i + 1}</span>
+                            <div key={i} className={`relative ${i > 0 ? 'sm:border-l sm:border-slate-200/70 sm:pl-6 lg:pl-8' : ''}`}>
+                                <div className="flex items-center gap-3">
+                                    <span className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100/80 text-emerald-600 font-extrabold text-sm shrink-0">{i + 1}</span>
                                     <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-2xl shadow-inner">
                                         <s.icon />
                                     </div>

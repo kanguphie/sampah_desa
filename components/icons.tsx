@@ -23,6 +23,10 @@ export const ChartBarIcon: React.FC<IconProps> = ({ className }) => (
     <i className={`fa-solid fa-chart-line ${className || ''}`}></i>
 );
 
+export const ReportIcon: React.FC<IconProps> = ({ className }) => (
+    <i className={`fa-solid fa-file-lines ${className || ''}`}></i>
+);
+
 export const LogoutIcon: React.FC<IconProps> = ({ className }) => (
     <i className={`fa-solid fa-right-from-bracket ${className || ''}`}></i>
 );

@@ -2,7 +2,16 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MenuIcon, XIcon, UserCircleIcon } from './icons';
-import { BrandLogo } from './BrandLogo';
+
+const Wordmark: React.FC = () => (
+    <span className="relative inline-block text-[1.9rem] leading-none font-black tracking-tight select-none">
+        <span className="text-[#0b5e57]">Sapa</span><span className="text-emerald-500">Desa</span>
+        <svg className="absolute -top-[0.5rem] left-[4.02rem] w-6 h-6 text-emerald-500 -rotate-[18deg]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M20.5 3.5C11 3.5 4.5 10 4.5 20.5 14 20.5 20.5 14 20.5 3.5Z" />
+            <path d="M4.5 20.5C7 14.5 11 10 17.5 6.5" stroke="#ffffff" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+        </svg>
+    </span>
+);
 
 const PublicHeader: React.FC = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -25,7 +34,7 @@ const PublicHeader: React.FC = () => {
                     <div className="flex h-20 items-center justify-between">
                         {/* Logo Area */}
                         <Link to="/" className="flex items-center gap-2 group transition-transform hover:scale-[1.02]">
-                            <BrandLogo variant="horizontal" />
+                            <Wordmark />
                         </Link>
                         
                         {/* Desktop Navigation */}
@@ -76,7 +85,7 @@ const PublicHeader: React.FC = () => {
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] lg:hidden animate-fade-in">
                     <div className="fixed inset-x-0 top-0 bg-white shadow-2xl rounded-b-[2.5rem] p-6 animate-slide-in-up">
                         <div className="flex justify-between items-center mb-8">
-                            <BrandLogo variant="horizontal" />
+                            <Wordmark />
                             <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-rose-50 text-rose-500 rounded-xl">
                                 <XIcon className="text-xl" />
                             </button>
