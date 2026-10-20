@@ -31,6 +31,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logoutAdmin = () => {
     setAdmin(null);
     sessionStorage.removeItem('admin');
+    sessionStorage.removeItem('auth_token');
   };
 
   const loginPetugas = (petugasData: Petugas) => {
@@ -41,6 +42,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logoutPetugas = () => {
     setPetugas(null);
     sessionStorage.removeItem('petugas');
+    sessionStorage.removeItem('auth_token');
   };
 
   return (

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment & secrets — JANGAN PERNAH commit file ini
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS & editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Upload runtime (logo yang diunggah lewat aplikasi, kecuali file bawaan repo)
+public/uploads/*
+!public/uploads/village_config.json
