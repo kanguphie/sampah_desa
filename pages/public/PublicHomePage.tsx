@@ -109,7 +109,7 @@ const PublicHomePage: React.FC = () => {
             <section ref={searchSectionRef} className="relative overflow-hidden bg-gradient-to-b from-[#e9f9ee] via-[#f4fcf6] to-white">
                 <div className="absolute -top-32 -right-32 w-[34rem] h-[34rem] bg-emerald-100/60 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="absolute top-64 -left-40 w-96 h-96 bg-emerald-50 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="container relative mx-auto px-6 pt-10 pb-16 md:pt-16 md:pb-20">
+                <div className="container relative mx-auto px-6 pt-10 pb-28 md:pt-16 md:pb-32">
                 <div className="grid lg:grid-cols-2 gap-10 items-center">
                     <div className="animate-fade-in">
                         <span className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-600 font-bold text-[11px] md:text-xs uppercase tracking-[0.15em] px-4 py-2 rounded-full">
@@ -185,7 +185,7 @@ const PublicHomePage: React.FC = () => {
             </section>
 
             {/* Strip Fitur */}
-            <section className="container mx-auto px-6 relative z-10 -mt-2 pb-4">
+            <section className="container mx-auto px-6 relative z-10 -mt-16 pb-4">
                 <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-[0_25px_60px_-25px_rgba(15,60,40,0.25)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-slate-100 overflow-hidden">
                     {[
                         { icon: ClipboardListIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Cek Iuran Mudah', desc: 'Cukup masukkan ID warga, langsung ketahuan statusnya.', to: null as string | null },
@@ -195,16 +195,16 @@ const PublicHomePage: React.FC = () => {
                     ].map((f, i) => {
                         const content = (
                             <>
-                                <div className={`w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center text-2xl ${f.tint}`}>
+                                <div className={`w-16 h-16 shrink-0 rounded-[1.25rem] flex items-center justify-center text-[1.7rem] ${f.tint}`}>
                                     <f.icon />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-800">{f.title}</h3>
-                                    <p className="text-[13px] text-slate-400 leading-snug mt-1 text-balance">{f.desc}</p>
+                                    <h3 className="text-[17px] font-bold text-slate-800 leading-snug">{f.title}</h3>
+                                    <p className="text-sm text-slate-400 leading-relaxed mt-1.5 text-balance">{f.desc}</p>
                                 </div>
                             </>
                         );
-                        const cls = "flex items-center gap-4 px-7 py-6 hover:bg-slate-50/70 transition-colors";
+                        const cls = "flex items-start gap-5 px-8 py-7 hover:bg-slate-50/70 transition-colors";
                         return f.to
                             ? <Link key={i} to={f.to} className={cls}>{content}</Link>
                             : <div key={i} className={cls}>{content}</div>;
