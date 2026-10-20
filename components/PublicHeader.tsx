@@ -29,7 +29,7 @@ const PublicHeader: React.FC = () => {
 
     return (
         <>
-            <header className="sticky top-0 z-50 w-full bg-white/70 backdrop-blur-xl border-b border-slate-100">
+            <header className="sticky top-0 z-50 w-full bg-white/40 backdrop-blur-xl border-b border-white/50">
                 <div className="container mx-auto px-4 md:px-8">
                     <div className="flex h-20 items-center justify-between">
                         {/* Logo Area */}

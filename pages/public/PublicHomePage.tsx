@@ -107,10 +107,18 @@ const PublicHomePage: React.FC = () => {
 
         <main className="flex-grow overflow-x-hidden">
             {/* Hero Section */}
-            <section ref={searchSectionRef} className="relative overflow-hidden bg-gradient-to-b from-white via-[#f2fbf5] to-white">
+            <section ref={searchSectionRef} className="relative overflow-hidden -mt-20 bg-gradient-to-b from-white via-[#f2fbf5] to-white">
                 <div className="absolute -top-48 -right-32 w-[44rem] h-[44rem] bg-emerald-100/70 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="absolute top-64 -left-40 w-96 h-96 bg-emerald-50 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="container relative mx-auto px-6 pt-10 pb-28 md:pt-16 md:pb-32">
+                {/* Illustration full-bleed (desktop): memenuhi sisi kanan sampai tepi layar */}
+                <div className="hidden lg:block absolute top-24 right-0 w-[54%] pointer-events-none" aria-hidden="true">
+                    <img
+                        src="/images/hero-sampah.png"
+                        alt=""
+                        className="w-full h-auto mix-blend-multiply [mask-image:radial-gradient(ellipse_74%_74%_at_58%_40%,black_60%,transparent_99%)] [-webkit-mask-image:radial-gradient(ellipse_74%_74%_at_58%_40%,black_60%,transparent_99%)]"
+                    />
+                </div>
+                <div className="container relative mx-auto px-6 pt-28 pb-28 md:pt-36 md:pb-32">
                 <div className="grid lg:grid-cols-2 gap-10 items-center">
                     <div className="animate-fade-in">
                         <span className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-600 font-bold text-[11px] md:text-xs uppercase tracking-[0.15em] px-4 py-2 rounded-full">
@@ -167,12 +175,12 @@ const PublicHomePage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Illustration */}
-                    <div className="relative animate-fade-in delay-200">
+                    {/* Illustration (mobile/tablet, in flow) */}
+                    <div className="relative animate-fade-in delay-200 lg:hidden">
                         <img
                             src="/images/hero-sampah.png"
                             alt="Ilustrasi pengelolaan sampah Desa Rowosari"
-                            className="relative w-full h-auto max-w-xl lg:max-w-none lg:w-[112%] mx-auto mix-blend-multiply [mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)] [-webkit-mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)]"
+                            className="relative w-full h-auto max-w-xl mx-auto mix-blend-multiply [mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)] [-webkit-mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)]"
                         />
                     </div>
                 </div>
