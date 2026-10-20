@@ -200,7 +200,7 @@ const PublicHomePage: React.FC = () => {
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-slate-800">{f.title}</h3>
-                                    <p className="text-[13px] text-slate-400 leading-snug mt-1">{f.desc}</p>
+                                    <p className="text-[13px] text-slate-400 leading-snug mt-1 text-balance">{f.desc}</p>
                                 </div>
                             </>
                         );
