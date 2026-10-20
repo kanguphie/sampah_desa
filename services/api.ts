@@ -24,27 +24,52 @@
     }
     const API_URL = base || '/api';
 
+// --- TOKEN LOGIN ---
+// Token diterbitkan server saat login dan disimpan di sessionStorage.
+// Semua request API (selain endpoint publik) wajib menyertakannya.
+const getAuthToken = (): string | null => {
+    try { return sessionStorage.getItem('auth_token'); } catch { return null; }
+};
+const storeAuthToken = (data: any) => {
+    if (data && data.token) {
+        try { sessionStorage.setItem('auth_token', data.token); } catch {}
+    }
+};
+const clearAuthSession = () => {
+    try {
+        sessionStorage.removeItem('auth_token');
+        sessionStorage.removeItem('admin');
+        sessionStorage.removeItem('petugas');
+    } catch {}
+};
+
 async function fetchLocal(endpoint: string, options: any = {}) {
     // Ensure endpoint starts with /
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    
+
     // Construct full URL with normalization to avoid double slashes
     let fullUrl = `${API_URL}${cleanEndpoint}`;
     if (API_URL.endsWith('/') && cleanEndpoint.startsWith('/')) {
         fullUrl = API_URL + cleanEndpoint.substring(1);
     }
-    
+
+    const token = getAuthToken();
     console.log(`[API] Fetching: ${options.method || 'GET'} ${fullUrl}`);
     try {
         const res = await fetch(fullUrl, {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
                 ...options.headers
             }
         });
 
         if (!res.ok) {
+            // Token hangus/ditolak: bersihkan sesi agar pengguna diarahkan login ulang
+            if (res.status === 401 && token && !cleanEndpoint.startsWith('/login/')) {
+                clearAuthSession();
+            }
             const error = await res.json().catch(() => ({ message: 'Server Error' }));
             throw new Error(error.message || error.error || `Server Error (${res.status})`);
         }
@@ -79,18 +104,22 @@ async function fetchLocal(endpoint: string, options: any = {}) {
 // --- AUTHENTICATION ---
 
 export const loginPetugas = async (pin: string) => {
-    return fetchLocal('/login/petugas', {
+    const data = await fetchLocal('/login/petugas', {
         method: 'POST',
         body: JSON.stringify({ pin })
     });
+    storeAuthToken(data);
+    return data;
 };
 
 export const loginAdmin = async (pin: string) => {
     // In local mode, we route admin same as petugas but different table logic in backend
-    return fetchLocal('/login/admin', {
+    const data = await fetchLocal('/login/admin', {
         method: 'POST',
         body: JSON.stringify({ pin })
     });
+    storeAuthToken(data);
+    return data;
 };
 
 // --- DATA MASTER ---
@@ -203,9 +232,13 @@ export const uploadLogoFile = async (file: File, type: 'logo_app' | 'logo_horizo
     const fullUrl = API_URL.endsWith('/') ? `${API_URL.slice(0, -1)}${cleanEndpoint}` : `${API_URL}${cleanEndpoint}`;
     
     console.log(`[API] Uploading logo: POST ${fullUrl} (${type})`);
+    const uploadToken = getAuthToken();
     const res = await fetch(fullUrl, {
         method: 'POST',
         body: formData,
+        headers: {
+            ...(uploadToken ? { 'Authorization': `Bearer ${uploadToken}` } : {})
+        },
     });
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));

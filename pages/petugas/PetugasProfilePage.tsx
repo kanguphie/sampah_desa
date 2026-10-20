@@ -8,7 +8,7 @@ const PetugasProfilePage: React.FC = () => {
     const { petugas, loginPetugas } = useAuth();
     const [name, setName] = useState(petugas?.name || '');
     const [phone, setPhone] = useState(petugas?.phone || '');
-    const [pin, setPin] = useState(petugas?.pin || '');
+    const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -16,8 +16,10 @@ const PetugasProfilePage: React.FC = () => {
         e.preventDefault();
         setMessage(null);
         
-        if (pin.length !== 6) {
-            setMessage({ type: 'error', text: 'PIN harus tepat 6 digit angka.' });
+        // PIN opsional: kosongkan bila tidak ingin mengganti PIN.
+        // (PIN tidak lagi dikirim server ke browser demi keamanan.)
+        if (pin && pin.length !== 6) {
+            setMessage({ type: 'error', text: 'PIN baru harus tepat 6 digit angka.' });
             return;
         }
 
@@ -64,8 +66,8 @@ const PetugasProfilePage: React.FC = () => {
                         <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary" required />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">PIN Login (Harus 6 Digit)</label>
-                        <input type="text" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={6} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary font-mono tracking-widest" required />
+                        <label className="block text-sm font-medium text-slate-700 mb-1">PIN Login Baru (Opsional, 6 Digit)</label>
+                        <input type="text" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={6} placeholder="Kosongkan jika tidak ganti PIN" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary font-mono tracking-widest" />
                         <p className="text-xs text-slate-400 mt-1">Jaga kerahasiaan PIN Anda demi keamanan sistem.</p>
                     </div>
 

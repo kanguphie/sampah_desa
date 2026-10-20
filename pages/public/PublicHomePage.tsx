@@ -19,7 +19,8 @@ import {
     BanknotesIcon, 
     CheckCircleIcon, 
     ClockIcon,
-    ScaleBalancedIcon,
+    ChartBarIcon,
+    UsersIcon,
     ClipboardListIcon,
     IdentificationIcon,
     HomeIcon
@@ -101,27 +102,31 @@ const PublicHomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-800 flex flex-col selection:bg-emerald-100 selection:text-emerald-900">
-        <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500"></div>
         <PublicHeader />
 
         <main className="flex-grow overflow-x-hidden">
             {/* Hero Section */}
-            <section ref={searchSectionRef} className="container mx-auto px-6 py-8 md:py-24">
-                <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <section ref={searchSectionRef} className="relative overflow-hidden bg-gradient-to-b from-[#e9f9ee] via-[#f4fcf6] to-white">
+                <div className="absolute -top-32 -right-32 w-[34rem] h-[34rem] bg-emerald-100/60 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute top-64 -left-40 w-96 h-96 bg-emerald-50 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="container relative mx-auto px-6 pt-10 pb-16 md:pt-16 md:pb-20">
+                <div className="grid lg:grid-cols-2 gap-10 items-center">
                     <div className="animate-fade-in">
-                        <p className="font-bold text-emerald-500 text-xs md:text-sm uppercase tracking-[0.2em] mb-4 text-center md:text-left">#Rowosari_Transparan</p>
-                        <h1 className="text-[2.2rem] md:text-6xl font-black text-slate-900 leading-[1.1] text-center md:text-left tracking-tight">
-                            Digitalisasi <span className="text-emerald-500">Retribusi</span> Sampah Desa
+                        <span className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-600 font-bold text-[11px] md:text-xs uppercase tracking-[0.15em] px-4 py-2 rounded-full">
+                            <LeafIcon /> # Rowosari_Transparan
+                        </span>
+                        <h1 className="mt-6 text-[2.4rem] md:text-6xl font-extrabold text-slate-800 leading-[1.08] text-center md:text-left tracking-tight">
+                            Digitalisasi <span className="text-emerald-500">Retribusi</span><br className="hidden md:block" /> Sampah Desa
                         </h1>
-                        <p className="mt-5 text-slate-500 text-base md:text-lg font-medium leading-relaxed text-center md:text-left max-w-xl mx-auto md:mx-0">
+                        <p className="mt-5 text-slate-500 text-base md:text-lg leading-relaxed text-center md:text-left max-w-xl mx-auto md:mx-0">
                             Layanan pengecekan iuran warga Desa Rowosari. Masukkan ID Anda untuk melihat status pembayaran terbaru.
                         </p>
 
-                        <div className="mt-10 max-w-lg mx-auto md:mx-0">
+                        <div className="mt-9 max-w-xl mx-auto md:mx-0">
                             <form onSubmit={handleSearch} className="group relative">
-                                <div className={`relative flex items-center transition-all duration-300 bg-slate-50 border-2 rounded-[2rem] p-1.5 ${error ? 'border-rose-200 ring-4 ring-rose-50' : 'border-slate-100 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-50 focus-within:bg-white shadow-xl shadow-slate-200/50'}`}>
-                                    <div className="pl-6 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                                        <SearchIcon className="text-xl md:text-2xl" />
+                                <div className={`relative flex items-center gap-2 transition-all duration-300 bg-white rounded-full p-2 pl-3 ${error ? 'ring-4 ring-rose-100 border border-rose-200' : 'border border-slate-100 focus-within:ring-4 focus-within:ring-emerald-100 shadow-[0_20px_50px_-20px_rgba(16,185,129,0.35)]'}`}>
+                                    <div className="pl-3 text-slate-400 group-focus-within:text-emerald-500 transition-colors shrink-0">
+                                        <IdentificationIcon className="text-2xl md:text-[1.7rem]" />
                                     </div>
                                     <input
                                         type="text"
@@ -131,52 +136,114 @@ const PublicHomePage: React.FC = () => {
                                         onChange={(e) => setWargaId(e.target.value.replace(/\D/g, ''))}
                                         placeholder="Masukkan 6 Digit ID Warga"
                                         maxLength={6}
-                                        className="w-full bg-transparent px-4 py-4 md:py-5 outline-none font-bold text-lg md:text-xl text-slate-800 placeholder:text-slate-300 placeholder:font-bold"
+                                        className="w-full min-w-0 bg-transparent px-2 py-3 md:py-4 outline-none font-semibold text-base md:text-lg text-slate-800 placeholder:text-slate-400"
                                     />
                                     <button
                                         type="submit"
                                         disabled={loading}
-                                        className="bg-emerald-500 text-white font-black px-6 md:px-10 py-3.5 md:py-4 rounded-[1.5rem] hover:bg-emerald-600 active:scale-95 transition-all shadow-lg shadow-emerald-500/20 disabled:bg-slate-300 flex items-center gap-2 text-xs md:text-sm uppercase tracking-widest"
+                                        className="shrink-0 bg-emerald-500 text-white font-bold px-6 md:px-9 py-3 md:py-4 rounded-full hover:bg-emerald-600 active:scale-95 transition-all shadow-lg shadow-emerald-500/30 disabled:bg-slate-300 flex items-center gap-2.5 text-sm md:text-base"
                                     >
-                                        {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Cek'}
+                                        {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : (<><SearchIcon /> Cek <i className="fa-solid fa-arrow-right text-xs"></i></>)}
                                     </button>
                                 </div>
 
                                 {error && (
-                                    <div className="absolute top-full left-0 w-full mt-3 flex items-center gap-2 text-rose-500 font-bold text-[10px] md:text-xs uppercase bg-rose-50 px-4 py-2.5 rounded-xl border border-rose-100 animate-fade-in">
+                                    <div className="absolute top-full left-0 w-full mt-3 flex items-center gap-2 text-rose-500 font-bold text-[10px] md:text-xs uppercase bg-rose-50 px-4 py-2.5 rounded-xl border border-rose-100 animate-fade-in z-10">
                                         <i className="fa-solid fa-circle-exclamation"></i> {error}
                                     </div>
                                 )}
                             </form>
-                            
-                            <div className="mt-8 flex flex-col md:flex-row items-center gap-3 md:gap-4 opacity-70">
-                                <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-full">
-                                    <CheckCircleIcon className="text-emerald-500 text-sm" />
-                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">Gunakan 6 digit angka</span>
-                                </div>
-                                <span className="hidden md:block text-slate-300">|</span>
-                                <Link to="/contact" className="text-[10px] font-black text-slate-400 uppercase tracking-tighter hover:text-emerald-500 underline underline-offset-4">Lupa Nomor ID?</Link>
-                            </div>
-                        </div>
 
-                        <div className="mt-12 flex justify-center md:justify-start">
-                            <Link to="/laporan-publik" className="group bg-slate-900 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-slate-900/30 flex items-center gap-3">
-                                <ScaleBalancedIcon className="group-hover:rotate-12 transition-transform" /> 
-                                Lihat Transparansi Kas Desa
-                            </Link>
+                            <div className="mt-7 flex flex-wrap items-center justify-center md:justify-start gap-x-5 gap-y-2 text-[13px] font-semibold text-slate-600">
+                                <span className="flex items-center gap-2">
+                                    <i className="fa-solid fa-shield-halved text-emerald-500"></i> Gunakan ID yang Valid
+                                </span>
+                                <span className="hidden md:block w-px h-4 bg-slate-300"></span>
+                                <span className="flex items-center gap-2">
+                                    <i className="fa-solid fa-lock text-emerald-500"></i> Layanan Aman &amp; Terpercaya
+                                </span>
+                                <span className="hidden md:block w-px h-4 bg-slate-300"></span>
+                                <Link to="/contact" className="text-slate-500 hover:text-emerald-600 underline underline-offset-4 decoration-slate-300">Lupa Nomor ID?</Link>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Illustration - Hidden on Mobile */}
-                    <div className="hidden lg:block animate-fade-in delay-200">
-                        <div className="relative group">
-                            <div className="absolute inset-0 bg-emerald-500/10 rounded-[3rem] blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
-                            <img
-                                src="https://blud.co.id/wp/wp-content/uploads/2025/09/27aec6f5e1d902e689c8c93fe337eb0c.jpg"
-                                alt="Rowosari Bersih"
-                                className="relative w-full h-auto max-w-lg rounded-[3rem] shadow-2xl border-8 border-white transform rotate-2 group-hover:rotate-0 transition-all duration-500"
-                            />
-                        </div>
+                    {/* Illustration */}
+                    <div className="relative animate-fade-in delay-200">
+                        <p style={{ fontFamily: "'Caveat', cursive" }} className="hidden lg:block absolute -top-4 right-10 z-10 text-[1.9rem] font-bold leading-tight text-emerald-600 -rotate-3">
+                            Desa Bersih<br />Masyarakat Sehat
+                            <svg className="w-24 h-4 mt-0.5 text-emerald-500" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M2 8 Q 50 -2 98 6" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" /></svg>
+                        </p>
+                        <img
+                            src="/images/hero-sampah.png"
+                            alt="Ilustrasi pengelolaan sampah Desa Rowosari"
+                            className="relative w-full h-auto max-w-xl mx-auto"
+                        />
+                    </div>
+                </div>
+                </div>
+            </section>
+
+            {/* Strip Fitur */}
+            <section className="container mx-auto px-6 relative z-10 -mt-2 pb-4">
+                <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-[0_25px_60px_-25px_rgba(15,60,40,0.25)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-slate-100 overflow-hidden">
+                    {[
+                        { icon: ClipboardListIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Cek Iuran Mudah', desc: 'Cukup masukkan ID warga, langsung ketahuan statusnya.', to: null as string | null },
+                        { icon: ChartBarIcon, tint: 'bg-blue-50 text-blue-500', title: 'Laporan Transparan', desc: 'Data pembayaran dapat diakses kapan saja.', to: '/laporan-publik' },
+                        { icon: LeafIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Pengelolaan Sampah', desc: 'Dukung lingkungan bersih dan berkelanjutan.', to: null },
+                        { icon: UsersIcon, tint: 'bg-violet-50 text-violet-500', title: 'Untuk Semua Warga', desc: 'Mudah diakses di mana saja dan kapan saja.', to: null },
+                    ].map((f, i) => {
+                        const content = (
+                            <>
+                                <div className={`w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center text-2xl ${f.tint}`}>
+                                    <f.icon />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">{f.title}</h3>
+                                    <p className="text-[13px] text-slate-400 leading-snug mt-1">{f.desc}</p>
+                                </div>
+                            </>
+                        );
+                        const cls = "flex items-center gap-4 px-7 py-6 hover:bg-slate-50/70 transition-colors";
+                        return f.to
+                            ? <Link key={i} to={f.to} className={cls}>{content}</Link>
+                            : <div key={i} className={cls}>{content}</div>;
+                    })}
+                </div>
+            </section>
+
+            {/* Cara Penggunaan */}
+            <section className="container mx-auto px-6 py-14 md:py-20">
+                <p className="font-bold text-emerald-500 text-xs md:text-sm uppercase tracking-[0.2em] mb-4">Cara Penggunaan</p>
+                <div className="grid lg:grid-cols-[1fr_1.5fr] gap-10 lg:gap-16 items-start">
+                    <div>
+                        <h2 className="text-3xl md:text-[2.6rem] font-extrabold text-slate-800 leading-tight tracking-tight">
+                            Cek Iuran Sampah<br /><span className="text-emerald-500">Semakin Mudah</span>
+                        </h2>
+                        <p className="mt-4 text-slate-500 leading-relaxed max-w-md">
+                            Ikuti langkah sederhana berikut untuk mengetahui status pembayaran iuran sampah Anda.
+                        </p>
+                        <button onClick={() => searchSectionRef.current?.scrollIntoView({ behavior: 'smooth' })} className="mt-7 inline-flex items-center gap-2.5 bg-emerald-500 text-white font-bold px-7 py-3.5 rounded-full hover:bg-emerald-600 active:scale-95 transition-all shadow-lg shadow-emerald-500/25 text-sm">
+                            Mulai Cek Sekarang <i className="fa-solid fa-arrow-up text-xs"></i>
+                        </button>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-8 sm:gap-6 lg:pt-4">
+                        {[
+                            { icon: IdentificationIcon, title: 'Masukkan ID Warga', desc: 'Ketik 6 digit ID warga Anda pada kolom pencarian.' },
+                            { icon: SearchIcon, title: 'Klik Cek', desc: 'Sistem akan menampilkan informasi pembayaran Anda.' },
+                            { icon: CheckCircleIcon, title: 'Lihat Hasil', desc: 'Status iuran, riwayat pembayaran, dan informasi lainnya.' },
+                        ].map((s, i) => (
+                            <div key={i} className="relative">
+                                <div className="flex items-start gap-3">
+                                    <span className="text-emerald-500 font-extrabold text-lg leading-none pt-1">{i + 1}</span>
+                                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-2xl shadow-inner">
+                                        <s.icon />
+                                    </div>
+                                </div>
+                                <h3 className="font-bold text-slate-800 mt-4">{s.title}</h3>
+                                <p className="text-sm text-slate-400 leading-relaxed mt-1.5">{s.desc}</p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </section>

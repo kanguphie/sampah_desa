@@ -11,10 +11,13 @@ services:
     environment:
       - NODE_ENV=production
       - DB_HOST=db
-      - DB_NAME=sapadesa
-      - DB_USER=sapadesa_user
-      - DB_PASSWORD=sapadesapassword
+      - DB_NAME=${DB_NAME:-sapadesa}
+      - DB_USER=${DB_USER:-sapadesa_user}
+      # WAJIB diisi lewat file .env di sebelah file ini (lihat .env.example).
+      # Password TIDAK BOLEH ditulis langsung di file ini lagi.
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD belum diisi di file .env}
       - DB_PORT=3306
+      - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET belum diisi di file .env}
       - TZ=Asia/Jakarta
       - VITE_API_URL=
     depends_on:
@@ -39,10 +42,10 @@ services:
     ports:
       - "3308:3306" # Map to host port 3308
     environment:
-      - MYSQL_DATABASE=sapadesa
-      - MYSQL_USER=sapadesa_user
-      - MYSQL_PASSWORD=sapadesapassword
-      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=${DB_NAME:-sapadesa}
+      - MYSQL_USER=${DB_USER:-sapadesa_user}
+      - MYSQL_PASSWORD=${DB_PASSWORD:?DB_PASSWORD belum diisi di file .env}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD belum diisi di file .env}
       - TZ=Asia/Jakarta
     volumes:
       - sapadesa_db_data:/var/lib/mysql

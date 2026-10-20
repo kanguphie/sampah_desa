@@ -5,6 +5,7 @@ import fs from 'fs';
 import cors from 'cors';
 import multer from 'multer';
 import mysql from 'mysql2/promise';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 
@@ -476,6 +477,146 @@ async function startServer() {
     next();
   });
 
+  // ============================================================
+  // --- KEAMANAN API: TOKEN LOGIN, RATE LIMIT, OTORISASI ---
+  // Token ditandatangani HMAC-SHA256 (tanpa dependensi tambahan).
+  // Format: base64url(payload).base64url(tanda tangan)
+  // ============================================================
+  const AUTH_SECRET = process.env.AUTH_SECRET || (() => {
+    console.warn('[SECURITY] AUTH_SECRET belum di-set di environment! Memakai secret acak sementara — semua token login akan hangus setiap server restart. Set AUTH_SECRET di file .env.');
+    return crypto.randomBytes(32).toString('hex');
+  })();
+  const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // Token berlaku 24 jam
+
+  const signToken = (payload: { sub: string; role: 'admin' | 'petugas'; name?: string }) => {
+    const body = { ...payload, exp: Date.now() + TOKEN_TTL_MS };
+    const encoded = Buffer.from(JSON.stringify(body)).toString('base64url');
+    const sig = crypto.createHmac('sha256', AUTH_SECRET).update(encoded).digest('base64url');
+    return `${encoded}.${sig}`;
+  };
+
+  const verifyToken = (token: string): { sub: string; role: 'admin' | 'petugas'; name?: string } | null => {
+    try {
+      const [encoded, sig] = token.split('.');
+      if (!encoded || !sig) return null;
+      const expected = crypto.createHmac('sha256', AUTH_SECRET).update(encoded).digest('base64url');
+      const a = Buffer.from(sig);
+      const b = Buffer.from(expected);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+      const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
+      if (!payload.sub || !payload.role || !payload.exp || Date.now() > payload.exp) return null;
+      return payload;
+    } catch {
+      return null;
+    }
+  };
+
+  // Rate limit sederhana untuk endpoint login (anti brute-force PIN).
+  // Maksimal 30 percobaan per 15 menit per IP per endpoint.
+  const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+  const loginRateLimit = (req: any, res: any, next: any) => {
+    const key = `${req.ip || 'unknown'}:${req.path}`;
+    const now = Date.now();
+    const entry = loginAttempts.get(key);
+    if (!entry || now > entry.resetAt) {
+      loginAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+      return next();
+    }
+    entry.count += 1;
+    if (entry.count > 30) {
+      return res.status(429).json({ message: 'Terlalu banyak percobaan login. Coba lagi dalam beberapa menit.' });
+    }
+    next();
+  };
+  app.post(['/api/login/admin', '/api/login/petugas'], loginRateLimit);
+
+  // Endpoint yang boleh diakses TANPA login (halaman publik & cek mandiri warga).
+  const PUBLIC_API: [string, RegExp][] = [
+    ['POST', /^\/api\/login\/(admin|petugas)$/],
+    ['GET', /^\/api\/health$/],
+    ['GET', /^\/api\/stats\/public$/],
+    ['GET', /^\/api\/stats\/transparency\/[^/]+$/],
+    ['GET', /^\/api\/announcements\/active$/],
+    ['GET', /^\/api\/schedule\/today$/],
+    ['GET', /^\/api\/village-profile$/],
+    ['POST', /^\/api\/messages$/], // Formulir kontak publik
+    ['GET', /^\/api\/data\/(dukuhs|rts)$/], // Nama wilayah untuk halaman publik
+    ['GET', /^\/api\/data\/wargas\/[^/]+$/], // Cek mandiri warga (ID tercetak di kartu QR)
+    ['GET', /^\/api\/transactions\/warga\/[^/]+$/], // Riwayat untuk cek mandiri warga
+    ['GET', /^\/api\/check-payment\/[^/]+$/], // Status bayar untuk cek mandiri warga
+  ];
+
+  const isAdminOnly = (method: string, p: string): boolean => {
+    if (/^\/api\/(backup|restore)$/.test(p)) return true;
+    if (/^\/api\/(admin|system)\//.test(p)) return true;
+    if (p === '/api/diagnostic-db') return true;
+    if (/^\/api\/(pengeluaran|pengeluarans|pemasukan-lain|pemasukan-lains)(\/|$)/.test(p)) return true;
+    if (p === '/api/stats/admin') return true;
+    if (p === '/api/reports') return true;
+    if (p === '/api/upload-logo-single' || p.startsWith('/api/remove-logo')) return true;
+    if (p === '/api/profile/admin') return true;
+    if (/^\/api\/messages/.test(p) && method !== 'POST') return true; // Baca/hapus pesan = admin
+    if (/^\/api\/announcements/.test(p) && method !== 'GET') return true;
+    if (p === '/api/schedule' ) return true; // Lihat & ubah jadwal penuh = admin (jadwal hari ini publik)
+    if (p === '/api/village-profile' && method !== 'GET') return true;
+    // Kelola akun: semua akses tabel admins & petugases khusus admin
+    if (/^\/api\/data\/(admins|petugases)(\/|$)/.test(p)) return true;
+    // Menulis data master (tambah/ubah/hapus) khusus admin; petugas hanya membaca
+    if (/^\/api\/data\//.test(p) && method !== 'GET') return true;
+    if (/^\/api\/transactions\/[^/]+$/.test(p) && method === 'DELETE') return true;
+    return false;
+  };
+
+  // Middleware otorisasi: semua endpoint /api di luar daftar publik WAJIB token valid.
+  app.use((req: any, res: any, next: any) => {
+    const p: string = req.path;
+    if (!p.startsWith('/api')) return next();
+    if (PUBLIC_API.some(([m, re]) => m === req.method && re.test(p))) return next();
+
+    const header = String(req.headers.authorization || '');
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const auth = token ? verifyToken(token) : null;
+    if (!auth) {
+      return res.status(401).json({ message: 'Sesi login tidak ada atau sudah berakhir. Silakan login kembali.' });
+    }
+    req.auth = auth;
+
+    if (isAdminOnly(req.method, p) && auth.role !== 'admin') {
+      return res.status(403).json({ message: 'Akses khusus admin.' });
+    }
+    // Petugas hanya boleh mengubah profilnya sendiri
+    if (p === '/api/profile/petugas' && auth.role === 'petugas' && req.body?.id && req.body.id !== auth.sub) {
+      return res.status(403).json({ message: 'Petugas hanya dapat mengubah profilnya sendiri.' });
+    }
+    next();
+  });
+
+  // Tabel yang boleh diakses lewat endpoint data generik (whitelist anti eksplorasi tabel lain)
+  const ALLOWED_DATA_TABLES = new Set([
+    'village_config', 'dukuhs', 'rts', 'wargas', 'petugases', 'admins', 'schedules',
+    'transactions', 'pengeluarans', 'pemasukan_lain', 'contact_messages', 'announcements'
+  ]);
+  app.use('/api/data/:table', (req: any, res: any, next: any) => {
+    if (!ALLOWED_DATA_TABLES.has(req.params.table)) {
+      return res.status(400).json({ message: 'Tabel tidak dikenal.' });
+    }
+    next();
+  });
+
+  // PIN admin tidak pernah dikirim keluar API; PIN petugas hanya untuk admin.
+  const sanitizeDataRows = (table: string, rows: any, role?: string) => {
+    if (table !== 'admins' && table !== 'petugases') return rows;
+    const strip = (row: any) => {
+      if (!row || typeof row !== 'object') return row;
+      if (table === 'admins' || role !== 'admin') {
+        const { pin, ...rest } = row;
+        return rest;
+      }
+      return row;
+    };
+    return Array.isArray(rows) ? rows.map(strip) : strip(rows);
+  };
+
   // --- API ROUTES ---
 
   // Enhanced Admin Login with First-Run Fallback
@@ -487,13 +628,15 @@ async function startServer() {
         
         // JIKA KOSONG (First Run): Ijinkan PIN 123456
         if (admins.length === 0 && pin === '123456') {
-            return res.json({ id: 'admin-master', username: 'admin', name: 'Master Admin (First Run)', role: 'admin' });
+            const profile = { id: 'admin-master', username: 'admin', name: 'Master Admin (First Run)', role: 'admin' };
+            return res.json({ ...profile, token: signToken({ sub: profile.id, role: 'admin', name: profile.name }) });
         }
-        
+
         // JIKA ADA DATA: Gunakan PIN dari Database
         const [rows]: any = await db.execute('SELECT * FROM admins WHERE pin = ? LIMIT 1', [pin]);
         if (rows.length > 0) {
-            res.json({ ...rows[0], role: 'admin' });
+            const { pin: _pin, ...safeAdmin } = rows[0];
+            res.json({ ...safeAdmin, role: 'admin', token: signToken({ sub: String(rows[0].id), role: 'admin', name: rows[0].name }) });
         } else {
             res.status(401).json({ message: 'PIN Admin salah atau database belum terisi' });
         }
@@ -530,7 +673,8 @@ async function startServer() {
         const db = await getDB();
         const [rows]: any = await db.execute('SELECT * FROM petugases WHERE pin = ? LIMIT 1', [pin]);
         if (rows.length > 0) {
-            res.json(rows[0]);
+            const { pin: _pin, ...safePetugas } = rows[0];
+            res.json({ ...safePetugas, role: 'petugas', token: signToken({ sub: String(rows[0].id), role: 'petugas', name: rows[0].name }) });
         } else {
             res.status(401).json({ message: 'PIN salah' });
         }
@@ -1782,7 +1926,8 @@ async function startServer() {
         }
         
         const [rows]: any = await db.execute('SELECT * FROM admins WHERE id = ?', [id]);
-        res.json({ ...rows[0], role: 'admin' });
+        const { pin: _pinAdmin, ...safeAdminProfile } = rows[0] || {};
+        res.json({ ...safeAdminProfile, role: 'admin' });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
@@ -1803,7 +1948,8 @@ async function startServer() {
         }
         
         const [rows]: any = await db.execute('SELECT * FROM petugases WHERE id = ?', [id]);
-        res.json({ ...rows[0], role: 'petugas' });
+        const { pin: _pinPetugas, ...safePetugasProfile } = rows[0] || {};
+        res.json({ ...safePetugasProfile, role: 'petugas' });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
@@ -1828,7 +1974,7 @@ async function startServer() {
          const { table } = req.params;
          const db = await getDB();
          const [rows] = await db.execute(`SELECT * FROM \`${table}\``);
-         res.json(rows);
+         res.json(sanitizeDataRows(table, rows, (req as any).auth?.role));
      } catch (err: any) {
          res.status(500).json({ error: err.message });
      }
@@ -1839,7 +1985,7 @@ async function startServer() {
         const { table, id } = req.params;
         const db = await getDB();
         const [rows]: any = await db.execute(`SELECT * FROM \`${table}\` WHERE id = ?`, [id]);
-        res.json(rows[0] || null);
+        res.json(sanitizeDataRows(table, rows[0] || null, (req as any).auth?.role));
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

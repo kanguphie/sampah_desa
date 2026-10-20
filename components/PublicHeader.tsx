@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { MenuIcon, XIcon } from './icons';
+import { MenuIcon, XIcon, UserCircleIcon } from './icons';
 import { BrandLogo } from './BrandLogo';
 
 const PublicHeader: React.FC = () => {
@@ -42,7 +42,7 @@ const PublicHeader: React.FC = () => {
                                 >
                                     {link.name}
                                     {isActive(link.path) && (
-                                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                                        <span className="absolute -bottom-1.5 left-5 right-5 h-[3px] bg-emerald-500 rounded-full"></span>
                                     )}
                                 </Link>
                             ))}
@@ -50,11 +50,13 @@ const PublicHeader: React.FC = () => {
 
                         {/* Actions */}
                         <div className="flex items-center gap-3">
-                            <button 
-                                onClick={() => navigate('/login')} 
-                                className="hidden sm:flex items-center bg-white text-slate-700 text-[11px] font-black uppercase tracking-[0.1em] px-6 py-2.5 rounded-full border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 transition-all duration-300 shadow-sm"
+                            <button
+                                onClick={() => navigate('/login')}
+                                className="hidden sm:flex items-center gap-2.5 bg-white text-slate-700 text-sm font-bold px-5 py-2.5 rounded-full border border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition-all duration-300 shadow-sm"
                             >
+                                <UserCircleIcon className="text-emerald-500 text-lg" />
                                 Login Sistem
+                                <i className="fa-solid fa-arrow-right text-xs text-slate-400"></i>
                             </button>
                             
                             <button 
