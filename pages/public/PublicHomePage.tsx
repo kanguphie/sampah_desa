@@ -177,7 +177,7 @@ const PublicHomePage: React.FC = () => {
                         <img
                             src="/images/hero-sampah.png"
                             alt="Ilustrasi pengelolaan sampah Desa Rowosari"
-                            className="relative w-full h-auto max-w-xl mx-auto"
+                            className="relative w-full h-auto max-w-xl mx-auto mix-blend-multiply [mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)] [-webkit-mask-image:radial-gradient(ellipse_72%_72%_at_50%_46%,black_58%,transparent_98%)]"
                         />
                     </div>
                 </div>
