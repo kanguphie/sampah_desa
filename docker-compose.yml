@@ -19,6 +19,7 @@ services:
       - DB_PORT=3306
       - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET belum diisi di file .env}
       - TZ=Asia/Jakarta
+      - INTEGRATION_API_KEY=${INTEGRATION_API_KEY:-}
       - VITE_API_URL=
     depends_on:
       - db

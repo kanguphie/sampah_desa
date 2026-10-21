@@ -573,6 +573,24 @@ async function startServer() {
     if (!p.startsWith('/api')) return next();
     if (PUBLIC_API.some(([m, re]) => m === req.method && re.test(p))) return next();
 
+    // Endpoint integrasi antar-aplikasi (/api/integration/*): otentikasi memakai
+    // API key khusus dari env INTEGRATION_API_KEY, BUKAN token login.
+    if (p.startsWith('/api/integration/')) {
+      const expected = String(process.env.INTEGRATION_API_KEY || '');
+      if (!expected) {
+        return res.status(503).json({ message: 'Integrasi belum diaktifkan di server (INTEGRATION_API_KEY belum diatur).' });
+      }
+      const provided = String(req.headers['x-api-key'] || req.query.api_key || '');
+      const a = Buffer.from(provided);
+      const b = Buffer.from(expected);
+      const valid = provided.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+      if (!valid) {
+        return res.status(401).json({ message: 'API key integrasi tidak valid.' });
+      }
+      (req as any).auth = { sub: 'integration', role: 'integration', name: 'Integrasi Eksternal' };
+      return next();
+    }
+
     const header = String(req.headers.authorization || '');
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
     const auth = token ? verifyToken(token) : null;
@@ -680,6 +698,74 @@ async function startServer() {
         }
     } catch (err: any) {
         res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- INTEGRASI EKSTERNAL: BUKU KAS (read-only, khusus API key) ---
+  // Menggabungkan pembayaran iuran (transactions status 'paid'), pemasukan lain,
+  // dan pengeluaran menjadi satu buku kas: No, Tanggal, Uraian, Masuk, Keluar, Saldo.
+  // Dipakai platform lain (mis. web desa) agar tidak perlu input manual.
+  // Parameter: ?from=YYYY-MM-DD&to=YYYY-MM-DD (default: bulan berjalan s.d. hari ini WIB).
+  app.get('/api/integration/buku-kas', async (req, res) => {
+    try {
+      const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+      const todayWib = getWIBDateString();
+      const from = String(req.query.from || `${todayWib.slice(0, 8)}01`);
+      const to = String(req.query.to || todayWib);
+      if (!dateRe.test(from) || !dateRe.test(to) || from > to) {
+        return res.status(400).json({ message: 'Parameter from/to harus berformat YYYY-MM-DD dan from tidak boleh melebihi to.' });
+      }
+      const db = await getDB();
+
+      // Saldo awal = akumulasi seluruh mutasi SEBELUM tanggal "from"
+      const [opening]: any = await db.execute(`
+        SELECT
+          (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE status = 'paid' AND DATE(timestamp) < ?) +
+          (SELECT COALESCE(SUM(amount), 0) FROM pemasukan_lain WHERE date < ?) -
+          (SELECT COALESCE(SUM(amount), 0) FROM pengeluarans WHERE date < ?) AS saldo_awal
+      `, [from, from, from]);
+      let saldo = Number(opening[0]?.saldo_awal || 0);
+      const saldoAwal = saldo;
+
+      const [iuran]: any = await db.execute(`
+        SELECT DATE_FORMAT(t.timestamp, '%Y-%m-%d') AS tanggal,
+               DATE_FORMAT(t.timestamp, '%Y-%m-%d %H:%i:%s') AS urut,
+               w.name AS warga_name, t.amount AS amount
+        FROM transactions t
+        LEFT JOIN wargas w ON w.id = t.wargaId
+        WHERE t.status = 'paid' AND DATE(t.timestamp) BETWEEN ? AND ?
+      `, [from, to]);
+      const [lain]: any = await db.execute(`
+        SELECT DATE_FORMAT(date, '%Y-%m-%d') AS tanggal,
+               CONCAT(DATE_FORMAT(date, '%Y-%m-%d'), ' 00:00:01') AS urut,
+               description, source, amount
+        FROM pemasukan_lain WHERE date BETWEEN ? AND ?
+      `, [from, to]);
+      const [keluarRows]: any = await db.execute(`
+        SELECT DATE_FORMAT(date, '%Y-%m-%d') AS tanggal,
+               CONCAT(DATE_FORMAT(date, '%Y-%m-%d'), ' 00:00:02') AS urut,
+               description, amount
+        FROM pengeluarans WHERE date BETWEEN ? AND ?
+      `, [from, to]);
+
+      const merged = [
+        ...iuran.map((r: any) => ({ tanggal: r.tanggal, urut: r.urut, uraian: r.warga_name ? `Iuran Sampah — ${r.warga_name}` : 'Iuran Sampah', masuk: Number(r.amount) || 0, keluar: 0 })),
+        ...lain.map((r: any) => ({ tanggal: r.tanggal, urut: r.urut, uraian: r.description || r.source || 'Pemasukan Lain', masuk: Number(r.amount) || 0, keluar: 0 })),
+        ...keluarRows.map((r: any) => ({ tanggal: r.tanggal, urut: r.urut, uraian: r.description || 'Pengeluaran', masuk: 0, keluar: Number(r.amount) || 0 })),
+      ].sort((a: any, b: any) => (a.urut < b.urut ? -1 : a.urut > b.urut ? 1 : 0));
+
+      let totalMasuk = 0;
+      let totalKeluar = 0;
+      const data = merged.map((r: any, i: number) => {
+        totalMasuk += r.masuk;
+        totalKeluar += r.keluar;
+        saldo += r.masuk - r.keluar;
+        return { no: i + 1, tanggal: r.tanggal, uraian: r.uraian, masuk: r.masuk, keluar: r.keluar, saldo };
+      });
+
+      res.json({ periode: { from, to }, saldoAwal, data, totalMasuk, totalKeluar, saldoAkhir: saldo });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
