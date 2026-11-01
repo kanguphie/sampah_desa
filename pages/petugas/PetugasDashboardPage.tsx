@@ -2,13 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { getPetugasDailySummary } from '@/services/api';
-import { CollectionIcon, QrCodeIcon, CurrencyDollarIcon, UsersIcon, AlertCircleIcon } from '@/components/icons';
+import { getPetugasDailySummary, getScheduleForToday } from '@/services/api';
+import { CollectionIcon, QrCodeIcon, CurrencyDollarIcon, UsersIcon, AlertCircleIcon, ClockIcon } from '@/components/icons';
 
 const PetugasDashboardPage: React.FC = () => {
     const { petugas } = useAuth();
     const navigate = useNavigate();
     const [summary, setSummary] = useState({ total: 0, count: 0 });
+    const [scheduleInfo, setScheduleInfo] = useState<{ isHoliday: boolean, dukuhIds: number[], dukuhNames: string[] } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -26,8 +27,12 @@ const PetugasDashboardPage: React.FC = () => {
                 setLoading(true);
                 setError(null);
                 try {
-                    const data = await getPetugasDailySummary(petugas.id);
+                    const [data, scheduleData] = await Promise.all([
+                        getPetugasDailySummary(petugas.id),
+                        getScheduleForToday()
+                    ]);
                     setSummary(data);
+                    setScheduleInfo(scheduleData);
                 } catch (error: any) {
                     console.error("Failed to fetch summary", error);
                     setError(error.message || "Gagal mengambil ringkasan harian.");
@@ -85,6 +90,24 @@ const PetugasDashboardPage: React.FC = () => {
                             <p className="text-2xl font-bold font-display text-slate-800">{summary.count} <span className="text-base font-medium text-slate-500">Warga</span></p>
                         }
                     </div>
+                </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                <div className="bg-amber-100 p-3 rounded-lg">
+                    <ClockIcon className="text-2xl text-amber-600" />
+                </div>
+                <div className="min-w-0">
+                    <p className="text-slate-500 text-sm font-medium">Jadwal Pengambilan Hari Ini</p>
+                    {loading ? <div className="h-8 w-40 bg-slate-200 rounded animate-pulse mt-1"></div> :
+                        scheduleInfo?.isHoliday ? (
+                            <p className="text-2xl font-bold font-display text-slate-800">Libur</p>
+                        ) : (
+                            <p className="text-lg font-bold font-display text-slate-800 leading-snug">
+                                {(scheduleInfo?.dukuhNames || []).join(', ') || '-'}
+                            </p>
+                        )
+                    }
                 </div>
             </div>
 
