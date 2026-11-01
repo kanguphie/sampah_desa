@@ -505,17 +505,17 @@ const PetugasScanPage: FC = () => {
                     {isPayingDebt ? (
                         <div className="space-y-4 animate-fade-in">
                             <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Cicilan</label>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Cicilan (Maks Rp{(warga?.totalDebt || 0).toLocaleString('id-ID')})</label>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
-                                    <input type="text" inputMode="numeric" value={debtInput === '' ? '' : debtInput.toLocaleString('id-ID')} onChange={(e) => setDebtInput(Number(e.target.value.replace(/\D/g, '')))} placeholder="0" className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary" autoFocus />
+                                    <input type="text" inputMode="numeric" value={debtInput === '' ? '' : debtInput.toLocaleString('id-ID')} onChange={(e) => setDebtInput(Math.min(Number(e.target.value.replace(/\D/g, '')), warga?.totalDebt || 0))} placeholder="0" className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary" autoFocus />
                                 </div>
                                 <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
                                     {quickChips.map((chipVal) => (
                                         <button
                                             key={chipVal}
                                             type="button"
-                                            onClick={() => setDebtInput(chipVal)}
+                                            onClick={() => setDebtInput(Math.min(chipVal, warga?.totalDebt || 0))}
                                             className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
                                                 debtInput === chipVal
                                                     ? 'bg-amber-400 text-slate-950 font-black shadow-md'

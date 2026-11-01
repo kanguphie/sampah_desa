@@ -1244,7 +1244,7 @@ async function startServer() {
         const db = await getDB();
         const id = `tr-${Date.now()}`;
         await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", ?)', [id, wargaId, petugasId, amount, getWIBDateTimeString()]);
-        await db.execute('UPDATE wargas SET totalDebt = totalDebt - ? WHERE id = ?', [amount, wargaId]);
+        await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [amount, wargaId]);
         res.json({ success: true, id });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
@@ -2591,8 +2591,8 @@ async function startServer() {
             // Adding a debt record (harian or bulanan)
             await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, wargaId]);
         } else if (finalStatus === 'paid' && finalCategory === 'tunggakan') {
-            // Paying a debt
-            await db.execute('UPDATE wargas SET totalDebt = totalDebt - ? WHERE id = ?', [amount, wargaId]);
+            // Paying a debt (clamped so debt can never go negative)
+            await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [amount, wargaId]);
         }
         // Normal daily payment (paid + harian) doesn't change existing totalDebt field
 
