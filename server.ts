@@ -1795,7 +1795,32 @@ async function startServer() {
         const today = days[new Date().getDay()];
         const db = await getDB();
         const [rows]: any = await db.execute('SELECT * FROM schedules WHERE day = ?', [today]);
-        res.json(rows[0] || { day: today, dukuhIds: [] });
+        const row = rows[0];
+        let dukuhIds: number[] = [];
+        let isHoliday = true;
+        if (row && row.dukuhIds != null) {
+            let parsed: any = row.dukuhIds;
+            if (typeof parsed === 'string') {
+                try { parsed = JSON.parse(parsed); } catch { parsed = []; }
+            }
+            if (parsed === 'libur') {
+                isHoliday = true;
+            } else if (Array.isArray(parsed)) {
+                dukuhIds = parsed.map(Number).filter((n: number) => !isNaN(n));
+                isHoliday = dukuhIds.length === 0;
+            }
+        }
+        let dukuhNames: string[] = [];
+        if (!isHoliday && dukuhIds.length > 0) {
+            const [dukuhRows]: any = await db.execute(
+                `SELECT id, name FROM dukuhs WHERE id IN (${dukuhIds.map(() => '?').join(',')})`,
+                dukuhIds
+            );
+            const nameById: any = {};
+            dukuhRows.forEach((d: any) => { nameById[d.id] = d.name; });
+            dukuhNames = dukuhIds.map((id: number) => nameById[id]).filter(Boolean);
+        }
+        res.json({ day: today, isHoliday, dukuhIds, dukuhNames });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
