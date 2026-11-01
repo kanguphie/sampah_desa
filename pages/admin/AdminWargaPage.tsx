@@ -285,6 +285,27 @@ const AdminWargaPage: React.FC = () => {
         exportToExcel(templateData, "Template_Warga_Rowosari", "DataWarga");
     };
 
+    const handleExportExcel = () => {
+        if (sortedAndFilteredWarga.length === 0) {
+            setMessage({ type: 'error', text: 'Tidak ada data warga untuk diekspor.' });
+            return;
+        }
+        const rows = sortedAndFilteredWarga.map(w => {
+            const isBulanan = w.billingType === 'BULANAN';
+            return {
+                "ID": w.id || '',
+                "Nama": w.name || '',
+                "RT": rtList.find(r => r.id === w.rtId)?.number || '',
+                "Dukuh": dukuhList.find(d => d.id === w.dukuhId)?.name || '',
+                "Tipe Pembayaran": isBulanan ? "Bulanan" : "Harian",
+                "Tarif (Rp)": isBulanan ? (w.monthlyFee || 0) : (w.dailyFee || 0),
+                "Tunggakan (Rp)": w.totalDebt || 0,
+            };
+        });
+        exportToExcel(rows, "Data_Warga_Rowosari", "Data Warga");
+        setMessage({ type: 'success', text: `${rows.length} data warga berhasil diekspor ke Excel.` });
+    };
+
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -379,6 +400,9 @@ const AdminWargaPage: React.FC = () => {
                     )}
                     <button onClick={handleDownloadTemplate} className="flex-1 md:flex-none bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2 border border-slate-200 text-xs">
                         <FileExcelIcon className="text-emerald-500" /> Template
+                    </button>
+                    <button onClick={handleExportExcel} className="flex-1 md:flex-none bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 text-xs shadow-lg shadow-emerald-600/20">
+                        <DownloadIcon /> Export Excel
                     </button>
                     <button onClick={() => fileInputRef.current?.click()} disabled={importLoading} className="flex-1 md:flex-none bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-slate-900 transition-all flex items-center justify-center gap-2 text-xs">
                         <UploadIcon /> {importLoading ? 'Membaca...' : 'Import Excel'}
