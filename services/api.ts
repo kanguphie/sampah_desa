@@ -78,8 +78,9 @@ async function fetchLocal(endpoint: string, options: any = {}) {
         
         // Automatic Date Parsing Helper
         const dateReviver = (val: any): any => {
-            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
-                return new Date(val);
+            // Terima format ISO (T) maupun MySQL DATETIME (spasi) karena dateStrings: true
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(val)) {
+                return new Date(val.replace(' ', 'T'));
             }
             if (Array.isArray(val)) return val.map(dateReviver);
             if (val !== null && typeof val === 'object') {
