@@ -289,9 +289,9 @@ const PublicHomePage: React.FC = () => {
 
             {/* Hasil Pencarian - Modal */}
             {warga && (
-              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label="Hasil pencarian warga">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Hasil pencarian warga">
                 <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeResult}></div>
-                <div className="relative bg-slate-50 w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden animate-slide-in-up">
+                <div className="relative bg-slate-50 w-full sm:max-w-lg rounded-3xl shadow-2xl max-h-[88vh] flex flex-col overflow-hidden animate-slide-in-up">
                   <div className="px-4 py-3.5 bg-white border-b border-slate-100 flex items-center gap-3 shrink-0">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-black text-lg shrink-0">
                       {warga.name.charAt(0)}
