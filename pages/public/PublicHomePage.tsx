@@ -82,7 +82,7 @@ const PublicHomePage: React.FC = () => {
             checkIfWargaPaidToday(wargaId)
         ]);
         setTransactions(transactionData);
-        setHasPaidToday(paidToday);
+        setHasPaidToday(paidToday?.paid === true);
         
         setTimeout(() => {
             resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
