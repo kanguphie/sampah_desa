@@ -33,10 +33,13 @@ const MonthlyReport: React.FC = () => {
     const dailyData = useMemo(() => {
         const daysInMonth = new Date(year, month, 0).getDate();
         const data = [];
+        // Hanya transaksi LUNAS yang dihitung sebagai pemasukan; tunggakan (unpaid)
+        // dicatat di laporan tunggakan, bukan di sini.
+        const isPaidTx = (r: any) => ['paid', 'lunas'].includes(String(r.status || '').toLowerCase());
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(year, month - 1, d);
             const dateStr = dateObj.toDateString();
-            const iuran = reports.filter(r => new Date(r.timestamp).toDateString() === dateStr).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+            const iuran = reports.filter(r => new Date(r.timestamp).toDateString() === dateStr && isPaidTx(r)).reduce((s, i) => s + (Number(i.amount) || 0), 0);
             const other = otherIncomes.filter(o => new Date(o.date).toDateString() === dateStr).reduce((s, i) => s + (Number(i.amount) || 0), 0);
             const income = iuran + other;
             const expense = expenses.filter(e => new Date(e.date).toDateString() === dateStr).reduce((s, i) => s + (Number(i.amount) || 0), 0);

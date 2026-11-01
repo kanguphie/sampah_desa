@@ -30,8 +30,11 @@ const YearlyReport: React.FC = () => {
 
     const monthlySummary = useMemo(() => {
         const data = [];
+        // Hanya transaksi LUNAS yang dihitung sebagai pemasukan; tunggakan (unpaid)
+        // dicatat di laporan tunggakan, bukan di sini.
+        const isPaidTx = (r: any) => ['paid', 'lunas'].includes(String(r.status || '').toLowerCase());
         for (let m = 0; m < 12; m++) {
-            const iuran = reports.filter(r => new Date(r.timestamp).getMonth() === m).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+            const iuran = reports.filter(r => new Date(r.timestamp).getMonth() === m && isPaidTx(r)).reduce((s, i) => s + (Number(i.amount) || 0), 0);
             const other = otherIncomes.filter(o => new Date(o.date).getMonth() === m).reduce((s, i) => s + (Number(i.amount) || 0), 0);
             const income = iuran + other;
             const expense = expenses.filter(e => new Date(e.date).getMonth() === m).reduce((s, i) => s + (Number(i.amount) || 0), 0);

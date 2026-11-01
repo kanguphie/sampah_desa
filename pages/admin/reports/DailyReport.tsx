@@ -66,7 +66,10 @@ const DailyReport: React.FC = () => {
     }, [date]);
 
     // Filter locally to strictly match the selected target calendar date
-    const filteredReports = reports.filter(r => toLocalDateString(r.timestamp) === date);
+    // Hanya transaksi LUNAS yang dihitung sebagai pemasukan; tunggakan (unpaid)
+    // dicatat di laporan tunggakan, bukan di sini.
+    const isPaidTx = (r: any) => ['paid', 'lunas'].includes(String(r.status || '').toLowerCase());
+    const filteredReports = reports.filter(r => toLocalDateString(r.timestamp) === date && isPaidTx(r));
     const filteredExpenses = expenses.filter(e => toLocalDateString(e.date) === date);
     const filteredOtherIncomes = otherIncomes.filter(o => toLocalDateString(o.date) === date);
 

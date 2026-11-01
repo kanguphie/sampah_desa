@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getReports, deleteTransaksi, getAllDukuh, getAllRT } from '@/services/api';
 import type { Transaksi, Dukuh, RT } from '@/types';
-import { SearchIcon, TrashIcon, ChevronDownIcon, DownloadIcon, BanknotesIcon, CurrencyDollarIcon, CheckCircleIcon, AlertCircleIcon } from '@/components/icons';
+import { SearchIcon, TrashIcon, ChevronDownIcon, DownloadIcon, BanknotesIcon, CurrencyDollarIcon, CheckCircleIcon, AlertCircleIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 
 interface ReportRow extends Transaksi {
@@ -386,7 +386,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? <tr><td colSpan={7} className="p-10 text-center animate-pulse">Sinkronisasi Database...</td></tr> : 
-                            paginatedTx.map(tx => (
+                            paginatedTx.map(tx => {
+                                const txStatus = String((tx as any).status || '').toLowerCase();
+                                const txCategory = String(tx.category || '').toLowerCase();
+                                const isUnpaid = txStatus === 'unpaid' || txStatus === 'hutang';
+                                const isDebtPayment = txCategory === 'tunggakan';
+                                return (
                                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-4 text-xs font-medium text-slate-500">
                                         <div className="font-bold text-slate-700">{displayLocalDate(tx.timestamp)}</div>
@@ -397,9 +402,13 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                         <div className="text-[10px] text-slate-400 font-mono">ID: {(tx.wargaId || 'N/A')}</div>
                                     </td>
                                     <td className="p-4 text-center">
-                                        {tx.category === 'TUNGGAKAN' ? (
+                                        {isUnpaid ? (
+                                            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border border-amber-200">
+                                                <ClockIcon className="text-[10px]" /> Hutang
+                                            </span>
+                                        ) : isDebtPayment ? (
                                             <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border border-indigo-100">
-                                                <BanknotesIcon className="text-[10px]" /> Tunggakan
+                                                <BanknotesIcon className="text-[10px]" /> Bayar Tunggakan
                                             </span>
                                         ) : (
                                             <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border border-emerald-100">
@@ -409,12 +418,12 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                     </td>
                                     <td className="p-4 text-xs text-slate-500 font-medium">{getWilayahText(tx)}</td>
                                     <td className="p-4 text-slate-600 font-medium text-[10px] uppercase tracking-wider">{(tx.petugasName || 'N/A')}</td>
-                                    <td className="p-4 text-right font-mono font-black text-emerald-600 text-base">Rp{(tx.amount || 0).toLocaleString('id-ID')}</td>
+                                    <td className={`p-4 text-right font-mono font-black text-base ${isUnpaid ? 'text-amber-600' : 'text-emerald-600'}`}>Rp{(tx.amount || 0).toLocaleString('id-ID')}</td>
                                     <td className="p-4 text-center">
                                         <button onClick={() => setTransactionToDelete(tx)} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg transition-all" title="Hapus"><TrashIcon /></button>
                                     </td>
                                 </tr>
-                            ))}
+                            ); })}
                             {!loading && sortedAndFilteredTx.length === 0 && (
                                 <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-bold italic text-xs uppercase">Tidak ada data transaksi yang ditemukan sesuai filter</td></tr>
                             )}
