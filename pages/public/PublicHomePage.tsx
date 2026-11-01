@@ -41,7 +41,6 @@ const PublicHomePage: React.FC = () => {
   const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
   const [rtList, setRtList] = useState<RT[]>([]);
   
-  const resultRef = useRef<HTMLDivElement>(null);
   const searchSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,10 +82,6 @@ const PublicHomePage: React.FC = () => {
         ]);
         setTransactions(transactionData);
         setHasPaidToday(paidToday?.paid === true);
-        
-        setTimeout(() => {
-            resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
       } else {
         setError('ID Warga tidak ditemukan. Cek kembali nomor Anda.');
         setWarga(null);
@@ -97,6 +92,19 @@ const PublicHomePage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const closeResult = () => { setWarga(null); setWargaId(''); };
+
+  useEffect(() => {
+      document.body.style.overflow = warga ? 'hidden' : '';
+      return () => { document.body.style.overflow = ''; };
+  }, [warga]);
+
+  useEffect(() => {
+      const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeResult(); };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const getDukuhName = (id: number) => dukuhList.find(d => d.id === id)?.name || 'N/A';
   const getRTNumber = (id: number) => rtList.find(r => r.id === id)?.number || 'N/A';
@@ -277,163 +285,78 @@ const PublicHomePage: React.FC = () => {
                 </section>
             )}
             
-            {/* Hasil Pencarian - Refined UI/UX */}
-            {warga && (
-              <section ref={resultRef} className="py-16 md:py-28 bg-slate-50/50 border-t border-slate-200 scroll-mt-20">
-                <div className="container mx-auto px-6">
-                    <div className="max-w-6xl mx-auto animate-slide-in-up">
-                        <div className="mb-12 flex flex-col md:flex-row justify-between items-center gap-6">
-                            <div className="text-center md:text-left">
-                                <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight flex items-center justify-center md:justify-start gap-4">
-                                    Halo, {warga.name.split(' ')[0]}! <span className="animate-bounce">👋</span>
-                                </h2>
-                                <p className="text-slate-500 font-medium text-lg mt-2">Berikut adalah ringkasan akun retribusi Anda.</p>
-                            </div>
-                            <button onClick={() => { setWarga(null); setWargaId(''); }} className="group relative overflow-hidden bg-white text-emerald-600 font-black px-8 py-4 rounded-2xl border-2 border-emerald-100 transition-all hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/10 flex items-center gap-3 uppercase tracking-widest text-[10px]">
-                                <div className="absolute inset-0 bg-emerald-50 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
-                                <SearchIcon className="text-sm relative z-10" /> <span className="relative z-10">Cari ID Lain</span>
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                            {/* Card 1: Identitas */}
-                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                                <div className="flex items-center justify-between mb-8">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full">Informasi Akun</p>
-                                    <IdentificationIcon className="text-slate-200 text-2xl" />
-                                </div>
-                                <div className="flex items-center gap-6 mb-10">
-                                    <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-3xl flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-emerald-500/20 transform -rotate-3 hover:rotate-0 transition-transform">
-                                        {warga.name.charAt(0)}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-black text-slate-900 text-2xl leading-none">{warga.name}</h4>
-                                        <p className="text-xs text-emerald-500 font-mono font-black mt-2 tracking-widest">ID: {warga.id}</p>
-                                    </div>
-                                </div>
-                                <div className="mt-auto space-y-4 pt-6 border-t border-slate-50">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-slate-400">
-                                            <HomeIcon className="text-xs" />
-                                            <span className="text-[10px] font-black uppercase tracking-tighter">Dukuh</span>
-                                        </div>
-                                        <span className="font-black text-slate-700 text-sm">{getDukuhName(warga.dukuhId)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-slate-400">
-                                            <RecycleIcon className="text-xs" />
-                                            <span className="text-[10px] font-black uppercase tracking-tighter">Unit RT</span>
-                                        </div>
-                                        <span className="font-black text-slate-700 text-sm">RT {getRTNumber(warga.rtId)}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Card 2: Status Bayar */}
-                            <div className={`p-8 rounded-[2.5rem] border shadow-sm flex flex-col h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-500 ${hasPaidToday ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-amber-500 border-amber-400 text-white shadow-amber-500/10'}`}>
-                                <div className="flex items-center justify-between mb-8">
-                                    <p className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">Status Hari Ini</p>
-                                    <ClockIcon className="text-white/40 text-2xl" />
-                                </div>
-                                <div className="flex flex-col items-center text-center py-4">
-                                    <div className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-5xl mb-6 shadow-inner animate-pulse">
-                                        {hasPaidToday ? <CheckCircleIcon /> : <ClockIcon />}
-                                    </div>
-                                    <h4 className="text-4xl font-black tracking-tight">{hasPaidToday ? 'LUNAS' : 'PENDING'}</h4>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-3 opacity-80">
-                                        {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}
-                                    </p>
-                                </div>
-                                <div className="mt-auto pt-6 border-t border-white/10 text-center">
-                                    <p className="text-[10px] font-black uppercase italic opacity-70">
-                                        {hasPaidToday ? 'Terima kasih atas kontribusi Anda!' : 'Segera lakukan pembayaran ke petugas'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Card 3: Tunggakan */}
-                            <div className={`p-8 rounded-[2.5rem] border shadow-sm flex flex-col h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-500 ${warga.totalDebt > 0 ? 'bg-white border-rose-100' : 'bg-white border-slate-100'}`}>
-                                <div className="flex items-center justify-between mb-8">
-                                    <p className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${warga.totalDebt > 0 ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>Sisa Tunggakan</p>
-                                    <BanknotesIcon className={`${warga.totalDebt > 0 ? 'text-rose-200' : 'text-slate-200'} text-2xl`} />
-                                </div>
-                                <div className="flex flex-col items-center text-center py-4">
-                                    <p className={`text-5xl font-black tracking-tighter ${warga.totalDebt > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
-                                        Rp{warga.totalDebt.toLocaleString('id-ID')}
-                                    </p>
-                                    <div className={`mt-6 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ${warga.totalDebt > 0 ? 'bg-rose-50 text-rose-600 animate-pulse' : 'bg-emerald-50 text-emerald-600'}`}>
-                                        {warga.totalDebt > 0 ? (
-                                            <>Mohon Segera Dilunasi <i className="fa-solid fa-triangle-exclamation"></i></>
-                                        ) : (
-                                            <>Semua Sudah Beres! <CheckCircleIcon /></>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="mt-auto pt-6 border-t border-slate-50">
-                                    <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-tighter">Data real-time disinkronisasi otomatis</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Riwayat Table Section */}
-                        <div className="mt-16 bg-white rounded-[3rem] border border-slate-100 shadow-2xl overflow-hidden animate-slide-in-up delay-150">
-                          <div className="p-8 md:p-12 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-slate-50/50">
-                              <div className="flex items-center gap-5">
-                                  <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner"><ClipboardListIcon className="text-2xl" /></div>
-                                  <div>
-                                      <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Catatan Pembayaran</h3>
-                                      <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">10 transaksi terakhir yang tercatat</p>
-                                  </div>
-                              </div>
-                              <Link to="/contact" className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-500 transition-colors border-2 border-slate-100 px-6 py-3 rounded-xl hover:border-emerald-200">
-                                  Ada Masalah? Hubungi Admin
-                              </Link>
-                          </div>
-                          <div className="overflow-x-auto">
-                              <table className="w-full text-left">
-                                <thead className="bg-slate-50/80 border-b border-slate-100 font-black text-[9px] md:text-[10px] text-slate-400 uppercase tracking-[0.2em]">
-                                  <tr>
-                                      <th className="py-6 px-10">Waktu Transaksi</th>
-                                      <th className="py-6 px-10 hidden sm:table-cell">Jenis Layanan</th>
-                                      <th className="py-6 px-10 text-right">Nominal</th>
-                                      <th className="py-6 px-10 text-center">Verifikasi</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                  {transactions.length > 0 ? transactions.map(tx => (
-                                    <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
-                                      <td className="py-8 px-10">
-                                          <p className="font-black text-slate-700 text-lg">{tx.timestamp.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' })}</p>
-                                          <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">{tx.timestamp.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
-                                      </td>
-                                      <td className="py-8 px-10 hidden sm:table-cell">
-                                          <span className={`text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border-2 ${tx.category === 'TUNGGAKAN' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                                              {tx.category === 'TUNGGAKAN' ? 'Pelunasan Hutang' : 'Iuran Rutin'}
-                                          </span>
-                                      </td>
-                                      <td className="py-8 px-10 text-right font-black text-slate-900 text-xl font-mono tracking-tighter">Rp{tx.amount.toLocaleString('id-ID')}</td>
-                                      <td className="py-8 px-10 text-center">
-                                        <div className="inline-flex items-center gap-2 bg-emerald-500 text-white py-2 px-5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20">
-                                          <CheckCircleIcon className="text-[10px]" /> <span className="hidden xs:inline">Sudah Masuk</span>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )) : (
-                                      <tr><td colSpan={4} className="text-center py-28"><div className="flex flex-col items-center"><div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 text-5xl mb-6 shadow-inner"><i className="fa-solid fa-receipt"></i></div><p className="text-slate-400 font-black uppercase tracking-widest text-xs italic">Belum ada riwayat pembayaran yang tersedia.</p></div></td></tr>
-                                  )}
-                                </tbody>
-                              </table>
-                          </div>
-                          <div className="bg-slate-50/50 p-8 border-t border-slate-100 text-center">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Terima kasih atas partisipasi Anda dalam menjaga kebersihan Desa Rowosari</p>
-                          </div>
-                        </div>
-                    </div>
-                </div>
-              </section>
-            )}
         </main>
 
+            {/* Hasil Pencarian - Modal */}
+            {warga && (
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label="Hasil pencarian warga">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeResult}></div>
+                <div className="relative bg-slate-50 w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden animate-slide-in-up">
+                  <div className="px-4 py-3.5 bg-white border-b border-slate-100 flex items-center gap-3 shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-black text-lg shrink-0">
+                      {warga.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-black text-slate-900 leading-tight truncate">Halo, {warga.name.split(' ')[0]}! 👋</h3>
+                      <p className="text-[11px] text-slate-500 font-bold truncate">ID {warga.id} • {getDukuhName(warga.dukuhId)} • RT {getRTNumber(warga.rtId)}</p>
+                    </div>
+                    <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${hasPaidToday ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
+                      {hasPaidToday ? <CheckCircleIcon className="text-xs" /> : <ClockIcon className="text-xs" />}
+                      {hasPaidToday ? 'Lunas' : 'Pending'}
+                    </span>
+                    <button onClick={closeResult} aria-label="Tutup" className="shrink-0 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto p-4 space-y-3">
+                    <div className="bg-white rounded-2xl border border-slate-100 px-4 py-3 flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sisa Tunggakan</span>
+                      {warga.totalDebt > 0 ? (
+                        <span className="font-black text-lg text-rose-600">Rp{warga.totalDebt.toLocaleString('id-ID')}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-sm font-black text-emerald-600"><CheckCircleIcon /> Beres</span>
+                      )}
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">Catatan Pembayaran</h4>
+                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">10 transaksi terakhir</p>
+                      </div>
+                      <table className="w-full text-left">
+                        <thead className="bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                          <tr>
+                            <th className="py-2.5 px-4">Waktu</th>
+                            <th className="py-2.5 px-4 text-right">Nominal</th>
+                            <th className="py-2.5 px-4 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {transactions.length > 0 ? transactions.map(tx => (
+                            <tr key={tx.id} className="hover:bg-slate-50/50">
+                              <td className="py-3 px-4">
+                                <p className="font-bold text-slate-700 text-sm">{tx.timestamp.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
+                                <p className="text-[10px] font-bold text-slate-400">{tx.timestamp.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
+                              </td>
+                              <td className="py-3 px-4 text-right font-black text-slate-900 text-sm font-mono">Rp{tx.amount.toLocaleString('id-ID')}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="inline-flex items-center gap-1 bg-emerald-500 text-white py-1 px-3 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                  <CheckCircleIcon className="text-[9px]" /> Masuk
+                                </span>
+                              </td>
+                            </tr>
+                          )) : (
+                            <tr><td colSpan={3} className="text-center py-10 text-slate-400 font-bold uppercase tracking-widest text-[11px]">Belum ada riwayat pembayaran</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Link to="/contact" className="block text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-emerald-500 transition-colors py-1">
+                      Ada Masalah? Hubungi Admin
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
         <footer className="bg-slate-900 text-slate-500 py-12 md:py-16">
             <div className="container mx-auto px-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-8 border-b border-slate-800 pb-12 mb-12 text-center md:text-left">
