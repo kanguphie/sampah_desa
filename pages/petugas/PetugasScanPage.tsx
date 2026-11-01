@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { FC } from 'react';
 import type { Warga, TransactionStatus, Transaksi, Dukuh, RT } from '@/types';
-import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday, getWargaStatus, createPartialPayment } from '@/services/api';
+import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday, getWargaStatus, createPartialPayment, payWithDeposit } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
@@ -280,7 +280,7 @@ const PetugasScanPage: FC = () => {
         try {
             const nominalTarif = isBulanan ? (warga.monthlyFee || 0) : (warga.dailyFee || 2000);
             const paid = Number(partialInput);
-            await createPartialPayment({
+            const result: any = await createPartialPayment({
                 wargaId: warga.id,
                 petugasId: petugas.id,
                 amountPaid: paid,
@@ -291,6 +291,8 @@ const PetugasScanPage: FC = () => {
             if (paid < nominalTarif) {
                 const deficit = nominalTarif - paid;
                 setModalTitle(`Diterima Rp${paid.toLocaleString('id-ID')} (Tunggakan +Rp${deficit.toLocaleString('id-ID')})`);
+            } else if (Number(result?.depositAdded || 0) > 0) {
+                setModalTitle(`Pembayaran Rp${paid.toLocaleString('id-ID')} Berhasil (Deposit +Rp${Number(result.depositAdded).toLocaleString('id-ID')})`);
             } else {
                 setModalTitle(`Pembayaran Rp${paid.toLocaleString('id-ID')} Berhasil`);
             }
@@ -315,6 +317,36 @@ const PetugasScanPage: FC = () => {
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
         } catch (err) { setError('Gagal menyimpan.'); }
+        finally { setLoading(false); }
+    };
+
+    const handlePayTodayWithDeposit = async () => {
+        if (!warga || !petugas) return;
+        const amount = Math.min(warga.deposit || 0, currentTarif);
+        if (amount <= 0) return;
+        setLoading(true);
+        try {
+            const res: any = await payWithDeposit({ wargaId: warga.id, petugasId: petugas.id, purpose: isBulanan ? 'bulanan' : 'harian', amount });
+            setModalTitle(`Iuran Dibayar pakai Deposit Rp${Number(res?.used || amount).toLocaleString('id-ID')}`);
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err: any) { setError(err?.message || 'Gagal memakai deposit.'); }
+        finally { setLoading(false); }
+    };
+
+    const handlePayDebtWithDeposit = async () => {
+        if (!warga || !petugas) return;
+        const amount = Math.min(warga.deposit || 0, warga.totalDebt || 0);
+        if (amount <= 0) return;
+        setLoading(true);
+        try {
+            const res: any = await payWithDeposit({ wargaId: warga.id, petugasId: petugas.id, purpose: 'tunggakan', amount });
+            setModalTitle(`Tunggakan Rp${Number(res?.used || amount).toLocaleString('id-ID')} Dipotong dari Deposit`);
+            setSuccess(true);
+            setIsModalOpen(true);
+            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
+        } catch (err: any) { setError(err?.message || 'Gagal memakai deposit.'); }
         finally { setLoading(false); }
     };
 
@@ -462,6 +494,14 @@ const PetugasScanPage: FC = () => {
                         </div>
                     </div>
 
+                    {(warga.deposit || 0) > 0 && (
+                        <div className="mb-6 p-4 rounded-2xl border bg-sky-50 border-sky-200 text-center">
+                            <p className="text-[8px] font-black text-sky-600 uppercase tracking-widest mb-1">Deposit Warga</p>
+                            <p className="text-xl font-black text-sky-700">Rp{(warga.deposit || 0).toLocaleString('id-ID')}</p>
+                            <p className="text-[10px] text-sky-500 font-medium mt-0.5">Bisa dipakai untuk membayar iuran / tunggakan</p>
+                        </div>
+                    )}
+
                     {isPayingDebt ? (
                         <div className="space-y-4 animate-fade-in">
                             <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl">
@@ -584,7 +624,7 @@ const PetugasScanPage: FC = () => {
                                             </div>
                                         ) : (
                                             <div className="text-sky-300 font-bold text-center text-[11px] pt-1">
-                                                Kelebihan Rp{(Number(partialInput) - currentTarif).toLocaleString('id-ID')} otomatis memotong tunggakan lama
+                                                Kelebihan Rp{(Number(partialInput) - currentTarif).toLocaleString('id-ID')} otomatis memotong tunggakan, sisanya jadi deposit
                                             </div>
                                         )}
                                     </div>
@@ -688,6 +728,16 @@ const PetugasScanPage: FC = () => {
                                 </>
                             )}
 
+                            {(warga.deposit || 0) > 0 && !isTodayPaid && (
+                                <button onClick={handlePayTodayWithDeposit} disabled={loading} className="w-full bg-sky-500 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-sky-500/20 hover:bg-sky-600 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                    <BanknotesIcon /> Bayar Hari Ini pakai Deposit (Rp{Math.min(warga.deposit || 0, currentTarif).toLocaleString('id-ID')})
+                                </button>
+                            )}
+                            {(warga.deposit || 0) > 0 && hasDebt && (
+                                <button onClick={handlePayDebtWithDeposit} disabled={loading} className="w-full bg-sky-100 text-sky-800 border border-sky-300 font-bold py-3 rounded-2xl hover:bg-sky-200 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                                    <BanknotesIcon /> Potong Tunggakan pakai Deposit (Rp{Math.min(warga.deposit || 0, warga.totalDebt || 0).toLocaleString('id-ID')})
+                                </button>
+                            )}
                             {hasDebt && (
                                 <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
                                     <BanknotesIcon /> Cicil Tunggakan

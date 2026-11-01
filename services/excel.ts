@@ -59,6 +59,7 @@ export const readWargaExcel = (file: File): Promise<Partial<Warga>[]> => {
                     const address = findValue(['Alamat', 'Address']);
                     const phone = findValue(['No HP', 'No. HP', 'Nomor HP', 'Telepon', 'Phone']);
                     const totalDebt = findValue(['Tunggakan', 'Total Tunggakan', 'Hutang', 'Debt']);
+                    const deposit = findValue(['Deposit', 'Saldo Deposit', 'Kredit']);
 
                     let billingType: 'HARIAN' | 'BULANAN' = 'HARIAN';
                     if (billingTypeRaw) {
@@ -78,7 +79,8 @@ export const readWargaExcel = (file: File): Promise<Partial<Warga>[]> => {
                         monthlyFee: (monthlyFee !== null && monthlyFee !== undefined && !isNaN(Number(monthlyFee))) ? Number(monthlyFee) : (billingType === 'BULANAN' ? 25000 : 0),
                         dukuhId: (dukuhId !== null && dukuhId !== undefined) ? Number(dukuhId) : undefined,
                         rtId: (rtId !== null && rtId !== undefined) ? Number(rtId) : undefined,
-                        totalDebt: (totalDebt !== null && totalDebt !== undefined && !isNaN(Number(totalDebt))) ? Number(totalDebt) : undefined
+                        totalDebt: (totalDebt !== null && totalDebt !== undefined && !isNaN(Number(totalDebt))) ? Number(totalDebt) : undefined,
+                        deposit: (deposit !== null && deposit !== undefined && !isNaN(Number(deposit))) ? Number(deposit) : undefined
                     };
                 });
                 

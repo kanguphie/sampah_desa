@@ -329,6 +329,15 @@ async function startServer() {
           console.warn("[MIGRATION] totalDebt ALTER warning:", e.message);
         }
       }
+      if (!existing.has('deposit')) {
+        try {
+          await db.execute("ALTER TABLE wargas ADD COLUMN deposit INT DEFAULT 0");
+          existing.add('deposit');
+          console.log("[MIGRATION] Added deposit column to wargas table");
+        } catch (e: any) {
+          console.warn("[MIGRATION] deposit ALTER warning:", e.message);
+        }
+      }
       if (!existing.has('dailyfee')) {
         try {
           await db.execute("ALTER TABLE wargas ADD COLUMN dailyFee INT DEFAULT 2000");
@@ -367,7 +376,7 @@ async function startServer() {
         )`,
         `CREATE TABLE IF NOT EXISTS dukuhs (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
         `CREATE TABLE IF NOT EXISTS rts (id INT AUTO_INCREMENT PRIMARY KEY, number VARCHAR(10), dukuhId INT)`,
-        `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT DEFAULT 2000, billingType VARCHAR(20) DEFAULT 'HARIAN', monthlyFee INT DEFAULT 0, totalDebt INT DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS wargas (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), address TEXT, dukuhId INT, rtId INT, phone VARCHAR(20), dailyFee INT DEFAULT 2000, billingType VARCHAR(20) DEFAULT 'HARIAN', monthlyFee INT DEFAULT 0, totalDebt INT DEFAULT 0, deposit INT DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS petugases (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS admins (id VARCHAR(50) PRIMARY KEY, username VARCHAR(255), name VARCHAR(255), pin VARCHAR(10))`,
         `CREATE TABLE IF NOT EXISTS transactions (id VARCHAR(50) PRIMARY KEY, wargaId VARCHAR(50), petugasId VARCHAR(50), amount INT, status VARCHAR(20), category VARCHAR(50), timestamp DATETIME)`,
@@ -1310,19 +1319,87 @@ async function startServer() {
         );
 
         const excess = paid - nominalTarif;
+        let debtOffset = 0;
+        let depositAdded = 0;
         if (excess > 0) {
-            // Kelebihan bayar otomatis dialokasikan untuk memotong tunggakan lama
-            const debtPayId = `tr-debt-pay-${Date.now()}`;
-            await db.execute(
-                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", ?)',
-                [debtPayId, wargaId, petugasId || null, excess, nowStr]
-            );
-            await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [excess, wargaId]);
+            // Kelebihan bayar: potong tunggakan lama dulu (hanya sebesar hutang yang ada),
+            // sisanya menjadi deposit (saldo kredit) milik warga.
+            const curDebt = Number(warga.totalDebt || 0);
+            debtOffset = Math.min(excess, curDebt);
+            if (debtOffset > 0) {
+                const debtPayId = `tr-debt-pay-${Date.now()}`;
+                await db.execute(
+                    'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", ?)',
+                    [debtPayId, wargaId, petugasId || null, debtOffset, nowStr]
+                );
+                await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [debtOffset, wargaId]);
+            }
+            depositAdded = excess - debtOffset;
+            if (depositAdded > 0) {
+                const depId = `tr-deposit-${Date.now()}`;
+                await db.execute(
+                    'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "deposit", ?)',
+                    [depId, wargaId, petugasId || null, depositAdded, nowStr]
+                );
+                await db.execute('UPDATE wargas SET deposit = deposit + ? WHERE id = ?', [depositAdded, wargaId]);
+            }
         }
 
-        return res.json({ success: true, type: 'lunas', amountPaid: paid, excess });
+        return res.json({ success: true, type: 'lunas', amountPaid: paid, excess, debtOffset, depositAdded });
     } catch (err: any) {
         console.error('[API Error] partial transaction:', err);
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Bayar memakai saldo deposit warga (dari kelebihan bayar sebelumnya).
+  // purpose: 'harian' | 'bulanan' -> bayar iuran periode berjalan; 'tunggakan' -> lunasi hutang lama.
+  app.post('/api/deposit/pay', async (req, res) => {
+    try {
+        const { wargaId, petugasId, purpose, amount } = req.body;
+        const db = await getDB();
+        const [wRows]: any = await db.execute('SELECT * FROM wargas WHERE id = ?', [wargaId]);
+        if (wRows.length === 0) return res.status(404).json({ error: 'Warga tidak ditemukan' });
+        const warga = wRows[0];
+        const available = Number(warga.deposit || 0);
+        const useAmount = Math.min(Number(amount) || 0, available);
+        if (useAmount <= 0) return res.status(400).json({ error: 'Deposit tidak mencukupi' });
+
+        const nowStr = getWIBDateTimeString();
+        const today = getWIBDateString();
+        const p = String(purpose || '').toLowerCase();
+        const txCategory = p === 'tunggakan' ? 'tunggakan' : (p === 'bulanan' ? 'bulanan' : 'harian');
+
+        if (txCategory === 'tunggakan') {
+            const depTxId = `tr-dep-use-${Date.now()}`;
+            await db.execute(
+                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", "tunggakan", ?)',
+                [depTxId, wargaId, petugasId || null, useAmount, nowStr]
+            );
+            await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?), deposit = GREATEST(0, deposit - ?) WHERE id = ?', [useAmount, useAmount, wargaId]);
+        } else {
+            // Jika hari ini sudah tercatat sebagai hutang (unpaid), lunasi catatan tersebut.
+            const [unpaidRows]: any = await db.execute(
+                'SELECT * FROM transactions WHERE wargaId = ? AND DATE(timestamp) = ? AND status = "unpaid" AND category = ? ORDER BY timestamp DESC LIMIT 1',
+                [wargaId, today, txCategory]
+            );
+            if (unpaidRows.length > 0) {
+                const tx = unpaidRows[0];
+                const settle = Math.min(useAmount, Number(tx.amount) || 0);
+                await db.execute('UPDATE transactions SET status = "paid", petugasId = ? WHERE id = ?', [petugasId || null, tx.id]);
+                await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?), deposit = GREATEST(0, deposit - ?) WHERE id = ?', [settle, useAmount, wargaId]);
+            } else {
+                const depTxId = `tr-dep-use-${Date.now()}`;
+                await db.execute(
+                    'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", ?, ?)',
+                    [depTxId, wargaId, petugasId || null, useAmount, txCategory, nowStr]
+                );
+                await db.execute('UPDATE wargas SET deposit = GREATEST(0, deposit - ?) WHERE id = ?', [useAmount, wargaId]);
+            }
+        }
+        const [wAfter]: any = await db.execute('SELECT deposit, totalDebt FROM wargas WHERE id = ?', [wargaId]);
+        res.json({ success: true, used: useAmount, deposit: Number(wAfter[0]?.deposit || 0), totalDebt: Number(wAfter[0]?.totalDebt || 0) });
+    } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
   });
@@ -2145,6 +2222,13 @@ async function startServer() {
                     totalDebt = Number(matched.totalDebt);
                 }
 
+                let deposit = 0;
+                if (item.deposit !== undefined && !isNaN(Number(item.deposit))) {
+                    deposit = Number(item.deposit);
+                } else if (matched && matched.deposit !== undefined) {
+                    deposit = Number(matched.deposit);
+                }
+
                 const billingType = String(item.billingType || '').toUpperCase().includes('BULAN') ? 'BULANAN' : 'HARIAN';
                 const dailyFee = (!isNaN(Number(item.dailyFee)) && Number(item.dailyFee) >= 0) ? Number(item.dailyFee) : 2000;
                 const monthlyFee = (!isNaN(Number(item.monthlyFee)) && Number(item.monthlyFee) >= 0) 
@@ -2165,6 +2249,7 @@ async function startServer() {
                 if (activeCols.has('billingtype')) rowObj.billingType = billingType;
                 if (activeCols.has('monthlyfee')) rowObj.monthlyFee = monthlyFee;
                 if (activeCols.has('totaldebt')) rowObj.totalDebt = totalDebt;
+                if (activeCols.has('deposit')) rowObj.deposit = deposit;
 
                 preparedRows.push(rowObj);
             }
@@ -2179,6 +2264,7 @@ async function startServer() {
             if (activeCols.has('billingtype')) insertKeys.push('billingType');
             if (activeCols.has('monthlyfee')) insertKeys.push('monthlyFee');
             if (activeCols.has('totaldebt')) insertKeys.push('totalDebt');
+            if (activeCols.has('deposit')) insertKeys.push('deposit');
 
             const colsSql = insertKeys.map(k => `\`${k}\``).join(', ');
             const singlePlaceholder = `(${insertKeys.map(() => '?').join(', ')})`;
@@ -2229,6 +2315,9 @@ async function startServer() {
             if (data.totalDebt === undefined && activeCols.has('totaldebt')) {
                 data.totalDebt = 0;
             }
+            if (data.deposit === undefined && activeCols.has('deposit')) {
+                data.deposit = 0;
+            }
             if (!data.billingType && activeCols.has('billingtype')) {
                 data.billingType = 'HARIAN';
             }
@@ -2238,6 +2327,7 @@ async function startServer() {
             if (activeCols.has('billingtype')) allowed.add('billingType');
             if (activeCols.has('monthlyfee')) allowed.add('monthlyFee');
             if (activeCols.has('totaldebt')) allowed.add('totalDebt');
+            if (activeCols.has('deposit')) allowed.add('deposit');
 
             const cleanData: any = {};
             for (const [k, v] of Object.entries(data)) {

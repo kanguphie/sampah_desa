@@ -300,6 +300,7 @@ const AdminWargaPage: React.FC = () => {
                 "Tipe Pembayaran": isBulanan ? "Bulanan" : "Harian",
                 "Tarif (Rp)": isBulanan ? (w.monthlyFee || 0) : (w.dailyFee || 0),
                 "Tunggakan (Rp)": w.totalDebt || 0,
+                "Deposit (Rp)": w.deposit || 0,
             };
         });
         exportToExcel(rows, "Data_Warga_Rowosari", "Data Warga");

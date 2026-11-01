@@ -20,6 +20,7 @@ export interface Warga {
     billingType?: BillingType; // 'HARIAN' (per ambil) atau 'BULANAN' (sebulan sekali)
     monthlyFee?: number; // Tarif sebulan sekali
     totalDebt: number; // Accumulated unpaid fees
+    deposit?: number; // Credit balance from overpayments, usable for future payments
 }
 
 export interface Petugas {

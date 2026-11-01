@@ -391,6 +391,7 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                 const txCategory = String(tx.category || '').toLowerCase();
                                 const isUnpaid = txStatus === 'unpaid' || txStatus === 'hutang';
                                 const isDebtPayment = txCategory === 'tunggakan';
+                                const isDepositTx = txCategory === 'deposit';
                                 return (
                                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="p-4 text-xs font-medium text-slate-500">
@@ -405,6 +406,10 @@ const AdminRiwayatTransaksiPage: React.FC = () => {
                                         {isUnpaid ? (
                                             <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border border-amber-200">
                                                 <ClockIcon className="text-[10px]" /> Hutang
+                                            </span>
+                                        ) : isDepositTx ? (
+                                            <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border border-sky-200">
+                                                <BanknotesIcon className="text-[10px]" /> Deposit
                                             </span>
                                         ) : isDebtPayment ? (
                                             <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border border-indigo-100">
