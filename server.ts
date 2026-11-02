@@ -600,6 +600,21 @@ async function startServer() {
       return next();
     }
 
+    // Kunci API khusus pencatatan pengeluaran (untuk asisten): hanya GET & POST
+    // /api/pengeluaran(s). Kunci dari env PENGELUARAN_API_KEY, dikirim via header X-API-Key.
+    // Kunci salah/tidak ada -> lanjut ke otentikasi Bearer normal (401 seperti biasa).
+    if (/^\/(api)\/(pengeluaran|pengeluarans)(\/|$)/.test(p) && (req.method === 'GET' || req.method === 'POST')) {
+      const expected = String(process.env.PENGELUARAN_API_KEY || '');
+      const provided = String(req.headers['x-api-key'] || '');
+      const a = Buffer.from(provided);
+      const b = Buffer.from(expected);
+      const valid = expected.length > 0 && provided.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+      if (valid) {
+        (req as any).auth = { sub: 'expense-writer', role: 'expense-writer', name: 'Pencatat Pengeluaran' };
+        return next();
+      }
+    }
+
     const header = String(req.headers.authorization || '');
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
     const auth = token ? verifyToken(token) : null;
