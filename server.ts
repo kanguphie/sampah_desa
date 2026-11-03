@@ -600,10 +600,13 @@ async function startServer() {
       return next();
     }
 
-    // Kunci API khusus pencatatan pengeluaran (untuk asisten): hanya GET & POST
-    // /api/pengeluaran(s). Kunci dari env PENGELUARAN_API_KEY, dikirim via header X-API-Key.
+    // Kunci API khusus pencatatan pengeluaran (untuk asisten): GET & POST
+    // /api/pengeluaran(s), plus baca ringkasan harian /api/stats/daily (GET saja).
+    // Kunci dari env PENGELUARAN_API_KEY, dikirim via header X-API-Key.
     // Kunci salah/tidak ada -> lanjut ke otentikasi Bearer normal (401 seperti biasa).
-    if (/^\/(api)\/(pengeluaran|pengeluarans)(\/|$)/.test(p) && (req.method === 'GET' || req.method === 'POST')) {
+    const isExpensePath = /^\/api\/(pengeluaran|pengeluarans)(\/|$)/.test(p);
+    const isDailyStatsRead = p === '/api/stats/daily' && req.method === 'GET';
+    if ((isExpensePath && (req.method === 'GET' || req.method === 'POST')) || isDailyStatsRead) {
       const expected = String(process.env.PENGELUARAN_API_KEY || '');
       const provided = String(req.headers['x-api-key'] || '');
       const a = Buffer.from(provided);
@@ -936,6 +939,38 @@ async function startServer() {
             totalTransaksiBulanIni: summary[0].transBulanIni || 0,
             totalDanaTerkumpulBulanIni: summary[0].danaBulanIni || 0,
             totalMasuk: summary[0].totalMasuk || 0
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Ringkasan pendapatan harian (WIB): total iuran + pemasukan lain hari ini.
+  // Diakses dengan kunci API PENGELUARAN_API_KEY (peran expense-writer) atau token login.
+  app.get('/api/stats/daily', async (req, res) => {
+    try {
+        const db = await getDB();
+        const d = new Date();
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const wib = new Date(utc + (3600000 * 7));
+        const todayStr = wib.toISOString().split('T')[0];
+
+        const [rev]: any = await db.execute(
+            'SELECT SUM(amount) as total, COUNT(*) as cnt FROM transactions WHERE DATE(timestamp) = ? AND status = "paid"',
+            [todayStr]
+        );
+        const [other]: any = await db.execute(
+            'SELECT SUM(amount) as total, COUNT(*) as cnt FROM pemasukan_lain WHERE date = ?',
+            [todayStr]
+        );
+        const iuran = Number(rev[0]?.total || 0);
+        const lain = Number(other[0]?.total || 0);
+        res.json({
+            date: todayStr,
+            iuran,
+            pemasukanLain: lain,
+            total: iuran + lain,
+            transactionCount: Number(rev[0]?.cnt || 0) + Number(other[0]?.cnt || 0)
         });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
