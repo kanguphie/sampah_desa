@@ -23,9 +23,6 @@ const PetugasScanPage: FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('Berhasil');
     
-    const [isPayingDebt, setIsPayingDebt] = useState(false);
-    const [debtInput, setDebtInput] = useState<number | ''>('');
-
     const [isPartialPaying, setIsPartialPaying] = useState(false);
     const [partialInput, setPartialInput] = useState<number | ''>('');
     const [confirmTidakBayar, setConfirmTidakBayar] = useState(false);
@@ -63,8 +60,6 @@ const PetugasScanPage: FC = () => {
         setError('');
         setSuccess(false);
         setLoading(false);
-        setIsPayingDebt(false);
-        setDebtInput('');
         setIsPartialPaying(false);
         setPartialInput('');
         setConfirmTidakBayar(false);
@@ -332,19 +327,6 @@ const PetugasScanPage: FC = () => {
         }
     };
 
-    const handlePayDebt = async (amount: number) => {
-        if (!warga || !petugas || amount <= 0) return;
-        setLoading(true);
-        try {
-            await payDebt(warga.id, petugas.id, amount);
-            setModalTitle('Tunggakan Dilunasi');
-            setSuccess(true);
-            setIsModalOpen(true);
-            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
-        } catch (err) { setError('Gagal menyimpan.'); }
-        finally { setLoading(false); }
-    };
-
     const handlePayTodayWithDeposit = async () => {
         if (!warga || !petugas) return;
         const amount = Math.min(warga.deposit || 0, currentTarif);
@@ -416,8 +398,6 @@ const PetugasScanPage: FC = () => {
     const hasDebt = warga ? warga.totalDebt > 0 : false;
     const currentTarif = isBulanan ? (warga?.monthlyFee || 0) : (warga?.dailyFee || 2000);
 
-    const quickChips = [1000, 3000, 5000];
-    
     const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
     const bulkAmount = warga ? (
         isBulanan
@@ -534,37 +514,7 @@ const PetugasScanPage: FC = () => {
                         </div>
                     )}
 
-                    {isPayingDebt ? (
-                        <div className="space-y-4 animate-fade-in">
-                            <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center text-white">Input Nominal Cicilan (Maks Rp{(warga?.totalDebt || 0).toLocaleString('id-ID')})</label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-500">Rp</span>
-                                    <input type="text" inputMode="numeric" value={debtInput === '' ? '' : debtInput.toLocaleString('id-ID')} onChange={(e) => setDebtInput(Math.min(Number(e.target.value.replace(/\D/g, '')), warga?.totalDebt || 0))} placeholder="0" className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black text-xl outline-none focus:ring-2 focus:ring-primary" autoFocus />
-                                </div>
-                                <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
-                                    {quickChips.map((chipVal) => (
-                                        <button
-                                            key={chipVal}
-                                            type="button"
-                                            onClick={() => setDebtInput(Math.min(chipVal, warga?.totalDebt || 0))}
-                                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
-                                                debtInput === chipVal
-                                                    ? 'bg-amber-400 text-slate-950 font-black shadow-md'
-                                                    : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            Rp{chipVal.toLocaleString('id-ID')}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-2 gap-3 mt-4">
-                                    <button onClick={() => setIsPayingDebt(false)} className="py-3 rounded-xl font-bold text-slate-400 bg-slate-800 border border-slate-700 text-xs">Batal</button>
-                                    <button onClick={() => handlePayDebt(Number(debtInput))} disabled={loading || !debtInput} className="py-3 rounded-xl font-bold bg-primary text-white text-xs">Simpan Cicilan</button>
-                                </div>
-                            </div>
-                        </div>
-                    ) : isPartialPaying ? (
+                    {isPartialPaying ? (
                         <div className="space-y-4 animate-fade-in">
                             <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl text-white">
                                 <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
@@ -749,12 +699,6 @@ const PetugasScanPage: FC = () => {
                                     <BanknotesIcon /> Potong Tunggakan pakai Deposit (Rp{Math.min(warga.deposit || 0, warga.totalDebt || 0).toLocaleString('id-ID')})
                                 </button>
                             )}
-                            {hasDebt && (
-                                <button onClick={() => setIsPayingDebt(true)} disabled={loading} className="w-full bg-amber-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest">
-                                    <BanknotesIcon /> Cicil Tunggakan
-                                </button>
-                            )}
-
                             {hasDebt && (isBulanan ? !isMonthlyPaid : !isTodayPaid) && (
                                 <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-white border-2 border-slate-800 text-slate-800 font-black py-4 rounded-2xl hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5">
                                     <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
