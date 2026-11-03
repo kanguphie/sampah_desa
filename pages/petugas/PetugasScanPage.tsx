@@ -600,16 +600,8 @@ const PetugasScanPage: FC = () => {
                                     <p className="text-3xl font-black text-white tracking-tight">Rp{partialNum.toLocaleString('id-ID')}</p>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-2 mb-3">
-                                    {['1','2','3','4','5','6','7','8','9','00','0','⌫'].map((k) => (
-                                        <button key={k} type="button" onClick={() => handleNumpad(k)} className="py-3.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-xl font-black hover:bg-slate-700 active:bg-slate-600 transition-all">
-                                            {k}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                    {[1000, 2000, 5000, 10000].map((v) => (
+                                <div className="flex items-center justify-center gap-1.5 flex-wrap mb-3">
+                                    {[1000, 3000, 5000, 10000].map((v) => (
                                         <button key={v} type="button" onClick={() => setPartialInput(v)} className="px-3 py-1.5 rounded-xl text-xs font-black bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-all">
                                             Rp{v.toLocaleString('id-ID')}
                                         </button>
@@ -617,6 +609,14 @@ const PetugasScanPage: FC = () => {
                                     <button type="button" onClick={() => setPartialInput(currentTarif)} className="px-3 py-1.5 rounded-xl text-xs font-black bg-amber-400 text-slate-950 shadow-md transition-all">
                                         Uang Pas
                                     </button>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 mb-3">
+                                    {['1','2','3','4','5','6','7','8','9','00','0','⌫'].map((k) => (
+                                        <button key={k} type="button" onClick={() => handleNumpad(k)} className="py-3.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-xl font-black hover:bg-slate-700 active:bg-slate-600 transition-all">
+                                            {k}
+                                        </button>
+                                    ))}
                                 </div>
 
                                 {partialNum > 0 ? (
