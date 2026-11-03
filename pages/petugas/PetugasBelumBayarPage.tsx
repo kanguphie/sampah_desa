@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getUnpaidWargaForToday, getAllDukuh, getAllRT, getScheduleForToday } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
-import { SearchIcon, UsersIcon } from '@/components/icons';
+import { useNavigate } from 'react-router-dom';
+import { SearchIcon, UsersIcon, BanknotesIcon } from '@/components/icons';
 
 const PetugasBelumBayarPage: React.FC = () => {
     const [unpaidWarga, setUnpaidWarga] = useState<Warga[]>([]);
@@ -11,6 +12,7 @@ const PetugasBelumBayarPage: React.FC = () => {
     const [scheduleInfo, setScheduleInfo] = useState<{ isHoliday: boolean, dukuhIds: number[], dukuhNames: string[] } | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -121,13 +123,18 @@ const PetugasBelumBayarPage: React.FC = () => {
                     ))
                 ) : filteredWarga.length > 0 ? (
                     filteredWarga.map(warga => (
-                        <div key={warga.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/80">
-                            <p className="font-semibold text-slate-800">{(warga.name || 'Warga Tanpa Nama')}</p>
-                            <p className="text-sm text-slate-500">
-                                Wilayah: RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}
-                                <span className="mx-2 text-slate-300">|</span>
-                                ID: <span className="font-mono">{(warga.id || 'N/A')}</span>
-                            </p>
+                        <div key={warga.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/80 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="font-semibold text-slate-800">{(warga.name || 'Warga Tanpa Nama')}</p>
+                                <p className="text-sm text-slate-500">
+                                    Wilayah: RT {getRTNumber(warga.rtId)}, {getDukuhName(warga.dukuhId)}
+                                    <span className="mx-2 text-slate-300">|</span>
+                                    ID: <span className="font-mono">{(warga.id || 'N/A')}</span>
+                                </p>
+                            </div>
+                            <button onClick={() => navigate(`/petugas/scan?id=${warga.id}`)} className="shrink-0 px-4 py-2.5 rounded-xl bg-emerald-500 text-white text-xs font-black uppercase tracking-wider shadow hover:bg-emerald-600 active:bg-emerald-700 transition-all flex items-center gap-1.5">
+                                <BanknotesIcon /> Bayar
+                            </button>
                         </div>
                     ))
                 ) : (

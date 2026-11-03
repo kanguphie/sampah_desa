@@ -6,6 +6,7 @@ import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWarga
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
+import { useSearchParams } from 'react-router-dom';
 import jsQR from 'jsqr';
 
 const PetugasScanPage: FC = () => {
@@ -36,17 +37,23 @@ const PetugasScanPage: FC = () => {
     const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const { petugas } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [metaReady, setMetaReady] = useState(false);
     
     useEffect(() => {
         const fetchMeta = async () => {
-            const [d, r, s] = await Promise.all([
-                getAllDukuh(), 
-                getAllRT(),
-                getScheduleForToday()
-            ]);
-            setDukuhList(d);
-            setRtList(r);
-            setScheduleToday(s);
+            try {
+                const [d, r, s] = await Promise.all([
+                    getAllDukuh(), 
+                    getAllRT(),
+                    getScheduleForToday()
+                ]);
+                setDukuhList(d);
+                setRtList(r);
+                setScheduleToday(s);
+            } finally {
+                setMetaReady(true);
+            }
         };
         fetchMeta();
     }, []);
@@ -144,6 +151,15 @@ const PetugasScanPage: FC = () => {
         }
     }, [scheduleToday, getDukuhName]);
 
+    // Dibuka dari daftar Belum Bayar (?id=...): langsung muat data warga tanpa scan
+    useEffect(() => {
+        const id = searchParams.get('id');
+        if (id && metaReady && !warga && !loading) {
+            setSearchParams({}, { replace: true });
+            fetchWarga(id);
+        }
+    }, [searchParams, metaReady, warga, loading, fetchWarga, setSearchParams]);
+
     useEffect(() => {
         let stream: MediaStream | null = null;
         let animationFrameId: number;
@@ -209,7 +225,7 @@ const PetugasScanPage: FC = () => {
             }
         };
 
-        if (mode === 'scan' && !warga && !success) startCamera();
+        if (mode === 'scan' && !warga && !success && !searchParams.get('id')) startCamera();
         
         return () => {
             if (stream) stream.getTracks().forEach(track => track.stop());
