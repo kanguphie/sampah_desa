@@ -48,6 +48,8 @@ const DailyReport: React.FC = () => {
     const [expenses, setExpenses] = useState<Pengeluaran[]>([]);
     const [otherIncomes, setOtherIncomes] = useState<PemasukanLain[]>([]);
     const [loading, setLoading] = useState(false);
+    const [sortKey, setSortKey] = useState<'waktu' | 'warga' | 'petugas' | 'nominal'>('waktu');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
     useEffect(() => {
         const fetch = async () => {
@@ -70,6 +72,27 @@ const DailyReport: React.FC = () => {
     // dicatat di laporan tunggakan, bukan di sini.
     const isPaidTx = (r: any) => ['paid', 'lunas'].includes(String(r.status || '').toLowerCase());
     const filteredReports = reports.filter(r => toLocalDateString(r.timestamp) === date && isPaidTx(r));
+
+    // Sort by column untuk tabel iuran
+    const sortedReports = [...filteredReports].sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === 'waktu') cmp = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        else if (sortKey === 'nominal') cmp = (Number(a.amount) || 0) - (Number(b.amount) || 0);
+        else if (sortKey === 'warga') cmp = String(a.wargaName || '').localeCompare(String(b.wargaName || ''), 'id');
+        else cmp = String(a.petugasName || '').localeCompare(String(b.petugasName || ''), 'id');
+        return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    const handleSort = (key: typeof sortKey) => {
+        if (sortKey === key) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortKey(key);
+            setSortDir(key === 'warga' || key === 'petugas' ? 'asc' : 'desc');
+        }
+    };
+
+    const sortArrow = (key: typeof sortKey) => sortKey === key ? (sortDir === 'asc' ? ' \u25b2' : ' \u25bc') : '';
     const filteredExpenses = expenses.filter(e => toLocalDateString(e.date) === date);
     const filteredOtherIncomes = otherIncomes.filter(o => toLocalDateString(o.date) === date);
 
@@ -83,7 +106,7 @@ const DailyReport: React.FC = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         
-        const incomeRows = filteredReports.map(r => `
+        const incomeRows = sortedReports.map(r => `
             <tr>
                 <td>${new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
                 <td><div class="font-bold">${r.wargaName}</div><div class="text-xs">RT ${r.rtNumber}, ${r.dukuhName}</div></td>
@@ -212,16 +235,16 @@ const DailyReport: React.FC = () => {
                 <table className="w-full text-sm text-left">
                     <thead>
                         <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="p-4">Waktu</th>
-                            <th className="p-4">Warga</th>
-                            <th className="p-4">Petugas</th>
-                            <th className="p-4 text-right">Nominal</th>
+                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('waktu')}>Waktu{sortArrow('waktu')}</th>
+                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('warga')}>Warga{sortArrow('warga')}</th>
+                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('petugas')}>Petugas{sortArrow('petugas')}</th>
+                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nominal')}>Nominal{sortArrow('nominal')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
                             <tr><td colSpan={4} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
-                        ) : filteredReports.map(r => (
+                        ) : sortedReports.map(r => (
                             <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
                                 <td className="p-4 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
                                 <td className="p-4">
