@@ -13,7 +13,7 @@ const MonthlyIuranStatusReport: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [statusFilter, setStatusFilter] = useState<'semua' | 'lunas' | 'belum'>('semua');
     const [dukuhFilter, setDukuhFilter] = useState<number | 'semua'>('semua');
-    const [sortKey, setSortKey] = useState<'warga' | 'tarif' | 'status' | 'tanggal' | 'nominal'>('status');
+    const [sortKey, setSortKey] = useState<'nama' | 'dukuh' | 'rt' | 'tarif' | 'status' | 'tanggal' | 'nominal'>('status');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
     useEffect(() => {
@@ -58,7 +58,7 @@ const MonthlyIuranStatusReport: React.FC = () => {
                 dukuhName: dukuhList.find((du: any) => du.id === w.dukuhId)?.name || '-',
                 monthlyFee: w.monthlyFee || 0,
                 paid: !!tx,
-                paidDate: tx ? new Date(tx.timestamp).toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit'}) : '',
+                paidDate: tx ? new Date(tx.timestamp).toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'}) : '',
                 paidAmount: tx ? Number(tx.amount) || 0 : 0,
                 paidTs: tx ? new Date(tx.timestamp).getTime() : 0
             };
@@ -69,7 +69,9 @@ const MonthlyIuranStatusReport: React.FC = () => {
         const arr = [...monthlyStatus];
         arr.sort((a, b) => {
             let cmp = 0;
-            if (sortKey === 'warga') cmp = String(a.name).localeCompare(String(b.name), 'id');
+            if (sortKey === 'nama') cmp = String(a.name).localeCompare(String(b.name), 'id');
+            else if (sortKey === 'dukuh') cmp = String(a.dukuhName).localeCompare(String(b.dukuhName), 'id') || String(a.rtNumber).localeCompare(String(b.rtNumber), 'id');
+            else if (sortKey === 'rt') cmp = String(a.rtNumber).localeCompare(String(b.rtNumber), 'id');
             else if (sortKey === 'tarif') cmp = a.monthlyFee - b.monthlyFee;
             else if (sortKey === 'status') cmp = Number(a.paid) - Number(b.paid);
             else if (sortKey === 'tanggal') cmp = a.paidTs - b.paidTs;
@@ -89,12 +91,17 @@ const MonthlyIuranStatusReport: React.FC = () => {
     const paidCount = useMemo(() => monthlyStatus.filter(m => m.paid).length, [monthlyStatus]);
     const totalMonthlyPaid = useMemo(() => monthlyStatus.reduce((s, m) => s + m.paidAmount, 0), [monthlyStatus]);
 
+    // Jumlah baris akhir — dihitung dari baris yang sedang tampil (mengikuti filter)
+    const totalTarifShown = useMemo(() => filteredMonthly.reduce((s, m) => s + m.monthlyFee, 0), [filteredMonthly]);
+    const totalNominalShown = useMemo(() => filteredMonthly.reduce((s, m) => s + m.paidAmount, 0), [filteredMonthly]);
+    const paidShown = useMemo(() => filteredMonthly.filter(m => m.paid).length, [filteredMonthly]);
+
     const handleSort = (key: typeof sortKey) => {
         if (sortKey === key) {
             setSortDir(d => d === 'asc' ? 'desc' : 'asc');
         } else {
             setSortKey(key);
-            setSortDir(key === 'warga' ? 'asc' : 'desc');
+            setSortDir(key === 'nama' || key === 'dukuh' || key === 'rt' ? 'asc' : 'desc');
         }
     };
 
@@ -107,15 +114,30 @@ const MonthlyIuranStatusReport: React.FC = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        const rows = filteredMonthly.map(m => `
+        const rows = filteredMonthly.map((m, i) => `
             <tr>
-                <td><div class="font-bold">${m.name}</div><div class="text-xs">RT ${m.rtNumber}, ${m.dukuhName}</div></td>
+                <td>${i + 1}</td>
+                <td><div class="font-bold">${m.name}</div></td>
+                <td>${m.dukuhName}</td>
+                <td>${m.rtNumber}</td>
                 <td style="text-align:right">Rp${m.monthlyFee.toLocaleString('id-ID')}</td>
                 <td>${m.paid ? 'Lunas' : 'Belum'}</td>
                 <td>${m.paidDate || '-'}</td>
                 <td style="text-align:right; font-weight:bold;">${m.paid ? 'Rp' + m.paidAmount.toLocaleString('id-ID') : '-'}</td>
             </tr>
         `).join('');
+
+        const totalRow = filteredMonthly.length ? `
+            <tr style="font-weight:800; background:#f5f3ff; border-top: 2px solid #c4b5fd;">
+                <td>&mdash;</td>
+                <td>JUMLAH (${filteredMonthly.length} warga)</td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
+                <td style="text-align:right">Rp${totalTarifShown.toLocaleString('id-ID')}</td>
+                <td>${paidShown} Lunas</td>
+                <td>&mdash;</td>
+                <td style="text-align:right">Rp${totalNominalShown.toLocaleString('id-ID')}</td>
+            </tr>` : '';
 
         printWindow.document.write(`
             <html>
@@ -153,8 +175,8 @@ const MonthlyIuranStatusReport: React.FC = () => {
                     </div>
                 </div>
                 <table>
-                    <thead><tr><th>Nama Warga / Wilayah</th><th style="text-align:right">Tarif Bulanan</th><th>Status</th><th>Tgl Bayar</th><th style="text-align:right">Nominal</th></tr></thead>
-                    <tbody>${rows || '<tr><td colspan="5" style="text-align:center; padding: 20px;">Tidak ada warga tarif bulanan</td></tr>'}</tbody>
+                    <thead><tr><th>No</th><th>Nama</th><th>Dukuh</th><th>RT</th><th style="text-align:right">Tarif</th><th>Status</th><th>Tgl Bayar</th><th style="text-align:right">Nominal</th></tr></thead>
+                    <tbody>${rows || '<tr><td colspan="8" style="text-align:center; padding: 20px;">Tidak ada warga tarif bulanan</td></tr>'}${totalRow}</tbody>
                 </table>
                 <div class="summary-box">
                     <div class="total-line">
@@ -238,8 +260,11 @@ const MonthlyIuranStatusReport: React.FC = () => {
                 <table className="w-full text-sm text-left">
                     <thead>
                         <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('warga')}>Warga{sortArrow('warga')}</th>
-                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('tarif')}>Tarif Bulanan{sortArrow('tarif')}</th>
+                            <th className="p-4">No</th>
+                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nama')}>Nama{sortArrow('nama')}</th>
+                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('dukuh')}>Dukuh{sortArrow('dukuh')}</th>
+                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('rt')}>RT{sortArrow('rt')}</th>
+                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('tarif')}>Tarif{sortArrow('tarif')}</th>
                             <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('status')}>Status{sortArrow('status')}</th>
                             <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('tanggal')}>Tgl Bayar{sortArrow('tanggal')}</th>
                             <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nominal')}>Nominal{sortArrow('nominal')}</th>
@@ -247,13 +272,13 @@ const MonthlyIuranStatusReport: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
-                            <tr><td colSpan={5} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
-                        ) : filteredMonthly.map(m => (
+                            <tr><td colSpan={8} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
+                        ) : filteredMonthly.map((m, i) => (
                             <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-4">
-                                    <p className="font-bold text-slate-700">{m.name}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT {m.rtNumber}, {m.dukuhName}</p>
-                                </td>
+                                <td className="p-4 font-bold text-slate-400">{i + 1}</td>
+                                <td className="p-4 font-bold text-slate-700">{m.name}</td>
+                                <td className="p-4 font-medium text-slate-500">{m.dukuhName}</td>
+                                <td className="p-4 font-medium text-slate-500">{m.rtNumber}</td>
                                 <td className="p-4 text-right font-medium text-slate-500">Rp{m.monthlyFee.toLocaleString('id-ID')}</td>
                                 <td className="p-4">{m.paid ? <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">Lunas</span> : <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase">Belum</span>}</td>
                                 <td className="p-4 font-bold text-slate-400">{m.paidDate || '-'}</td>
@@ -261,9 +286,23 @@ const MonthlyIuranStatusReport: React.FC = () => {
                             </tr>
                         ))}
                         {!loading && filteredMonthly.length === 0 && (
-                            <tr><td colSpan={5} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada warga tarif bulanan</td></tr>
+                            <tr><td colSpan={8} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada warga tarif bulanan</td></tr>
                         )}
                     </tbody>
+                    {!loading && filteredMonthly.length > 0 && (
+                        <tfoot>
+                            <tr className="bg-purple-50/70 border-t-2 border-purple-200 font-black">
+                                <td className="p-4 text-slate-400">&mdash;</td>
+                                <td className="p-4 text-slate-800">JUMLAH ({filteredMonthly.length} warga)</td>
+                                <td className="p-4 text-slate-400">&mdash;</td>
+                                <td className="p-4 text-slate-400">&mdash;</td>
+                                <td className="p-4 text-right text-slate-800">Rp{totalTarifShown.toLocaleString('id-ID')}</td>
+                                <td className="p-4 text-emerald-700">{paidShown} Lunas</td>
+                                <td className="p-4 text-slate-400">&mdash;</td>
+                                <td className="p-4 text-right text-purple-700">Rp{totalNominalShown.toLocaleString('id-ID')}</td>
+                            </tr>
+                        </tfoot>
+                    )}
                 </table>
             </div>
         </div>
