@@ -13,7 +13,7 @@ const MonthlyIuranStatusReport: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [statusFilter, setStatusFilter] = useState<'semua' | 'lunas' | 'belum'>('semua');
     const [dukuhFilter, setDukuhFilter] = useState<number | 'semua'>('semua');
-    const [sortKey, setSortKey] = useState<'nama' | 'dukuh' | 'rt' | 'tarif' | 'status' | 'tanggal' | 'nominal'>('status');
+    const [sortKey, setSortKey] = useState<'nama' | 'dukuh' | 'rt' | 'tarif' | 'status' | 'tanggal' | 'nominal'>('dukuh');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
     useEffect(() => {
