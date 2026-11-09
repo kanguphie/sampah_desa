@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getReports, getPengeluaran, getPemasukanLain, getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
+import { getReports, getPengeluaran, getPemasukanLain } from '@/services/api';
 import { DownloadIcon } from '@/components/icons';
 
 const MonthlyReport: React.FC = () => {
@@ -10,12 +10,6 @@ const MonthlyReport: React.FC = () => {
     const [expenses, setExpenses] = useState<any[]>([]);
     const [otherIncomes, setOtherIncomes] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [wargas, setWargas] = useState<any[]>([]);
-    const [dukuhList, setDukuhList] = useState<any[]>([]);
-    const [rtList, setRtList] = useState<any[]>([]);
-    const [statusFilter, setStatusFilter] = useState<'semua' | 'lunas' | 'belum'>('semua');
-    const [monthlySortKey, setMonthlySortKey] = useState<'warga' | 'tarif' | 'status' | 'tanggal' | 'nominal'>('status');
-    const [monthlySortDir, setMonthlySortDir] = useState<'asc' | 'desc'>('asc');
 
     useEffect(() => {
         const fetch = async () => {
@@ -23,20 +17,14 @@ const MonthlyReport: React.FC = () => {
             const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
             const lastDay = new Date(year, month, 0).getDate();
             const endStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-            const [r, e, o, w, du, rt] = await Promise.all([
+            const [r, e, o] = await Promise.all([
                 getReports({ startDate: startStr, endDate: endStr }), 
                 getPengeluaran({ startDate: startStr, endDate: endStr }),
-                getPemasukanLain({ startDate: startStr, endDate: endStr }),
-                getAllWarga(),
-                getAllDukuh(),
-                getAllRT()
+                getPemasukanLain({ startDate: startStr, endDate: endStr })
             ]);
             setReports(Array.isArray(r) ? r : []);
             setExpenses(Array.isArray(e) ? e : []);
             setOtherIncomes(Array.isArray(o) ? o : []);
-            setWargas(Array.isArray(w) ? w : []);
-            setDukuhList(Array.isArray(du) ? du : []);
-            setRtList(Array.isArray(rt) ? rt : []);
             setLoading(false);
         };
         fetch();
@@ -75,65 +63,6 @@ const MonthlyReport: React.FC = () => {
     const totalInc = useMemo(() => dailyData.reduce((s, i) => s + i.income, 0), [dailyData]);
     const totalExp = useMemo(() => dailyData.reduce((s, i) => s + i.expense, 0), [dailyData]);
 
-    // Status iuran bulanan per warga — aturan sama seperti server (monthly-status):
-    // Lunas = ada transaksi kategori 'bulanan' berstatus paid/lunas di bulan yang dipilih.
-    const monthlyStatus = useMemo(() => {
-        const isPaidTx = (r: any) => ['paid', 'lunas'].includes(String(r.status || '').toLowerCase());
-        return wargas.filter(w => w.billingType === 'BULANAN').map(w => {
-            const txs = reports.filter(r =>
-                String(r.wargaId) === String(w.id) &&
-                String(r.category || '').toLowerCase() === 'bulanan' &&
-                isPaidTx(r) &&
-                new Date(r.timestamp).getFullYear() === year &&
-                new Date(r.timestamp).getMonth() + 1 === month
-            );
-            const tx = txs.length ? txs.reduce((a, b) => new Date(b.timestamp).getTime() > new Date(a.timestamp).getTime() ? b : a) : null;
-            return {
-                id: w.id,
-                name: w.name || 'Warga Tanpa Nama',
-                rtNumber: rtList.find((rt: any) => rt.id === w.rtId)?.number || '-',
-                dukuhName: dukuhList.find((du: any) => du.id === w.dukuhId)?.name || '-',
-                monthlyFee: w.monthlyFee || 0,
-                paid: !!tx,
-                paidDate: tx ? new Date(tx.timestamp).toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit'}) : '',
-                paidAmount: tx ? Number(tx.amount) || 0 : 0,
-                paidTs: tx ? new Date(tx.timestamp).getTime() : 0
-            };
-        });
-    }, [wargas, reports, dukuhList, rtList, month, year]);
-
-    const sortedMonthly = useMemo(() => {
-        const arr = [...monthlyStatus];
-        arr.sort((a, b) => {
-            let cmp = 0;
-            if (monthlySortKey === 'warga') cmp = String(a.name).localeCompare(String(b.name), 'id');
-            else if (monthlySortKey === 'tarif') cmp = a.monthlyFee - b.monthlyFee;
-            else if (monthlySortKey === 'status') cmp = Number(a.paid) - Number(b.paid);
-            else if (monthlySortKey === 'tanggal') cmp = a.paidTs - b.paidTs;
-            else cmp = a.paidAmount - b.paidAmount;
-            return monthlySortDir === 'asc' ? cmp : -cmp;
-        });
-        return arr;
-    }, [monthlyStatus, monthlySortKey, monthlySortDir]);
-
-    const filteredMonthly = useMemo(() =>
-        sortedMonthly.filter(m => statusFilter === 'semua' || (statusFilter === 'lunas' ? m.paid : !m.paid)),
-    [sortedMonthly, statusFilter]);
-
-    const paidCount = useMemo(() => monthlyStatus.filter(m => m.paid).length, [monthlyStatus]);
-    const totalMonthlyPaid = useMemo(() => monthlyStatus.reduce((s, m) => s + m.paidAmount, 0), [monthlyStatus]);
-
-    const handleMonthlySort = (key: typeof monthlySortKey) => {
-        if (monthlySortKey === key) {
-            setMonthlySortDir(d => d === 'asc' ? 'desc' : 'asc');
-        } else {
-            setMonthlySortKey(key);
-            setMonthlySortDir(key === 'warga' ? 'asc' : 'desc');
-        }
-    };
-
-    const monthlyArrow = (key: typeof monthlySortKey) => monthlySortKey === key ? (monthlySortDir === 'asc' ? ' \u25b2' : ' \u25bc') : '';
-
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
@@ -146,16 +75,6 @@ const MonthlyReport: React.FC = () => {
                 <td style="text-align:right; color:#10b981; font-weight:bold;">Rp${d.income.toLocaleString('id-ID')}</td>
                 <td style="text-align:right; color:#ef4444;">Rp${d.expense.toLocaleString('id-ID')}</td>
                 <td style="text-align:right; font-weight:800;">Rp${d.net.toLocaleString('id-ID')}</td>
-            </tr>
-        `).join('');
-
-        const monthlyRows = filteredMonthly.map(m => `
-            <tr>
-                <td><div class="font-bold">${m.name}</div><div class="text-xs">RT ${m.rtNumber}, ${m.dukuhName}</div></td>
-                <td style="text-align:right">Rp${m.monthlyFee.toLocaleString('id-ID')}</td>
-                <td>${m.paid ? 'Lunas' : 'Belum'}</td>
-                <td>${m.paidDate || '-'}</td>
-                <td style="text-align:right; font-weight:bold;">${m.paid ? 'Rp' + m.paidAmount.toLocaleString('id-ID') : '-'}</td>
             </tr>
         `).join('');
 
@@ -198,12 +117,6 @@ const MonthlyReport: React.FC = () => {
                     <thead><tr><th>Tanggal</th><th style="text-align:right">Iuran Warga</th><th style="text-align:right">Pemasukan Lain</th><th style="text-align:right">Total Masuk</th><th style="text-align:right">Pengeluaran</th><th style="text-align:right">Netto</th></tr></thead>
                     <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding: 20px;">Tidak ada pergerakan kas bulan ini</td></tr>'}</tbody>
                 </table>
-                <div class="section-title">STATUS IURAN BULANAN — ${new Date(year, month - 1).toLocaleString('id-ID', {month:'long'})} ${year}</div>
-                <table>
-                    <thead><tr><th>Nama Warga / Wilayah</th><th style="text-align:right">Tarif Bulanan</th><th>Status</th><th>Tgl Bayar</th><th style="text-align:right">Nominal</th></tr></thead>
-                    <tbody>${monthlyRows || '<tr><td colspan="5" style="text-align:center; padding: 20px;">Tidak ada warga tarif bulanan</td></tr>'}</tbody>
-                </table>
-
                 <div class="summary-box">
                     <div class="total-line">
                         <span>TOTAL AKHIR:</span>
@@ -288,53 +201,6 @@ const MonthlyReport: React.FC = () => {
                         ))}
                         {!loading && dailyData.length === 0 && (
                             <tr><td colSpan={6} className="p-10 text-center text-slate-400 font-bold italic text-xs">Belum ada catatan transaksi pada bulan ini</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Status Iuran Bulanan per Warga */}
-            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                <div className="p-5 bg-purple-50/70 border-b border-purple-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div>
-                        <p className="font-bold text-purple-800 text-sm">Status Iuran Bulanan — {new Date(year, month - 1).toLocaleString('id-ID', {month:'long'})} {year}</p>
-                        <p className="text-xs text-purple-500 font-medium mt-0.5">{paidCount} dari {monthlyStatus.length} warga sudah lunas • Terkumpul Rp{totalMonthlyPaid.toLocaleString('id-ID')}</p>
-                    </div>
-                    <div className="flex gap-1.5">
-                        {(['semua', 'lunas', 'belum'] as const).map(f => (
-                            <button key={f} onClick={() => setStatusFilter(f)} className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${statusFilter === f ? 'bg-purple-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                                {f === 'semua' ? 'Semua' : f === 'lunas' ? 'Lunas' : 'Belum'}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <table className="w-full text-sm text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleMonthlySort('warga')}>Warga{monthlyArrow('warga')}</th>
-                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleMonthlySort('tarif')}>Tarif Bulanan{monthlyArrow('tarif')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleMonthlySort('status')}>Status{monthlyArrow('status')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleMonthlySort('tanggal')}>Tgl Bayar{monthlyArrow('tanggal')}</th>
-                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleMonthlySort('nominal')}>Nominal{monthlyArrow('nominal')}</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr><td colSpan={5} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
-                        ) : filteredMonthly.map(m => (
-                            <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-4">
-                                    <p className="font-bold text-slate-700">{m.name}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT {m.rtNumber}, {m.dukuhName}</p>
-                                </td>
-                                <td className="p-4 text-right font-medium text-slate-500">Rp{m.monthlyFee.toLocaleString('id-ID')}</td>
-                                <td className="p-4">{m.paid ? <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">Lunas</span> : <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase">Belum</span>}</td>
-                                <td className="p-4 font-bold text-slate-400">{m.paidDate || '-'}</td>
-                                <td className="p-4 text-right font-bold text-purple-600">{m.paid ? `Rp${m.paidAmount.toLocaleString('id-ID')}` : '-'}</td>
-                            </tr>
-                        ))}
-                        {!loading && filteredMonthly.length === 0 && (
-                            <tr><td colSpan={5} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada warga tarif bulanan</td></tr>
                         )}
                     </tbody>
                 </table>

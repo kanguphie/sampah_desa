@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import DailyReport from './reports/DailyReport';
 import MonthlyReport from './reports/MonthlyReport';
+import MonthlyIuranStatusReport from './reports/MonthlyIuranStatusReport';
 import YearlyReport from './reports/YearlyReport';
 import RegionReport from './reports/RegionReport';
 import UnpaidReport from './reports/UnpaidReport';
@@ -9,12 +10,13 @@ import DepositReport from './reports/DepositReport';
 import ParticipationReport from './reports/ParticipationReport';
 
 const AdminLaporanPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'tahunan' | 'wilayah' | 'tunggakan' | 'deposit' | 'partisipasi'>('harian');
+    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'iuran-bulanan' | 'tahunan' | 'wilayah' | 'tunggakan' | 'deposit' | 'partisipasi'>('harian');
     
     const renderContent = () => {
         switch(activeTab) {
             case 'harian': return <DailyReport />;
             case 'bulanan': return <MonthlyReport />;
+            case 'iuran-bulanan': return <MonthlyIuranStatusReport />;
             case 'tahunan': return <YearlyReport />;
             case 'wilayah': return <RegionReport />;
             case 'tunggakan': return <UnpaidReport />;
@@ -37,6 +39,7 @@ const AdminLaporanPage: React.FC = () => {
                         {[
                             {id:'harian', label:'Harian'},
                             {id:'bulanan', label:'Bulanan'},
+                            {id:'iuran-bulanan', label:'Iuran Bulanan'},
                             {id:'tahunan', label:'Tahunan'},
                             {id:'wilayah', label:'Wilayah'},
                             {id:'tunggakan', label:'Tunggakan'},
