@@ -179,9 +179,9 @@ const UnpaidReport: React.FC = () => {
             return `
                 <tr>
                     <td style="text-align:center">${idx + 1}</td>
-                    <td style="font-family:monospace">${w.id}</td>
                     <td style="font-weight:700">${w.name}</td>
-                    <td>RT ${rtNum}, ${dukuhName}</td>
+                    <td>${dukuhName}</td>
+                    <td>RT ${rtNum}</td>
                     <td style="text-align:right; font-weight:800">Rp${w.totalDebt.toLocaleString('id-ID')}</td>
                 </tr>
             `;
@@ -224,7 +224,7 @@ const UnpaidReport: React.FC = () => {
                     </div>
                 </div>
                 <table>
-                    <thead><tr><th>No</th><th>ID Warga</th><th>Nama Lengkap Warga</th><th>Wilayah (RT/Dukuh)</th><th style="text-align:right">Total Tunggakan</th></tr></thead>
+                    <thead><tr><th>No</th><th>Nama</th><th>Dukuh</th><th>RT</th><th style="text-align:right">Nilai Tunggakan</th></tr></thead>
                     <tbody>
                         ${rows || '<tr><td colspan="5" style="text-align:center">Tidak ada data sesuai filter</td></tr>'}
                         <tr class="summary-row">
@@ -397,23 +397,26 @@ const UnpaidReport: React.FC = () => {
                                 <th className="p-5 w-12 text-center">
                                     <input type="checkbox" checked={filteredList.length > 0 && selectedIds.size === filteredList.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 text-primary cursor-pointer" />
                                 </th>
-                                <th className="p-5">Warga & Wilayah</th>
+                                <th className="p-5 w-12 text-center">No</th>
+                                <th className="p-5">Nama</th>
+                                <th className="p-5">Dukuh</th>
+                                <th className="p-5">RT</th>
                                 <th className="p-5 text-right">Nilai Tunggakan</th>
                                 <th className="p-5 text-center">Tindakan</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse">Memproses Data...</td></tr> : 
-                            filteredList.length > 0 ? filteredList.map(w => (
+                            {loading ? <tr><td colSpan={7} className="p-10 text-center animate-pulse">Memproses Data...</td></tr> : 
+                            filteredList.length > 0 ? filteredList.map((w, idx) => (
                                 <tr key={w.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.has(w.id) ? 'bg-emerald-50/30' : ''}`}>
                                     <td className="p-5 text-center"><input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} className="w-4 h-4 rounded border-slate-300 text-primary cursor-pointer" /></td>
+                                    <td className="p-5 text-center font-bold text-slate-400">{idx + 1}</td>
                                     <td className="p-5" onClick={() => toggleSelect(w.id)}>
                                         <p className="font-bold text-slate-800 text-sm group-hover:text-primary transition-colors cursor-pointer">{w.name}</p>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                            {/* FIX: Use rtList and dukuhList state lookup instead of async API calls */}
-                                            RT {rtList.find(r => r.id === w.rtId)?.number || 'N/A'}, {dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A'}
-                                        </p>
+                                        <p className="text-[10px] text-slate-400 font-mono">ID: {w.id}</p>
                                     </td>
+                                    <td className="p-5 font-medium text-slate-500">{dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A'}</td>
+                                    <td className="p-5 font-medium text-slate-500">RT {rtList.find(r => r.id === w.rtId)?.number || 'N/A'}</td>
                                     <td className="p-5 text-right font-black text-rose-600 text-base">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
                                     <td className="p-5 text-center">
                                         <div className="flex justify-center gap-1">
@@ -424,7 +427,7 @@ const UnpaidReport: React.FC = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            )) : <tr><td colSpan={4} className="p-12 text-center text-slate-400 font-bold italic text-xs uppercase">Tidak ada data sesuai filter</td></tr>}
+                            )) : <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-bold italic text-xs uppercase">Tidak ada data sesuai filter</td></tr>}
                         </tbody>
                     </table>
                 </div>

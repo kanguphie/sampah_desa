@@ -39,9 +39,19 @@ const ParticipationReport: React.FC = () => {
         fetch();
     }, [month, year]);
 
-    // ID warga yang sudah bayar minimal 1x di bulan ini (Hanya kategori IURAN)
+    // ID warga yang sudah bayar minimal 1x di bulan ini.
+    // Kategori pembayaran yang ditulis aplikasi: 'harian' / 'bulanan'
+    // (bukan 'IURAN' — itulah kenapa laporan ini selalu 0%).
+    // Hanya transaksi lunas bernominal > 0 yang dihitung; catatan
+    // 'ambil_bulanan' (nominal 0) dan tunggakan (status unpaid/HUTANG) tidak dihitung.
     const paidWargaIds = useMemo(() => {
-        return new Set(monthlyTxs.filter(tx => tx.category === 'IURAN').map(tx => tx.wargaId));
+        return new Set(monthlyTxs.filter(tx => {
+            const cat = String(tx.category || '').toLowerCase();
+            const st = String(tx.status || '').toLowerCase();
+            return ['harian', 'bulanan', 'iuran'].includes(cat)
+                && ['paid', 'lunas'].includes(st)
+                && Number(tx.amount) > 0;
+        }).map(tx => String(tx.wargaId)));
     }, [monthlyTxs]);
 
     const stats = useMemo(() => {
@@ -51,7 +61,7 @@ const ParticipationReport: React.FC = () => {
             return matchDukuh && matchRT;
         });
 
-        const activeCount = filteredWarga.filter(w => paidWargaIds.has(w.id)).length;
+        const activeCount = filteredWarga.filter(w => paidWargaIds.has(String(w.id))).length;
         const inactiveCount = filteredWarga.length - activeCount;
         const rate = filteredWarga.length > 0 ? (activeCount / filteredWarga.length) * 100 : 0;
 
@@ -62,7 +72,7 @@ const ParticipationReport: React.FC = () => {
         return wargaList.filter(w => {
             const matchDukuh = dukuhId === 'all' || w.dukuhId === Number(dukuhId);
             const matchRT = rtId === 'all' || w.rtId === Number(rtId);
-            const isInactive = !paidWargaIds.has(w.id);
+            const isInactive = !paidWargaIds.has(String(w.id));
             const matchSearch = w.name.toLowerCase().includes(search.toLowerCase());
             return matchDukuh && matchRT && isInactive && matchSearch;
         });
