@@ -1656,12 +1656,13 @@ async function startServer() {
                 w.name as wargaName, 
                 w.dukuhId as wargaDukuhId, 
                 w.rtId as wargaRtId,
-                p.name as petugasName, 
+                COALESCE(p.name, a.name) as petugasName, 
                 d.name as dukuhName, 
                 r.number as rtNumber
             FROM transactions t 
             LEFT JOIN wargas w ON t.wargaId = w.id 
             LEFT JOIN petugases p ON t.petugasId = p.id
+            LEFT JOIN admins a ON t.petugasId = a.id
             LEFT JOIN dukuhs d ON w.dukuhId = d.id
             LEFT JOIN rts r ON w.rtId = r.id
             WHERE 1=1
