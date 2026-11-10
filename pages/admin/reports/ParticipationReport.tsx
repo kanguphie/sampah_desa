@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getAllWarga, getAllDukuh, getAllRT, getReports } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
-import { DownloadIcon, UsersIcon, CheckCircleIcon, XIcon, SearchIcon } from '@/components/icons';
+import { DownloadIcon, UsersIcon, CheckCircleIcon, XIcon, SearchIcon, FileExcelIcon } from '@/components/icons';
+import * as XLSX from 'xlsx';
 
 const ParticipationReport: React.FC = () => {
     const now = new Date();
@@ -11,6 +12,8 @@ const ParticipationReport: React.FC = () => {
     const [dukuhId, setDukuhId] = useState('all');
     const [rtId, setRtId] = useState('all');
     const [search, setSearch] = useState('');
+    const [sortKey, setSortKey] = useState<'wilayah' | 'nama'>('wilayah');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
     const [wargaList, setWargaList] = useState<Warga[]>([]);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
@@ -78,12 +81,58 @@ const ParticipationReport: React.FC = () => {
         });
     }, [wargaList, paidWargaIds, dukuhId, rtId, search]);
 
+    const sortedInactive = useMemo(() => {
+        const arr = [...inactiveList];
+        arr.sort((a, b) => {
+            let cmp = 0;
+            if (sortKey === 'nama') {
+                cmp = a.name.localeCompare(b.name, 'id');
+            } else {
+                const dukuhA = dukuhList.find(d => d.id === a.dukuhId)?.name || '';
+                const dukuhB = dukuhList.find(d => d.id === b.dukuhId)?.name || '';
+                const rtA = rtList.find(r => r.id === a.rtId)?.number || '';
+                const rtB = rtList.find(r => r.id === b.rtId)?.number || '';
+                cmp = dukuhA.localeCompare(dukuhB, 'id') || String(rtA).localeCompare(String(rtB), 'id') || a.name.localeCompare(b.name, 'id');
+            }
+            return sortDir === 'asc' ? cmp : -cmp;
+        });
+        return arr;
+    }, [inactiveList, dukuhList, rtList, sortKey, sortDir]);
+
+    const handleSort = (key: typeof sortKey) => {
+        if (sortKey === key) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortKey(key);
+            setSortDir('asc');
+        }
+    };
+
+    const sortArrow = (key: typeof sortKey) => sortKey === key ? (sortDir === 'asc' ? ' \u25b2' : ' \u25bc') : '';
+
+    const handleExportExcel = () => {
+        const mName = new Date(year, month - 1).toLocaleString('id-ID', { month: 'long' });
+        const data = sortedInactive.map((w, idx) => ({
+            'No': idx + 1,
+            'Nama': w.name,
+            'ID': w.id,
+            'Dukuh': dukuhList.find(d => d.id === w.dukuhId)?.name || '-',
+            'RT': rtList.find(r => r.id === w.rtId)?.number || '-',
+            'Status': 'Tidak Membayar'
+        }));
+        const ws = XLSX.utils.json_to_sheet(data);
+        ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 8 }, { wch: 15 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Tidak Aktif');
+        XLSX.writeFile(wb, `Keaktifan-Tidak-Aktif-${mName}-${year}.xlsx`);
+    };
+
     const handlePrintInactive = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
         const mName = new Date(year, month - 1).toLocaleString('id-ID', { month: 'long' });
-        const rows = inactiveList.map((w, idx) => {
+        const rows = sortedInactive.map((w, idx) => {
             // FIX: Use rtList state lookup instead of async getRTById to avoid Promise property errors
             const rtNum = rtList.find(r => r.id === w.rtId)?.number || 'N/A';
             // FIX: Use dukuhList state lookup instead of async getDukuhById to avoid Promise property errors
@@ -186,6 +235,10 @@ const ParticipationReport: React.FC = () => {
                         </select>
                     </div>
                 </div>
+                <div className="flex flex-wrap gap-2 justify-end">
+                    <button onClick={handleExportExcel} className="px-5 py-3 bg-emerald-500 text-white hover:bg-emerald-600 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all text-[10px] uppercase tracking-widest"><FileExcelIcon className="text-sm" /> Export Excel</button>
+                    <button onClick={handlePrintInactive} className="px-5 py-3 bg-slate-800 text-white hover:bg-slate-900 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-slate-900/10 transition-all text-[10px] uppercase tracking-widest"><DownloadIcon /> Cetak Tabel</button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -223,14 +276,14 @@ const ParticipationReport: React.FC = () => {
                         <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <tr>
                                 <th className="p-5 w-16 text-center">No</th>
-                                <th className="p-5">Warga</th>
-                                <th className="p-5">Wilayah</th>
+                                <th className="p-5 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nama')}>Warga{sortArrow('nama')}</th>
+                                <th className="p-5 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('wilayah')}>Wilayah{sortArrow('wilayah')}</th>
                                 <th className="p-5 text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? <tr><td colSpan={4} className="p-10 text-center animate-pulse">Memuat...</td></tr> : 
-                            inactiveList.length > 0 ? inactiveList.map((w, i) => (
+                            sortedInactive.length > 0 ? sortedInactive.map((w, i) => (
                                 <tr key={w.id} className="hover:bg-rose-50 transition-colors group">
                                     <td className="p-5 text-center text-slate-400 font-mono text-xs">{i+1}</td>
                                     <td className="p-5">

@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllWarga, getAllDukuh, getAllRT, getTransactionsByWargaId, deleteTransaksi, recalculateDebt } from '@/services/api';
+import { getAllWarga, getAllDukuh, getAllRT, getTransactionsByWargaId, deleteTransaksi, recalculateDebt, payDebt } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 import type { Warga, Dukuh, RT, Transaksi } from '@/types';
 import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon, TrashIcon, XIcon, InfoIcon, ScaleBalancedIcon, CheckCircleIcon, AlertCircleIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
 
 const UnpaidReport: React.FC = () => {
     const navigate = useNavigate();
+    const { admin } = useAuth();
     const [list, setList] = useState<Warga[]>([]);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
@@ -19,6 +21,9 @@ const UnpaidReport: React.FC = () => {
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [confirm, setConfirm] = useState<{ title: string, text: string, onConfirm: () => void } | null>(null);
     const [detailWarga, setDetailWarga] = useState<Warga | null>(null);
+    const [payWarga, setPayWarga] = useState<Warga | null>(null);
+    const [payAmount, setPayAmount] = useState<number>(0);
+    const [paying, setPaying] = useState(false);
     const [wargaTransactions, setWargaTransactions] = useState<Transaksi[]>([]);
     const [loadingTransactions, setLoadingTransactions] = useState(false);
     
@@ -107,6 +112,31 @@ const UnpaidReport: React.FC = () => {
             console.error("Error fetching transactions", error);
         } finally {
             setLoadingTransactions(false);
+        }
+    };
+
+    const openPay = (warga: Warga) => {
+        setPayWarga(warga);
+        setPayAmount(warga.totalDebt || 0);
+    };
+
+    // Bayar langsung dari laporan admin (tanpa pindah halaman).
+    // Pembayaran dicatat atas nama admin yang login (petugasId = admin.id),
+    // karena halaman scan petugas hanya bisa dibuka dengan sesi petugas.
+    const handlePay = async () => {
+        if (!payWarga || !admin) return;
+        const amount = Math.min(Math.max(1, Math.floor(payAmount) || 0), payWarga.totalDebt || 0);
+        if (amount <= 0) return;
+        setPaying(true);
+        try {
+            await payDebt(payWarga.id, admin.id, amount);
+            await fetchData();
+            setPayWarga(null);
+            setMessage({ type: 'success', text: `Pembayaran Rp${amount.toLocaleString('id-ID')} untuk ${payWarga.name} berhasil dicatat.` });
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Gagal mencatat pembayaran.' });
+        } finally {
+            setPaying(false);
         }
     };
 
@@ -420,6 +450,7 @@ const UnpaidReport: React.FC = () => {
                                     <td className="p-5 text-right font-black text-rose-600 text-base">Rp{w.totalDebt.toLocaleString('id-ID')}</td>
                                     <td className="p-5 text-center">
                                         <div className="flex justify-center gap-1">
+                                            <button onClick={(e) => { e.stopPropagation(); openPay(w); }} className="bg-emerald-500 text-white hover:bg-emerald-600 px-3 py-2 rounded-lg text-[10px] font-bold transition-all shadow-md">Bayar</button>
                                             <button onClick={(e) => { e.stopPropagation(); openDetail(w); }} className="bg-indigo-500 text-white hover:bg-indigo-600 px-3 py-2 rounded-lg text-[10px] font-bold transition-all shadow-md flex items-center gap-1">
                                                 <InfoIcon className="text-xs" /> Kelola
                                             </button>
@@ -493,6 +524,27 @@ const UnpaidReport: React.FC = () => {
                                     Jika Anda menghapus riwayat di atas namun jumlah saldo masih tidak sesuai, silakan gunakan fitur <span className="font-black text-emerald-600 underline cursor-pointer" onClick={() => navigate('/admin/pengaturan')}>Sinkronisasi</span> di menu Pengaturan atau klik tombol <span className="font-black text-emerald-600 underline cursor-pointer" onClick={handleSync}>Sinkron Saldo</span> di bagian atas laporan ini.
                                 </p>
                             </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* BAYAR MODAL */}
+            <Modal isOpen={!!payWarga} onClose={() => setPayWarga(null)} title="Bayar Tunggakan">
+                {payWarga && (
+                    <div className="space-y-6">
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">{payWarga.name}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">RT {rtList.find(r => r.id === payWarga.rtId)?.number || 'N/A'}, {dukuhList.find(d => d.id === payWarga.dukuhId)?.name || 'N/A'} • Total tunggakan Rp{(payWarga.totalDebt || 0).toLocaleString('id-ID')}</p>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Nominal Bayar (Rp)</label>
+                            <input type="number" min={1} max={payWarga.totalDebt || 0} value={payAmount} onChange={e => setPayAmount(Number(e.target.value))} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-black text-lg outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                            <p className="text-[11px] text-slate-400 font-medium mt-2">Sisa tunggakan setelah bayar: Rp{Math.max(0, (payWarga.totalDebt || 0) - (payAmount || 0)).toLocaleString('id-ID')}</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => setPayWarga(null)} className="flex-1 px-6 py-3.5 bg-slate-100 text-slate-600 font-black rounded-2xl hover:bg-slate-200 transition-all uppercase tracking-widest text-[10px]">Batal</button>
+                            <button onClick={handlePay} disabled={paying || !payAmount || payAmount <= 0} className="flex-1 px-6 py-3.5 bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50">{paying ? 'Memproses...' : 'Bayar'}</button>
                         </div>
                     </div>
                 )}
