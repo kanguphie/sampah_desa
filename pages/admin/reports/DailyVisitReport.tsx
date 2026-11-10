@@ -332,9 +332,8 @@ const DailyVisitReport: React.FC = () => {
                         </div>
                         <datalist id="alasan-kunjungan">
                             <option value="Rumah kosong" />
-                            <option value="Warga tidak di rumah" />
-                            <option value="QR rusak" />
-                            <option value="Warga menolak" />
+                            <option value="QR Belum dicetak" />
+                            <option value="QR Rusak" />
                             <option value="Jalan tidak bisa dilalui" />
                         </datalist>
                     </div>
