@@ -8,9 +8,10 @@ import RegionReport from './reports/RegionReport';
 import UnpaidReport from './reports/UnpaidReport';
 import DepositReport from './reports/DepositReport';
 import ParticipationReport from './reports/ParticipationReport';
+import DailyVisitReport from './reports/DailyVisitReport';
 
 const AdminLaporanPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'iuran-bulanan' | 'tahunan' | 'wilayah' | 'tunggakan' | 'deposit' | 'partisipasi'>('harian');
+    const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'iuran-bulanan' | 'tahunan' | 'wilayah' | 'tunggakan' | 'deposit' | 'partisipasi' | 'kunjungan'>('harian');
     
     const renderContent = () => {
         switch(activeTab) {
@@ -22,6 +23,7 @@ const AdminLaporanPage: React.FC = () => {
             case 'tunggakan': return <UnpaidReport />;
             case 'deposit': return <DepositReport />;
             case 'partisipasi': return <ParticipationReport />;
+            case 'kunjungan': return <DailyVisitReport />;
             default: return null;
         }
     };
@@ -44,7 +46,8 @@ const AdminLaporanPage: React.FC = () => {
                             {id:'wilayah', label:'Wilayah'},
                             {id:'tunggakan', label:'Tunggakan'},
                             {id:'deposit', label:'Deposit'},
-                            {id:'partisipasi', label:'Keaktifan'}
+                            {id:'partisipasi', label:'Keaktifan'},
+                            {id:'kunjungan', label:'Kunjungan'}
                         ].map(tab => (
                             <button
                                 key={tab.id}

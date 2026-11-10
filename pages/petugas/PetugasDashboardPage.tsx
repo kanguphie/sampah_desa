@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { getPetugasDailySummary, getScheduleForToday } from '@/services/api';
+import { getPetugasDailySummary, getScheduleForToday, getAllWarga, getReports } from '@/services/api';
 import { CollectionIcon, QrCodeIcon, CurrencyDollarIcon, UsersIcon, AlertCircleIcon, ClockIcon } from '@/components/icons';
 
 const PetugasDashboardPage: React.FC = () => {
@@ -10,6 +10,7 @@ const PetugasDashboardPage: React.FC = () => {
     const navigate = useNavigate();
     const [summary, setSummary] = useState({ total: 0, count: 0 });
     const [scheduleInfo, setScheduleInfo] = useState<{ isHoliday: boolean, dukuhIds: number[], dukuhNames: string[] } | null>(null);
+    const [coverage, setCoverage] = useState<{ scheduled: number, visited: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -33,6 +34,31 @@ const PetugasDashboardPage: React.FC = () => {
                     ]);
                     setSummary(data);
                     setScheduleInfo(scheduleData);
+                    // Cakupan kunjungan hari ini: rumah terjadwal vs yang ada
+                    // jejak transaksinya hari ini. Gagal hitung = kartu disembunyikan,
+                    // ringkasan utama tetap jalan.
+                    try {
+                        const today = new Date();
+                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                        const [wargaList, txs] = await Promise.all([
+                            getAllWarga(),
+                            getReports({ startDate: todayStr, endDate: todayStr })
+                        ]);
+                        const schedIds = (scheduleData?.dukuhIds || []).map(Number);
+                        const scheduled = wargaList.filter((w: any) => schedIds.includes(Number(w.dukuhId)));
+                        const visitedIds = new Set(txs.filter((tx: any) => {
+                            const t = tx.timestamp;
+                            const ds = t instanceof Date
+                                ? `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+                                : String(t || '').slice(0, 10);
+                            return ds === todayStr;
+                        }).map((tx: any) => String(tx.wargaId)));
+                        const visited = scheduled.filter((w: any) => visitedIds.has(String(w.id))).length;
+                        setCoverage({ scheduled: scheduled.length, visited });
+                    } catch (covErr) {
+                        console.error("Failed to fetch coverage", covErr);
+                        setCoverage(null);
+                    }
                 } catch (error: any) {
                     console.error("Failed to fetch summary", error);
                     setError(error.message || "Gagal mengambil ringkasan harian.");
@@ -110,6 +136,24 @@ const PetugasDashboardPage: React.FC = () => {
                     }
                 </div>
             </div>
+
+            {coverage && !scheduleInfo?.isHoliday && (
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                    <div className="bg-emerald-100 p-3 rounded-lg">
+                        <UsersIcon className="text-2xl text-emerald-600" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-slate-500 text-sm font-medium">Cakupan Kunjungan Hari Ini</p>
+                        <p className="text-2xl font-bold font-display text-slate-800">
+                            {coverage.visited} <span className="text-base font-medium text-slate-500">dari {coverage.scheduled} rumah</span>
+                            <span className="text-base font-medium text-emerald-600"> ({coverage.scheduled > 0 ? Math.round((coverage.visited / coverage.scheduled) * 100) : 0}%)</span>
+                        </p>
+                        <div className="mt-2 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${coverage.scheduled > 0 ? (coverage.visited / coverage.scheduled) * 100 : 0}%` }}></div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="pt-4">
                 <button 

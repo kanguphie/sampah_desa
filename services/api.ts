@@ -217,6 +217,10 @@ export const getSchedule = async () => fetchLocal('/schedule');
 export const getScheduleForToday = async () => fetchLocal('/schedule/today');
 export const updateSchedule = async (day: string, dukuhIds: any) => fetchLocal('/schedule', { method: 'POST', body: JSON.stringify({ day, dukuhIds }) });
 
+// --- CATATAN KUNJUNGAN HARIAN ---
+export const getVisitNotes = async (date: string) => fetchLocal(`/visit-notes?date=${date}`);
+export const saveVisitNote = async (wargaId: string, date: string, note: string) => fetchLocal('/visit-notes', { method: 'POST', body: JSON.stringify({ wargaId, date, note }) });
+
 // --- PROFILE & SETTINGS ---
 
 export const updateAdminProfile = async (id: string, name: string, pin?: string) => fetchLocal('/profile/admin', { method: 'POST', body: JSON.stringify({ id, name, pin }) });

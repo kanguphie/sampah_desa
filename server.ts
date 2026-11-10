@@ -384,7 +384,8 @@ async function startServer() {
         `CREATE TABLE IF NOT EXISTS pemasukan_lain (id VARCHAR(50) PRIMARY KEY, description TEXT, amount INT, date DATE, source VARCHAR(100), category VARCHAR(50))`,
         `CREATE TABLE IF NOT EXISTS contact_messages (id VARCHAR(50) PRIMARY KEY, name VARCHAR(255), phone VARCHAR(20), subject VARCHAR(255), message TEXT, timestamp DATETIME, isRead BOOLEAN DEFAULT FALSE)`,
         `CREATE TABLE IF NOT EXISTS announcements (id VARCHAR(50) PRIMARY KEY, title VARCHAR(255), content TEXT, date DATETIME, isActive BOOLEAN DEFAULT TRUE)`,
-        `CREATE TABLE IF NOT EXISTS schedules (day VARCHAR(20) PRIMARY KEY, dukuhIds JSON)`
+        `CREATE TABLE IF NOT EXISTS schedules (day VARCHAR(20) PRIMARY KEY, dukuhIds JSON)`,
+        `CREATE TABLE IF NOT EXISTS visit_notes (wargaId VARCHAR(50), visitDate DATE, note TEXT, updatedBy VARCHAR(50), updatedAt DATETIME, PRIMARY KEY (wargaId, visitDate))`
       ];
       for (const q of queries) {
         try {
@@ -1872,6 +1873,39 @@ async function startServer() {
             dukuhNames = dukuhIds.map((id: number) => nameById[id]).filter(Boolean);
         }
         res.json({ day: today, isHoliday, dukuhIds, dukuhNames });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Catatan kunjungan harian: alasan kenapa warga yang masuk jadwal
+  // hari itu tidak di-scan. Diisi admin belakangan di laporan Kunjungan
+  // (bukan oleh petugas di lapangan) — satu catatan per warga per tanggal.
+  app.get('/api/visit-notes', async (req, res) => {
+    try {
+        const date = String(req.query.date || '');
+        if (!date) return res.status(400).json({ error: 'Parameter date wajib diisi (YYYY-MM-DD).' });
+        const db = await getDB();
+        const [rows]: any = await db.execute('SELECT wargaId, note FROM visit_notes WHERE visitDate = ?', [date]);
+        const notes: any = {};
+        rows.forEach((r: any) => { notes[r.wargaId] = r.note; });
+        res.json(notes);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post('/api/visit-notes', async (req, res) => {
+    try {
+        const { wargaId, date, note } = req.body;
+        if (!wargaId || !date) return res.status(400).json({ error: 'wargaId dan date wajib diisi.' });
+        const db = await getDB();
+        const clean = String(note || '').trim();
+        if (!clean) {
+            await db.execute('DELETE FROM visit_notes WHERE wargaId = ? AND visitDate = ?', [wargaId, date]);
+        } else {
+            await db.execute(
+                'REPLACE INTO visit_notes (wargaId, visitDate, note, updatedBy, updatedAt) VALUES (?, ?, ?, ?, ?)',
+                [wargaId, date, clean, (req as any).auth?.sub || null, getWIBDateTimeString()]
+            );
+        }
+        res.json({ success: true });
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
