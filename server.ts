@@ -1591,11 +1591,25 @@ async function startServer() {
 
         const monthlyPaid = mRows.length > 0;
 
+        // Tunggakan bulanan bulan ini (kalau ada) — dipakai halaman scan
+        // untuk menyembunyikan tombol TIDAK BAYAR supaya tidak tercatat ganda.
+        const [dRows]: any = await db.execute(`
+            SELECT * FROM transactions
+            WHERE wargaId = ?
+            AND LOWER(category) IN ('bulanan', 'iuran_bulanan')
+            AND LOWER(status) IN ('unpaid', 'hutang')
+            AND YEAR(timestamp) = ?
+            AND MONTH(timestamp) = ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+        `, [wargaId, currentYear, currentMonth]);
+
         res.json({
             warga,
             todayTx: todayRows[0] || null,
             monthlyPaid,
             monthlyTx: mRows[0] || null,
+            monthlyDebtTx: dRows[0] || null,
             currentMonthName,
             currentMonth,
             currentYear
@@ -2692,6 +2706,33 @@ async function startServer() {
             finalCategory = 'bulanan';
         } else if (catLower === 'ambil_bulanan') {
             finalCategory = 'ambil_bulanan';
+        }
+
+        // Penjaga duplikat tunggakan (2026-11-15): satu warga tidak boleh
+        // punya dua catatan HUTANG untuk periode yang sama. Bulanan: satu
+        // per bulan; harian: satu per hari. Kalau sudah ada, tolak dengan
+        // 409 supaya petugas yang menekan TIDAK BAYAR dua kali (atau di
+        // hari kunjungan berbeda dalam bulan yang sama) tidak menambah
+        // hutang baru. Pesan error ini ditampilkan langsung ke petugas.
+        if (finalStatus === 'unpaid') {
+            const nowStr = getWIBDateTimeString();
+            if (finalCategory === 'bulanan') {
+                const [dup]: any = await db.execute(
+                    `SELECT id FROM transactions WHERE wargaId = ? AND LOWER(status) IN ('unpaid', 'hutang') AND LOWER(category) IN ('bulanan', 'iuran_bulanan') AND DATE_FORMAT(timestamp, '%Y-%m') = DATE_FORMAT(?, '%Y-%m') LIMIT 1`,
+                    [wargaId, nowStr]
+                );
+                if (dup.length > 0) {
+                    return res.status(409).json({ error: 'Tunggakan bulan ini sudah tercatat.' });
+                }
+            } else if (finalCategory === 'harian') {
+                const [dup]: any = await db.execute(
+                    `SELECT id FROM transactions WHERE wargaId = ? AND LOWER(status) IN ('unpaid', 'hutang') AND LOWER(category) = 'harian' AND DATE(timestamp) = DATE(?) LIMIT 1`,
+                    [wargaId, nowStr]
+                );
+                if (dup.length > 0) {
+                    return res.status(409).json({ error: 'Tunggakan hari ini sudah tercatat.' });
+                }
+            }
         }
 
         await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, wargaId, petugasId || null, amount, finalStatus, finalCategory, getWIBDateTimeString()]);

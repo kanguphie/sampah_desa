@@ -14,7 +14,7 @@ const PetugasScanPage: FC = () => {
     const [wargaId, setWargaId] = useState('');
     const [warga, setWarga] = useState<Warga | null>(null);
     const [todayTx, setTodayTx] = useState<Transaksi | null>(null);
-    const [monthlyStatus, setMonthlyStatus] = useState<{ monthlyPaid: boolean; monthlyTx?: any; currentMonthName: string } | null>(null);
+    const [monthlyStatus, setMonthlyStatus] = useState<{ monthlyPaid: boolean; monthlyTx?: any; monthlyDebtTx?: any; currentMonthName: string } | null>(null);
     const [dukuhList, setDukuhList] = useState<Dukuh[]>([]);
     const [rtList, setRtList] = useState<RT[]>([]);
     const [scheduleToday, setScheduleToday] = useState<{isHoliday: boolean, dukuhIds: number[], dukuhNames: string[]} | null>(null);
@@ -125,6 +125,7 @@ const PetugasScanPage: FC = () => {
                     setMonthlyStatus({
                         monthlyPaid: !!statusData.monthlyPaid,
                         monthlyTx: statusData.monthlyTx,
+                        monthlyDebtTx: statusData.monthlyDebtTx,
                         currentMonthName: statusData.currentMonthName
                     });
                 } else {
@@ -244,7 +245,7 @@ const PetugasScanPage: FC = () => {
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
-        } catch (err) { setError('Gagal menyimpan.'); }
+        } catch (err: any) { setError(err.message || 'Gagal menyimpan.'); }
         finally { setLoading(false); }
     };
 
@@ -257,7 +258,7 @@ const PetugasScanPage: FC = () => {
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
-        } catch (err) { setError('Gagal menyimpan iuran bulanan.'); }
+        } catch (err: any) { setError(err.message || 'Gagal menyimpan iuran bulanan.'); }
         finally { setLoading(false); }
     };
 
@@ -411,6 +412,7 @@ const PetugasScanPage: FC = () => {
     const isTodayDebt = todayTx?.status === 'HUTANG' || (todayTx?.status as string)?.toLowerCase() === 'unpaid';
     const isTodayPaid = todayTx?.status === 'LUNAS' || (todayTx?.status as string)?.toLowerCase() === 'paid';
     const isMonthlyPaid = !!monthlyStatus?.monthlyPaid;
+    const isMonthlyDebt = !!monthlyStatus?.monthlyDebtTx;
     const hasDebt = warga ? warga.totalDebt > 0 : false;
     const currentTarif = isBulanan ? (warga?.monthlyFee || 0) : (warga?.dailyFee || 2000);
 
@@ -655,9 +657,16 @@ const PetugasScanPage: FC = () => {
                                                 <BanknotesIcon className="text-lg" /> Nominal Lain
                                             </button>
 
-                                            <button onClick={handleTidakBayar} disabled={loading} className={`w-full font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest border-2 ${confirmTidakBayar ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                                <ClockIcon /> {confirmTidakBayar ? 'Tap Lagi Untuk Pastikan' : 'Tidak Bayar'}
-                                            </button>
+                                            {isMonthlyDebt ? (
+                                                <div className="w-full bg-rose-50 text-rose-700 font-bold p-3.5 rounded-2xl border border-rose-200 text-center">
+                                                    <p className="text-xs font-black uppercase tracking-widest">Tunggakan Bulan Ini Sudah Tercatat</p>
+                                                    <p className="text-[11px] font-medium mt-0.5">Rp{(monthlyStatus?.monthlyDebtTx?.amount || 0).toLocaleString('id-ID')} — tidak perlu menekan Tidak Bayar lagi.</p>
+                                                </div>
+                                            ) : (
+                                                <button onClick={handleTidakBayar} disabled={loading} className={`w-full font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest border-2 ${confirmTidakBayar ? 'bg-rose-500 border-rose-500 text-white' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                                                    <ClockIcon /> {confirmTidakBayar ? 'Tap Lagi Untuk Pastikan' : 'Tidak Bayar'}
+                                                </button>
+                                            )}
                                         </div>
                                     )}
 
