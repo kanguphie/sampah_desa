@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { FC } from 'react';
 import type { Warga, TransactionStatus, Transaksi, Dukuh, RT } from '@/types';
-import { getWargaById, createTransaksi, payDebt, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday, getWargaStatus, createPartialPayment, payWithDeposit } from '@/services/api';
+import { getWargaById, createTransaksi, getAllDukuh, getAllRT, getWargaTodayTransaction, convertDebtToPaidToday, getScheduleForToday, getWargaStatus, createPartialPayment, payWithDeposit } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircleIcon, QrCodeIcon, SearchIcon, XIcon, BanknotesIcon, ClockIcon } from '@/components/icons';
 import Modal from '@/components/Modal';
@@ -374,40 +374,6 @@ const PetugasScanPage: FC = () => {
         finally { setLoading(false); }
     };
 
-    const handleBulkPayment = async () => {
-        if (!warga || !petugas) return;
-        setLoading(true);
-        try {
-            if (warga.billingType === 'BULANAN') {
-                if (!monthlyStatus?.monthlyPaid) {
-                    await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.monthlyFee || 0, status: 'LUNAS', category: 'bulanan' });
-                }
-                if (warga.totalDebt > 0) {
-                    await payDebt(warga.id, petugas.id, warga.totalDebt);
-                }
-            } else {
-                if (todayTx?.status === 'HUTANG' || (todayTx?.status as string)?.toLowerCase() === 'unpaid') {
-                    await convertDebtToPaidToday(warga.id, petugas.id);
-                    const oldDebt = warga.totalDebt - (warga.dailyFee || 2000);
-                    if (oldDebt > 0) {
-                        await payDebt(warga.id, petugas.id, oldDebt);
-                    }
-                } else {
-                    await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: 'LUNAS', category: 'harian' });
-                    if (warga.totalDebt > 0) {
-                        await payDebt(warga.id, petugas.id, warga.totalDebt);
-                    }
-                }
-            }
-            
-            setModalTitle('Borongan Lunas!');
-            setSuccess(true);
-            setIsModalOpen(true);
-            setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
-        } catch (err) { setError('Gagal menyimpan.'); }
-        finally { setLoading(false); }
-    };
-
     const isBulanan = warga?.billingType === 'BULANAN';
     const isTodayDebt = todayTx?.status === 'HUTANG' || (todayTx?.status as string)?.toLowerCase() === 'unpaid';
     const isTodayPaid = todayTx?.status === 'LUNAS' || (todayTx?.status as string)?.toLowerCase() === 'paid';
@@ -417,11 +383,6 @@ const PetugasScanPage: FC = () => {
     const currentTarif = isBulanan ? (warga?.monthlyFee || 0) : (warga?.dailyFee || 2000);
 
     const displayedDailyFee = (isTodayDebt || isTodayPaid) ? 0 : (warga?.dailyFee || 0);
-    const bulkAmount = warga ? (
-        isBulanan
-            ? (isMonthlyPaid ? warga.totalDebt : (warga.monthlyFee || 0) + warga.totalDebt)
-            : (isTodayDebt ? warga.totalDebt : warga.dailyFee + warga.totalDebt)
-    ) : 0;
 
     // Angka bantu untuk pratinjau kalimat di panel Nominal Lain
     const partialNum = Number(partialInput) || 0;
@@ -722,14 +683,6 @@ const PetugasScanPage: FC = () => {
                             {(warga.deposit || 0) > 0 && hasDebt && (
                                 <button onClick={handlePayDebtWithDeposit} disabled={loading} className="w-full bg-sky-100 text-sky-800 border border-sky-300 font-bold py-3 rounded-2xl hover:bg-sky-200 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
                                     <BanknotesIcon /> Potong Tunggakan pakai Deposit (Rp{Math.min(warga.deposit || 0, warga.totalDebt || 0).toLocaleString('id-ID')})
-                                </button>
-                            )}
-                            {hasDebt && (isBulanan ? !isMonthlyPaid : !isTodayPaid) && (
-                                <button onClick={handleBulkPayment} disabled={loading} className="w-full bg-white border-2 border-slate-800 text-slate-800 font-black py-4 rounded-2xl hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5">
-                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
-                                        <CheckCircleIcon className="text-slate-400" /> Bayar Borongan
-                                    </div>
-                                    <span className="text-[11px] font-black">Lunas Semua: Rp{bulkAmount.toLocaleString('id-ID')}</span>
                                 </button>
                             )}
 
