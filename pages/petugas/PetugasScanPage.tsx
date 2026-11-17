@@ -240,8 +240,12 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: status, category: 'harian' });
-            setModalTitle(status === 'LUNAS' ? 'Pembayaran Berhasil' : 'Tunggakan Dicatat');
+            const res: any = await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.dailyFee, status: status, category: 'harian' });
+            if (status === 'HUTANG' && res?.coveredByDeposit) {
+                setModalTitle('Lunas dari Deposit');
+            } else {
+                setModalTitle(status === 'LUNAS' ? 'Pembayaran Berhasil' : 'Tunggakan Dicatat');
+            }
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
@@ -253,8 +257,12 @@ const PetugasScanPage: FC = () => {
         if (!warga || !petugas) return;
         setLoading(true);
         try {
-            await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.monthlyFee || 0, status, category: 'bulanan' });
-            setModalTitle(status === 'LUNAS' ? 'Iuran Bulanan Lunas' : 'Tunggakan Bulanan Dicatat');
+            const res: any = await createTransaksi({ wargaId: warga.id, petugasId: petugas.id, amount: warga.monthlyFee || 0, status, category: 'bulanan' });
+            if (status === 'HUTANG' && res?.coveredByDeposit) {
+                setModalTitle('Lunas dari Deposit');
+            } else {
+                setModalTitle(status === 'LUNAS' ? 'Iuran Bulanan Lunas' : 'Tunggakan Bulanan Dicatat');
+            }
             setSuccess(true);
             setIsModalOpen(true);
             setTimeout(() => { setIsModalOpen(false); resetState(); }, 2000);
@@ -303,8 +311,15 @@ const PetugasScanPage: FC = () => {
             });
 
             if (paid < nominalTarif) {
-                const deficit = nominalTarif - paid;
-                setModalTitle(`Diterima Rp${paid.toLocaleString('id-ID')} (Tunggakan +Rp${deficit.toLocaleString('id-ID')})`);
+                const remaining = Number(result?.debtAdded ?? (nominalTarif - paid));
+                const depUsed = Number(result?.depositUsed || 0);
+                if (remaining > 0) {
+                    setModalTitle(`Diterima Rp${paid.toLocaleString('id-ID')} (Tunggakan +Rp${remaining.toLocaleString('id-ID')})`);
+                } else if (depUsed > 0) {
+                    setModalTitle(`Diterima Rp${paid.toLocaleString('id-ID')} (Lunas dari Deposit Rp${depUsed.toLocaleString('id-ID')})`);
+                } else {
+                    setModalTitle(`Diterima Rp${paid.toLocaleString('id-ID')}`);
+                }
             } else if (Number(result?.depositAdded || 0) > 0) {
                 setModalTitle(`Pembayaran Rp${paid.toLocaleString('id-ID')} Berhasil (Deposit +Rp${Number(result.depositAdded).toLocaleString('id-ID')})`);
             } else {

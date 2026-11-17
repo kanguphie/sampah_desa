@@ -1328,14 +1328,29 @@ async function startServer() {
         }
 
         if (paid <= 0) {
-            // Warga tidak membayar sama sekali -> catat hutang penuh
-            const debtId = `tr-debt-${Date.now()}`;
-            await db.execute(
-                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "unpaid", ?, ?)',
-                [debtId, wargaId, petugasId || null, nominalTarif, txCategory, nowStr]
-            );
-            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [nominalTarif, wargaId]);
-            return res.json({ success: true, type: 'tunggakan', amountPaid: 0, debtAdded: nominalTarif });
+            // Warga tidak membayar sama sekali. Deposit otomatis dipakai
+            // dulu untuk menutup iuran ini; hanya sisanya yang jadi
+            // tunggakan. Petugas cukup mencatat "tidak bayar".
+            const depositAvail = Number(warga.deposit || 0);
+            const covered = Math.min(depositAvail, nominalTarif);
+            const remaining = nominalTarif - covered;
+            if (covered > 0) {
+                await db.execute('UPDATE wargas SET deposit = GREATEST(0, deposit - ?) WHERE id = ?', [covered, wargaId]);
+                const depId = `tr-dep-pay-${Date.now()}`;
+                await db.execute(
+                    'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", ?, ?)',
+                    [depId, wargaId, petugasId || null, covered, txCategory, nowStr]
+                );
+            }
+            if (remaining > 0) {
+                const debtId = `tr-debt-${Date.now()}`;
+                await db.execute(
+                    'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "unpaid", ?, ?)',
+                    [debtId, wargaId, petugasId || null, remaining, txCategory, nowStr]
+                );
+                await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [remaining, wargaId]);
+            }
+            return res.json({ success: true, type: remaining > 0 ? 'tunggakan' : 'lunas-deposit', amountPaid: 0, debtAdded: remaining, depositUsed: covered });
         }
 
         if (paid < nominalTarif) {
@@ -1349,17 +1364,30 @@ async function startServer() {
                 [paidId, wargaId, petugasId || null, paid, txCategory, nowStr]
             );
 
-            // 2. Catat sisa kekurangan sebagai tunggakan
-            const debtId = `tr-part-debt-${Date.now()}`;
-            await db.execute(
-                'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "unpaid", ?, ?)',
-                [debtId, wargaId, petugasId || null, deficit, txCategory, nowStr]
-            );
+            // 2. Tutup kekurangan dari deposit bila ada (otomatis)
+            const depositAvail = Number(warga.deposit || 0);
+            const covered = Math.min(depositAvail, deficit);
+            const remaining = deficit - covered;
+            if (covered > 0) {
+                await db.execute('UPDATE wargas SET deposit = GREATEST(0, deposit - ?) WHERE id = ?', [covered, wargaId]);
+                const depId = `tr-dep-pay-${Date.now()}`;
+                await db.execute(
+                    'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", ?, ?)',
+                    [depId, wargaId, petugasId || null, covered, txCategory, nowStr]
+                );
+            }
 
-            // 3. Tambahkan selisih kekurangan ke totalDebt warga
-            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [deficit, wargaId]);
+            // 3. Sisa kekurangan (bila ada) jadi tunggakan
+            if (remaining > 0) {
+                const debtId = `tr-part-debt-${Date.now()}`;
+                await db.execute(
+                    'INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "unpaid", ?, ?)',
+                    [debtId, wargaId, petugasId || null, remaining, txCategory, nowStr]
+                );
+                await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [remaining, wargaId]);
+            }
 
-            return res.json({ success: true, type: 'sebagian', amountPaid: paid, debtAdded: deficit });
+            return res.json({ success: true, type: remaining > 0 ? 'sebagian' : 'lunas', amountPaid: paid, debtAdded: remaining, depositUsed: covered });
         }
 
         // paid >= nominalTarif (Pembayaran pas atau lebih)
@@ -2735,19 +2763,44 @@ async function startServer() {
             }
         }
 
-        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, wargaId, petugasId || null, amount, finalStatus, finalCategory, getWIBDateTimeString()]);
+        // Deposit otomatis menutup tunggakan (2026-11-17): bila warga masih
+        // punya deposit, pakai dulu untuk membayar iuran ini. Hanya sisa
+        // yang tidak tertutup deposit yang dicatat sebagai HUTANG. Petugas
+        // cukup mencatat "tidak bayar" — urusan deposit/tunggakan diproses
+        // sistem.
+        let depositUsed = 0;
+        let recordAmount = Number(amount) || 0;
+        let coveredId: string | null = null;
+        if (finalStatus === 'unpaid') {
+            const [wRows]: any = await db.execute('SELECT deposit FROM wargas WHERE id = ?', [wargaId]);
+            const depositAvail = Number(wRows[0]?.deposit || 0);
+            depositUsed = Math.min(depositAvail, recordAmount);
+            if (depositUsed > 0) {
+                await db.execute('UPDATE wargas SET deposit = GREATEST(0, deposit - ?) WHERE id = ?', [depositUsed, wargaId]);
+                coveredId = `tr-dep-pay-${Date.now()}`;
+                await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, "paid", ?, ?)', [coveredId, wargaId, petugasId || null, depositUsed, finalCategory, getWIBDateTimeString()]);
+                recordAmount = recordAmount - depositUsed;
+            }
+            if (recordAmount <= 0) {
+                // Seluruhnya tertutup deposit: tidak ada hutang baru.
+                return res.json({ success: true, id: coveredId, depositUsed, coveredByDeposit: true });
+            }
+        }
+
+        await db.execute('INSERT INTO transactions (id, wargaId, petugasId, amount, status, category, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, wargaId, petugasId || null, recordAmount, finalStatus, finalCategory, getWIBDateTimeString()]);
 
         // Effect on totalDebt
         if (finalStatus === 'unpaid') {
-            // Adding a debt record (harian or bulanan)
-            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [amount, wargaId]);
+            // Adding a debt record (harian or bulanan) — hanya sisa yang
+            // tidak tertutup deposit
+            await db.execute('UPDATE wargas SET totalDebt = totalDebt + ? WHERE id = ?', [recordAmount, wargaId]);
         } else if (finalStatus === 'paid' && finalCategory === 'tunggakan') {
             // Paying a debt (clamped so debt can never go negative)
-            await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [amount, wargaId]);
+            await db.execute('UPDATE wargas SET totalDebt = GREATEST(0, totalDebt - ?) WHERE id = ?', [recordAmount, wargaId]);
         }
         // Normal daily payment (paid + harian) doesn't change existing totalDebt field
 
-        res.json({ success: true, id });
+        res.json({ success: true, id, depositUsed });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
