@@ -257,53 +257,55 @@ const MonthlyIuranStatusReport: React.FC = () => {
                     <p className="font-bold text-purple-800 text-sm">Status Iuran Bulanan — {monthName} {year}</p>
                     <p className="text-xs text-purple-500 font-medium mt-0.5">{paidCount} dari {monthlyStatus.length} warga sudah lunas • Terkumpul Rp{totalMonthlyPaid.toLocaleString('id-ID')}</p>
                 </div>
-                <table className="w-full text-sm text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="p-4">No</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nama')}>Nama{sortArrow('nama')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('dukuh')}>Dukuh{sortArrow('dukuh')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('rt')}>RT{sortArrow('rt')}</th>
-                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('tarif')}>Tarif{sortArrow('tarif')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('status')}>Status{sortArrow('status')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('tanggal')}>Tgl Bayar{sortArrow('tanggal')}</th>
-                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nominal')}>Nominal{sortArrow('nominal')}</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr><td colSpan={8} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
-                        ) : filteredMonthly.map((m, i) => (
-                            <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-4 font-bold text-slate-400">{i + 1}</td>
-                                <td className="p-4 font-bold text-slate-700">{m.name}</td>
-                                <td className="p-4 font-medium text-slate-500">{m.dukuhName}</td>
-                                <td className="p-4 font-medium text-slate-500">{m.rtNumber}</td>
-                                <td className="p-4 text-right font-medium text-slate-500">Rp{m.monthlyFee.toLocaleString('id-ID')}</td>
-                                <td className="p-4">{m.paid ? <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">Lunas</span> : <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase">Belum</span>}</td>
-                                <td className="p-4 font-bold text-slate-400">{m.paidDate || '-'}</td>
-                                <td className="p-4 text-right font-bold text-purple-600">{m.paid ? `Rp${m.paidAmount.toLocaleString('id-ID')}` : '-'}</td>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <th className="p-4">No</th>
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nama')}>Nama{sortArrow('nama')}</th>
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('dukuh')}>Dukuh{sortArrow('dukuh')}</th>
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('rt')}>RT{sortArrow('rt')}</th>
+                                <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('tarif')}>Tarif{sortArrow('tarif')}</th>
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('status')}>Status{sortArrow('status')}</th>
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('tanggal')}>Tgl Bayar{sortArrow('tanggal')}</th>
+                                <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nominal')}>Nominal{sortArrow('nominal')}</th>
                             </tr>
-                        ))}
-                        {!loading && filteredMonthly.length === 0 && (
-                            <tr><td colSpan={8} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada warga tarif bulanan</td></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? (
+                                <tr><td colSpan={8} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
+                            ) : filteredMonthly.map((m, i) => (
+                                <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-4 font-bold text-slate-400">{i + 1}</td>
+                                    <td className="p-4 font-bold text-slate-700">{m.name}</td>
+                                    <td className="p-4 font-medium text-slate-500">{m.dukuhName}</td>
+                                    <td className="p-4 font-medium text-slate-500">{m.rtNumber}</td>
+                                    <td className="p-4 text-right font-medium text-slate-500">Rp{m.monthlyFee.toLocaleString('id-ID')}</td>
+                                    <td className="p-4">{m.paid ? <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">Lunas</span> : <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase">Belum</span>}</td>
+                                    <td className="p-4 font-bold text-slate-400">{m.paidDate || '-'}</td>
+                                    <td className="p-4 text-right font-bold text-purple-600">{m.paid ? `Rp${m.paidAmount.toLocaleString('id-ID')}` : '-'}</td>
+                                </tr>
+                            ))}
+                            {!loading && filteredMonthly.length === 0 && (
+                                <tr><td colSpan={8} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada warga tarif bulanan</td></tr>
+                            )}
+                        </tbody>
+                        {!loading && filteredMonthly.length > 0 && (
+                            <tfoot>
+                                <tr className="bg-purple-50/70 border-t-2 border-purple-200 font-black">
+                                    <td className="p-4 text-slate-400">&mdash;</td>
+                                    <td className="p-4 text-slate-800">JUMLAH ({filteredMonthly.length} warga)</td>
+                                    <td className="p-4 text-slate-400">&mdash;</td>
+                                    <td className="p-4 text-slate-400">&mdash;</td>
+                                    <td className="p-4 text-right text-slate-800">Rp{totalTarifShown.toLocaleString('id-ID')}</td>
+                                    <td className="p-4 text-emerald-700">{paidShown} Lunas</td>
+                                    <td className="p-4 text-slate-400">&mdash;</td>
+                                    <td className="p-4 text-right text-purple-700">Rp{totalNominalShown.toLocaleString('id-ID')}</td>
+                                </tr>
+                            </tfoot>
                         )}
-                    </tbody>
-                    {!loading && filteredMonthly.length > 0 && (
-                        <tfoot>
-                            <tr className="bg-purple-50/70 border-t-2 border-purple-200 font-black">
-                                <td className="p-4 text-slate-400">&mdash;</td>
-                                <td className="p-4 text-slate-800">JUMLAH ({filteredMonthly.length} warga)</td>
-                                <td className="p-4 text-slate-400">&mdash;</td>
-                                <td className="p-4 text-slate-400">&mdash;</td>
-                                <td className="p-4 text-right text-slate-800">Rp{totalTarifShown.toLocaleString('id-ID')}</td>
-                                <td className="p-4 text-emerald-700">{paidShown} Lunas</td>
-                                <td className="p-4 text-slate-400">&mdash;</td>
-                                <td className="p-4 text-right text-purple-700">Rp{totalNominalShown.toLocaleString('id-ID')}</td>
-                            </tr>
-                        </tfoot>
-                    )}
-                </table>
+                    </table>
+                </div>
             </div>
         </div>
     );

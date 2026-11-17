@@ -176,34 +176,36 @@ const MonthlyReport: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="p-5">Tanggal</th>
-                            <th className="p-5 text-right">Iuran Warga</th>
-                            <th className="p-5 text-right">Pemasukan Lain</th>
-                            <th className="p-5 text-right">Total Masuk</th>
-                            <th className="p-5 text-right">Pengeluaran</th>
-                            <th className="p-5 text-right">Saldo Bersih</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse font-bold text-slate-300">Memproses Data Bulanan...</td></tr> : 
-                        dailyData.map((d, i) => (
-                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-5 font-bold text-slate-700">{d.date} {new Date(year, month - 1).toLocaleString('id-ID', {month:'long'})}</td>
-                                <td className="p-5 text-right font-medium text-blue-600">Rp{d.iuran.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-medium text-emerald-600">Rp{d.other.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-bold text-emerald-700">Rp{d.income.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-bold text-rose-600">Rp{d.expense.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-black text-slate-800">Rp{d.net.toLocaleString('id-ID')}</td>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <th className="p-5">Tanggal</th>
+                                <th className="p-5 text-right">Iuran Warga</th>
+                                <th className="p-5 text-right">Pemasukan Lain</th>
+                                <th className="p-5 text-right">Total Masuk</th>
+                                <th className="p-5 text-right">Pengeluaran</th>
+                                <th className="p-5 text-right">Saldo Bersih</th>
                             </tr>
-                        ))}
-                        {!loading && dailyData.length === 0 && (
-                            <tr><td colSpan={6} className="p-10 text-center text-slate-400 font-bold italic text-xs">Belum ada catatan transaksi pada bulan ini</td></tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse font-bold text-slate-300">Memproses Data Bulanan...</td></tr> : 
+                            dailyData.map((d, i) => (
+                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-5 font-bold text-slate-700">{d.date} {new Date(year, month - 1).toLocaleString('id-ID', {month:'long'})}</td>
+                                    <td className="p-5 text-right font-medium text-blue-600">Rp{d.iuran.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-medium text-emerald-600">Rp{d.other.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-bold text-emerald-700">Rp{d.income.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-bold text-rose-600">Rp{d.expense.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-black text-slate-800">Rp{d.net.toLocaleString('id-ID')}</td>
+                                </tr>
+                            ))}
+                            {!loading && dailyData.length === 0 && (
+                                <tr><td colSpan={6} className="p-10 text-center text-slate-400 font-bold italic text-xs">Belum ada catatan transaksi pada bulan ini</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

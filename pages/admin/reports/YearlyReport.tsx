@@ -157,31 +157,33 @@ const YearlyReport: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="p-5">Bulan</th>
-                            <th className="p-5 text-right">Iuran Warga</th>
-                            <th className="p-5 text-right">Pemasukan Lain</th>
-                            <th className="p-5 text-right">Total Masuk</th>
-                            <th className="p-5 text-right">Pengeluaran</th>
-                            <th className="p-5 text-right">Saldo Bersih</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse font-bold text-slate-300">Memproses Data Tahunan...</td></tr> : 
-                        monthlySummary.map((m, i) => (
-                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-5 font-bold text-slate-700">{m.monthName}</td>
-                                <td className="p-5 text-right font-medium text-blue-600">Rp{m.iuran.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-medium text-emerald-600">Rp{m.other.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-bold text-emerald-700">Rp{m.income.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-bold text-rose-600">Rp{m.expense.toLocaleString('id-ID')}</td>
-                                <td className="p-5 text-right font-black text-slate-800">Rp{m.net.toLocaleString('id-ID')}</td>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <th className="p-5">Bulan</th>
+                                <th className="p-5 text-right">Iuran Warga</th>
+                                <th className="p-5 text-right">Pemasukan Lain</th>
+                                <th className="p-5 text-right">Total Masuk</th>
+                                <th className="p-5 text-right">Pengeluaran</th>
+                                <th className="p-5 text-right">Saldo Bersih</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? <tr><td colSpan={6} className="p-10 text-center animate-pulse font-bold text-slate-300">Memproses Data Tahunan...</td></tr> : 
+                            monthlySummary.map((m, i) => (
+                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-5 font-bold text-slate-700">{m.monthName}</td>
+                                    <td className="p-5 text-right font-medium text-blue-600">Rp{m.iuran.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-medium text-emerald-600">Rp{m.other.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-bold text-emerald-700">Rp{m.income.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-bold text-rose-600">Rp{m.expense.toLocaleString('id-ID')}</td>
+                                    <td className="p-5 text-right font-black text-slate-800">Rp{m.net.toLocaleString('id-ID')}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

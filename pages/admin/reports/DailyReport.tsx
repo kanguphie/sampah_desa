@@ -249,34 +249,36 @@ const DailyReport: React.FC = () => {
                 <div className="p-5 bg-slate-50/70 border-b border-slate-100 font-bold text-slate-700 text-sm">
                     Rincian Pembayaran Iuran Sampah ({groupedReports.length})
                 </div>
-                <table className="w-full text-sm text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('waktu')}>Waktu{sortArrow('waktu')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('warga')}>Warga{sortArrow('warga')}</th>
-                            <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('petugas')}>Petugas{sortArrow('petugas')}</th>
-                            <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nominal')}>Nominal{sortArrow('nominal')}</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr><td colSpan={4} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
-                        ) : sortedReports.map(r => (
-                            <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="p-4 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
-                                <td className="p-4">
-                                    <p className="font-bold text-slate-700">{r.wargaName}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT {r.rtNumber}, {r.dukuhName}</p>
-                                </td>
-                                <td className="p-4 text-slate-500 font-medium">{r.petugasName}</td>
-                                <td className="p-4 text-right font-bold text-blue-600">Rp{r.amount.toLocaleString('id-ID')}</td>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('waktu')}>Waktu{sortArrow('waktu')}</th>
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('warga')}>Warga{sortArrow('warga')}</th>
+                                <th className="p-4 cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('petugas')}>Petugas{sortArrow('petugas')}</th>
+                                <th className="p-4 text-right cursor-pointer select-none hover:text-slate-600" onClick={() => handleSort('nominal')}>Nominal{sortArrow('nominal')}</th>
                             </tr>
-                        ))}
-                        {!loading && filteredReports.length === 0 && (
-                            <tr><td colSpan={4} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada pembayaran iuran pada hari ini</td></tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? (
+                                <tr><td colSpan={4} className="p-6 text-center animate-pulse font-bold text-slate-300">Memproses Data...</td></tr>
+                            ) : sortedReports.map(r => (
+                                <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-4 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
+                                    <td className="p-4">
+                                        <p className="font-bold text-slate-700">{r.wargaName}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT {r.rtNumber}, {r.dukuhName}</p>
+                                    </td>
+                                    <td className="p-4 text-slate-500 font-medium">{r.petugasName}</td>
+                                    <td className="p-4 text-right font-bold text-blue-600">Rp{r.amount.toLocaleString('id-ID')}</td>
+                                </tr>
+                            ))}
+                            {!loading && filteredReports.length === 0 && (
+                                <tr><td colSpan={4} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada pembayaran iuran pada hari ini</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Tabel Pemasukan Lain */}
@@ -285,24 +287,26 @@ const DailyReport: React.FC = () => {
                     <div className="p-5 bg-emerald-50/50 border-b border-emerald-100 font-bold text-emerald-800 text-sm">
                         Rincian Pemasukan Lain (Non-Iuran) ({filteredOtherIncomes.length})
                     </div>
-                    <table className="w-full text-sm text-left">
-                        <thead>
-                            <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                <th className="p-4">Sumber</th>
-                                <th className="p-4">Keterangan / Uraian</th>
-                                <th className="p-4 text-right">Nominal</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {filteredOtherIncomes.map(o => (
-                                <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-4 font-bold text-slate-800">{o.source || 'Lainnya'}</td>
-                                    <td className="p-4 text-slate-600 font-medium">{o.description || '-'}</td>
-                                    <td className="p-4 text-right font-bold text-emerald-600">+Rp{(o.amount || 0).toLocaleString('id-ID')}</td>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead>
+                                <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <th className="p-4">Sumber</th>
+                                    <th className="p-4">Keterangan / Uraian</th>
+                                    <th className="p-4 text-right">Nominal</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredOtherIncomes.map(o => (
+                                    <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-4 font-bold text-slate-800">{o.source || 'Lainnya'}</td>
+                                        <td className="p-4 text-slate-600 font-medium">{o.description || '-'}</td>
+                                        <td className="p-4 text-right font-bold text-emerald-600">+Rp{(o.amount || 0).toLocaleString('id-ID')}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>
