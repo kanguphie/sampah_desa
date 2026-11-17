@@ -109,6 +109,27 @@ const PublicHomePage: React.FC = () => {
   const getDukuhName = (id: number) => dukuhList.find(d => d.id === id)?.name || 'N/A';
   const getRTNumber = (id: number) => rtList.find(r => r.id === id)?.number || 'N/A';
 
+  // Gabung pembayaran satu hari jadi satu baris: warga lebih mudah mengingat
+  // berapa uang yang dia isi hari itu (iuran + deposit). Rincian pecahannya
+  // tetap ada di halaman Riwayat Transaksi admin.
+  const groupedTransactions = (() => {
+    const paid = transactions.filter(tx => ['paid', 'lunas'].includes(String(tx.status || '').toLowerCase()));
+    const byDay = new Map<string, { key: string; date: Date; amount: number }>();
+    for (const tx of paid) {
+      const d = tx.timestamp instanceof Date ? tx.timestamp : new Date(tx.timestamp as any);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+      const cur = byDay.get(key);
+      if (!cur) {
+        byDay.set(key, { key, date: d, amount: Number(tx.amount) || 0 });
+      } else {
+        cur.amount += Number(tx.amount) || 0;
+        if (d.getTime() < cur.date.getTime()) cur.date = d;
+      }
+    }
+    return [...byDay.values()].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10);
+  })();
+
   return (
     <div className="min-h-screen bg-white text-slate-800 flex flex-col selection:bg-emerald-100 selection:text-emerald-900">
         <PublicHeader />
@@ -320,7 +341,7 @@ const PublicHomePage: React.FC = () => {
                     <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
                       <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">Catatan Pembayaran</h4>
-                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">10 transaksi terakhir</p>
+                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">10 pembayaran terakhir</p>
                       </div>
                       <table className="w-full text-left">
                         <thead className="bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">
@@ -331,13 +352,13 @@ const PublicHomePage: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                          {transactions.length > 0 ? transactions.map(tx => (
-                            <tr key={tx.id} className="hover:bg-slate-50/50">
+                          {groupedTransactions.length > 0 ? groupedTransactions.map(g => (
+                            <tr key={g.key} className="hover:bg-slate-50/50">
                               <td className="py-3 px-4">
-                                <p className="font-bold text-slate-700 text-sm">{tx.timestamp.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
-                                <p className="text-[10px] font-bold text-slate-400">{tx.timestamp.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
+                                <p className="font-bold text-slate-700 text-sm">{g.date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
+                                <p className="text-[10px] font-bold text-slate-400">{g.date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
                               </td>
-                              <td className="py-3 px-4 text-right font-black text-slate-900 text-sm font-mono">Rp{tx.amount.toLocaleString('id-ID')}</td>
+                              <td className="py-3 px-4 text-right font-black text-slate-900 text-sm font-mono">Rp{g.amount.toLocaleString('id-ID')}</td>
                               <td className="py-3 px-4 text-center">
                                 <span className="inline-flex items-center gap-1 bg-emerald-500 text-white py-1 px-3 rounded-full text-[9px] font-black uppercase tracking-wider">
                                   <CheckCircleIcon className="text-[9px]" /> Masuk
