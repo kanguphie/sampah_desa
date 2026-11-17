@@ -73,8 +73,25 @@ const DailyReport: React.FC = () => {
     const isPaidTx = (r: any) => ['paid', 'lunas'].includes(String(r.status || '').toLowerCase());
     const filteredReports = reports.filter(r => toLocalDateString(r.timestamp) === date && isPaidTx(r));
 
+    // Gabung semua transaksi satu warga dalam satu hari jadi satu baris:
+    // nominal = total uang yang dibayar warga itu hari itu (iuran + deposit).
+    // Rincian pecahannya (iuran vs deposit) tetap ada di halaman Riwayat Transaksi.
+    const groupedReports = Object.values(
+        filteredReports.reduce((acc: Record<string, any>, r: any) => {
+            const key = String(r.wargaId ?? r.wargaName);
+            if (!acc[key]) {
+                acc[key] = { ...r, amount: 0, timestamp: r.timestamp };
+            }
+            acc[key].amount = (Number(acc[key].amount) || 0) + (Number(r.amount) || 0);
+            if (new Date(r.timestamp).getTime() < new Date(acc[key].timestamp).getTime()) {
+                acc[key].timestamp = r.timestamp;
+            }
+            return acc;
+        }, {})
+    );
+
     // Sort by column untuk tabel iuran
-    const sortedReports = [...filteredReports].sort((a, b) => {
+    const sortedReports = [...groupedReports].sort((a, b) => {
         let cmp = 0;
         if (sortKey === 'waktu') cmp = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
         else if (sortKey === 'nominal') cmp = (Number(a.amount) || 0) - (Number(b.amount) || 0);
@@ -230,7 +247,7 @@ const DailyReport: React.FC = () => {
             {/* Tabel Iuran Warga */}
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
                 <div className="p-5 bg-slate-50/70 border-b border-slate-100 font-bold text-slate-700 text-sm">
-                    Rincian Pembayaran Iuran Sampah ({filteredReports.length})
+                    Rincian Pembayaran Iuran Sampah ({groupedReports.length})
                 </div>
                 <table className="w-full text-sm text-left">
                     <thead>
