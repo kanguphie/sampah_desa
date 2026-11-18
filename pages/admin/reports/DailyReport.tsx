@@ -73,11 +73,38 @@ const DailyReport: React.FC = () => {
     const isPaidTx = (r: any) => ['paid', 'lunas'].includes(String(r.status || '').toLowerCase());
     const filteredReports = reports.filter(r => toLocalDateString(r.timestamp) === date && isPaidTx(r));
 
-    // Gabung semua transaksi satu warga dalam satu hari jadi satu baris:
-    // nominal = total uang yang dibayar warga itu hari itu (iuran + deposit).
+    // Pembayaran dari deposit BUKAN pemasukan baru (2026-11-18): uang
+    // tunainya sudah diterima dan sudah dihitung sebagai pemasukan pada
+    // hari deposit itu dibuat. Supaya uang di tangan petugas sama dengan
+    // angka laporan, transaksi pakai-deposit dikeluarkan dari total
+    // pemasukan dan ditampilkan terpisah (bukan tunai).
+    const isDepositUse = (r: any) => {
+        const id = String(r.id || '');
+        return id.startsWith('tr-dep-use-') || id.startsWith('tr-dep-pay-');
+    };
+    const cashReports = filteredReports.filter(r => !isDepositUse(r));
+    const depositUseReports = filteredReports.filter(isDepositUse);
+
+    // Gabung semua transaksi tunai satu warga dalam satu hari jadi satu baris:
+    // nominal = total uang tunai yang dibayar warga itu hari itu (iuran + deposit).
     // Rincian pecahannya (iuran vs deposit) tetap ada di halaman Riwayat Transaksi.
     const groupedReports = Object.values(
-        filteredReports.reduce((acc: Record<string, any>, r: any) => {
+        cashReports.reduce((acc: Record<string, any>, r: any) => {
+            const key = String(r.wargaId ?? r.wargaName);
+            if (!acc[key]) {
+                acc[key] = { ...r, amount: 0, timestamp: r.timestamp };
+            }
+            acc[key].amount = (Number(acc[key].amount) || 0) + (Number(r.amount) || 0);
+            if (new Date(r.timestamp).getTime() < new Date(acc[key].timestamp).getTime()) {
+                acc[key].timestamp = r.timestamp;
+            }
+            return acc;
+        }, {})
+    );
+
+    // Yang dibayar dari deposit dikelompokkan terpisah (bukan tunai).
+    const groupedDepositReports = Object.values(
+        depositUseReports.reduce((acc: Record<string, any>, r: any) => {
             const key = String(r.wargaId ?? r.wargaName);
             if (!acc[key]) {
                 acc[key] = { ...r, amount: 0, timestamp: r.timestamp };
@@ -113,7 +140,10 @@ const DailyReport: React.FC = () => {
     const filteredExpenses = expenses.filter(e => toLocalDateString(e.date) === date);
     const filteredOtherIncomes = otherIncomes.filter(o => toLocalDateString(o.date) === date);
 
-    const totalIuran = filteredReports.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    // Pemasukan = uang tunai saja. Pembayaran dari deposit tidak masuk
+    // pemasukan (uangnya sudah dihitung saat deposit dibuat).
+    const totalIuran = cashReports.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const totalDepositUsed = depositUseReports.reduce((s, i) => s + (Number(i.amount) || 0), 0);
     const totalOther = filteredOtherIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0);
     const totalIncome = totalIuran + totalOther;
     const totalExpense = filteredExpenses.reduce((s, i) => s + (Number(i.amount) || 0), 0);
@@ -128,6 +158,15 @@ const DailyReport: React.FC = () => {
                 <td>${new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
                 <td><div class="font-bold">${r.wargaName}</div><div class="text-xs">RT ${r.rtNumber}, ${r.dukuhName}</div></td>
                 <td style="text-align:right">Rp${r.amount.toLocaleString('id-ID')}</td>
+            </tr>
+        `).join('');
+
+        // Dibayar dari deposit: dicetak terpisah, TIDAK dihitung sebagai pemasukan.
+        const depositRows = groupedDepositReports.map((r: any) => `
+            <tr>
+                <td>${new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
+                <td><div class="font-bold">${r.wargaName}</div><div class="text-xs">RT ${r.rtNumber}, ${r.dukuhName}</div></td>
+                <td style="text-align:right">Rp${Number(r.amount || 0).toLocaleString('id-ID')}</td>
             </tr>
         `).join('');
 
@@ -184,11 +223,18 @@ const DailyReport: React.FC = () => {
                     </div>
                 </div>
 
-                <div class="section-title">RINCIAN PEMASUKAN IURAN WARGA</div>
+                <div class="section-title">RINCIAN PEMASUKAN IURAN WARGA (TUNAI)</div>
                 <table>
                     <thead><tr><th width="15%">Waktu</th><th>Nama Warga / Wilayah</th><th style="text-align:right">Nominal</th></tr></thead>
                     <tbody>${incomeRows || '<tr><td colspan="3" style="text-align:center; padding: 20px;">Tidak ada iuran sampah pada hari ini</td></tr>'}</tbody>
                 </table>
+
+                ${groupedDepositReports.length > 0 ? `
+                <div class="section-title">DIBAYAR DARI DEPOSIT (BUKAN TUNAI — TIDAK DIHITUNG PEMASUKAN)</div>
+                <table>
+                    <thead><tr><th width="15%">Waktu</th><th>Nama Warga / Wilayah</th><th style="text-align:right">Nominal</th></tr></thead>
+                    <tbody>${depositRows}</tbody>
+                </table>` : ''}
 
                 <div class="section-title">RINCIAN PEMASUKAN LAIN (NON-IURAN)</div>
                 <table>
@@ -227,8 +273,11 @@ const DailyReport: React.FC = () => {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="p-5 rounded-3xl bg-blue-50 border border-blue-100">
-                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Iuran Warga</p>
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Iuran Warga (Tunai)</p>
                     <p className="text-xl font-black text-blue-700 mt-1">Rp{totalIuran.toLocaleString('id-ID')}</p>
+                    {totalDepositUsed > 0 && (
+                        <p className="text-[11px] font-bold text-slate-500 mt-1">+ dari Deposit Rp{totalDepositUsed.toLocaleString('id-ID')} (bukan tunai, tidak dihitung pemasukan)</p>
+                    )}
                 </div>
                 <div className="p-5 rounded-3xl bg-emerald-50 border border-emerald-100">
                     <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pemasukan Lain</p>
@@ -273,13 +322,47 @@ const DailyReport: React.FC = () => {
                                     <td className="p-4 text-right font-bold text-blue-600">Rp{r.amount.toLocaleString('id-ID')}</td>
                                 </tr>
                             ))}
-                            {!loading && filteredReports.length === 0 && (
-                                <tr><td colSpan={4} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada pembayaran iuran pada hari ini</td></tr>
+                            {!loading && sortedReports.length === 0 && (
+                                <tr><td colSpan={4} className="p-6 text-center text-slate-400 font-bold italic text-xs">Tidak ada pembayaran iuran tunai pada hari ini</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* Dibayar dari Deposit — bukan tunai, tidak dihitung sebagai pemasukan */}
+            {groupedDepositReports.length > 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="p-5 bg-amber-50/70 border-b border-amber-100 font-bold text-amber-800 text-sm">
+                        Dibayar dari Deposit (bukan tunai) ({groupedDepositReports.length}) — Total Rp{totalDepositUsed.toLocaleString('id-ID')}
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead>
+                                <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <th className="p-4">Waktu</th>
+                                    <th className="p-4">Warga</th>
+                                    <th className="p-4">Petugas</th>
+                                    <th className="p-4 text-right">Nominal</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {groupedDepositReports.map((r: any) => (
+                                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-4 font-bold text-slate-400">{new Date(r.timestamp).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
+                                        <td className="p-4">
+                                            <p className="font-bold text-slate-700">{r.wargaName}</p>
+                                            <p className="text-[10px] text-slate-400 uppercase tracking-tighter font-bold">RT {r.rtNumber}, {r.dukuhName}</p>
+                                        </td>
+                                        <td className="p-4 text-slate-500 font-medium">{r.petugasName}</td>
+                                        <td className="p-4 text-right font-bold text-amber-600">Rp{Number(r.amount || 0).toLocaleString('id-ID')}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* Tabel Pemasukan Lain */}
             {filteredOtherIncomes.length > 0 && (
