@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import DailyReport from './reports/DailyReport';
 import MonthlyReport from './reports/MonthlyReport';
 import MonthlyIuranStatusReport from './reports/MonthlyIuranStatusReport';
@@ -12,6 +12,15 @@ import DailyVisitReport from './reports/DailyVisitReport';
 
 const AdminLaporanPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'harian' | 'bulanan' | 'iuran-bulanan' | 'tahunan' | 'wilayah' | 'tunggakan' | 'deposit' | 'partisipasi' | 'kunjungan'>('harian');
+    const navRef = useRef<HTMLElement | null>(null);
+
+    // Tab bar di-scroll horizontal di HP (9 tab tidak muat satu layar).
+    // Pastikan tab yang aktif selalu terlihat saat dipilih.
+    useEffect(() => {
+        navRef.current
+            ?.querySelector('[data-active="true"]')
+            ?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    }, [activeTab]);
     
     const renderContent = () => {
         switch(activeTab) {
@@ -37,7 +46,7 @@ const AdminLaporanPage: React.FC = () => {
             
             <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-sm overflow-hidden min-h-[600px]">
                 <div className="border-b border-slate-100 bg-slate-50/50 p-2">
-                    <nav className="flex space-x-1" aria-label="Tabs">
+                    <nav ref={navRef} className="flex space-x-1 overflow-x-auto touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Tabs">
                         {[
                             {id:'harian', label:'Harian'},
                             {id:'bulanan', label:'Bulanan'},
@@ -51,8 +60,9 @@ const AdminLaporanPage: React.FC = () => {
                         ].map(tab => (
                             <button
                                 key={tab.id}
+                                data-active={activeTab === tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex-1 py-3 px-4 rounded-2xl font-bold text-[10px] transition-all uppercase tracking-widest ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                                className={`shrink-0 whitespace-nowrap md:flex-1 py-3 px-4 rounded-2xl font-bold text-[10px] transition-all uppercase tracking-widest ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
                             >
                                 {tab.label}
                             </button>
