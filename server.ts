@@ -1809,36 +1809,22 @@ async function startServer() {
         const dukuhIds = schedule.length > 0 ? schedule[0].dukuhIds : [];
         if (!Array.isArray(dukuhIds) || dukuhIds.length === 0) return res.json([]);
         const placeholders = dukuhIds.map(() => '?').join(',');
-        const currentYear = wib.getFullYear();
-        const currentMonth = wib.getMonth() + 1;
 
-        // Warga harian: belum bayar jika belum ada transaksi lunas hari ini
-        // Warga bulanan: belum bayar jika belum ada iuran bulanan lunas di bulan ini
+        // Belum discan = belum ada transaksi apa pun hari ini (bayar,
+        // TIDAK BAYAR, deposit, maupun ambil bulanan). Sekali petugas
+        // singgah ke rumah itu, warga keluar dari daftar ini — definisi
+        // yang sama dengan "belum di-scan" di Laporan Kunjungan Harian.
+        // (Sebelumnya: belum bayar saja, sehingga rumah yang sudah
+        // dikunjungi tapi TIDAK BAYAR tetap tampil dan daftar terasa
+        // menampilkan hampir semua warga terjadwal.)
         const [wargas]: any = await db.execute(`
             SELECT w.* FROM wargas w 
             WHERE w.dukuhId IN (${placeholders})
-            AND (
-                (
-                    (w.billingType = 'HARIAN' OR w.billingType IS NULL)
-                    AND NOT EXISTS (
-                        SELECT 1 FROM transactions t 
-                        WHERE t.wargaId = w.id AND DATE(t.timestamp) = ? AND LOWER(t.status) IN ('paid', 'lunas')
-                    )
-                )
-                OR
-                (
-                    w.billingType = 'BULANAN'
-                    AND NOT EXISTS (
-                        SELECT 1 FROM transactions t 
-                        WHERE t.wargaId = w.id 
-                        AND LOWER(t.category) = 'bulanan' 
-                        AND LOWER(t.status) IN ('paid', 'lunas')
-                        AND YEAR(t.timestamp) = ? 
-                        AND MONTH(t.timestamp) = ?
-                    )
-                )
+            AND NOT EXISTS (
+                SELECT 1 FROM transactions t 
+                WHERE t.wargaId = w.id AND DATE(t.timestamp) = ?
             )
-        `, [...dukuhIds, today, currentYear, currentMonth]);
+        `, [...dukuhIds, today]);
         res.json(wargas);
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });

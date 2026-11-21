@@ -68,8 +68,8 @@ const PetugasBelumBayarPage: React.FC = () => {
         }
         return (
             <div className="text-center py-10 bg-white rounded-lg shadow-sm border border-slate-200/80">
-                <h3 className="font-semibold text-lg text-slate-600">Semua Warga Lunas</h3>
-                <p className="text-slate-500 mt-1 text-sm">Semua warga di wilayah terjadwal telah melakukan pembayaran hari ini.</p>
+                <h3 className="font-semibold text-lg text-slate-600">Semua Sudah Dikunjungi</h3>
+                <p className="text-slate-500 mt-1 text-sm">Semua warga di wilayah terjadwal sudah dikunjungi hari ini.</p>
             </div>
         );
     };
@@ -82,7 +82,7 @@ const PetugasBelumBayarPage: React.FC = () => {
                         <UsersIcon className="text-2xl text-amber-600" />
                     </div>
                     <div>
-                        <p className="text-slate-500 text-sm font-medium">Warga Belum Bayar (Sesuai Jadwal)</p>
+                        <p className="text-slate-500 text-sm font-medium">Warga Belum Dikunjungi (Sesuai Jadwal)</p>
                         {loading ? <div className="h-8 w-24 bg-slate-200 rounded animate-pulse mt-1"></div> : 
                             <p className="text-2xl font-bold font-display text-slate-800">{filteredWarga.length} <span className="text-base font-medium text-slate-500">Warga</span></p>
                         }
