@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { getAllWarga, getAllDukuh, getAllRT, getReports } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
 import { DownloadIcon, UsersIcon, CheckCircleIcon, XIcon, SearchIcon, FileExcelIcon } from '@/components/icons';
-import * as XLSX from 'xlsx';
+import { exportReportToExcel } from '@/lib/exportExcel';
 
 const ParticipationReport: React.FC = () => {
     const now = new Date();
@@ -112,19 +112,25 @@ const ParticipationReport: React.FC = () => {
 
     const handleExportExcel = () => {
         const mName = new Date(year, month - 1).toLocaleString('id-ID', { month: 'long' });
-        const data = sortedInactive.map((w, idx) => ({
-            'No': idx + 1,
-            'Nama': w.name,
-            'ID': w.id,
-            'Dukuh': dukuhList.find(d => d.id === w.dukuhId)?.name || '-',
-            'RT': rtList.find(r => r.id === w.rtId)?.number || '-',
-            'Status': 'Tidak Membayar'
-        }));
-        const ws = XLSX.utils.json_to_sheet(data);
-        ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 8 }, { wch: 15 }];
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Tidak Aktif');
-        XLSX.writeFile(wb, `Keaktifan-Tidak-Aktif-${mName}-${year}.xlsx`);
+        const dukuhLabel = dukuhId === 'all' ? 'Semua Dukuh' : dukuhList.find(d => d.id === Number(dukuhId))?.name || '-';
+        const rtLabel = rtId === 'all' ? 'Semua RT' : `RT ${rtList.find(r => r.id === Number(rtId))?.number || '-'}`;
+        exportReportToExcel({
+            title: 'Daftar Warga Tidak Aktif (Keaktifan)',
+            subtitle: `Periode: ${mName} ${year} • Wilayah: ${dukuhLabel}, ${rtLabel} • Partisipasi: ${stats.rate.toFixed(1)}% (${stats.active} dari ${stats.total} warga)`,
+            filename: `Keaktifan-Tidak-Aktif-${mName}-${year}`,
+            sections: [{
+                headers: ['No', 'Nama', 'ID', 'Dukuh', 'RT', 'Status'],
+                rows: sortedInactive.map((w, idx) => [
+                    idx + 1,
+                    w.name,
+                    String(w.id),
+                    dukuhList.find(d => d.id === w.dukuhId)?.name || '-',
+                    String(rtList.find(r => r.id === w.rtId)?.number || '-'),
+                    'Tidak Membayar',
+                ]),
+                totals: [`JUMLAH (${sortedInactive.length} warga)`, '', '', '', '', 'Tidak Membayar'],
+            }],
+        });
     };
 
     const handlePrintInactive = () => {

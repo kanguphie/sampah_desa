@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getReports, getPengeluaran, getPemasukanLain } from '@/services/api';
-import { DownloadIcon } from '@/components/icons';
+import { DownloadIcon, FileExcelIcon } from '@/components/icons';
+import { exportReportToExcel } from '@/lib/exportExcel';
 
 const YearlyReport: React.FC = () => {
     const now = new Date();
@@ -123,6 +124,20 @@ const YearlyReport: React.FC = () => {
         printWindow.document.close();
     };
 
+    const handleExportExcel = () => {
+        exportReportToExcel({
+            title: 'Laporan Tahunan SapaDesa',
+            subtitle: `Tahun Anggaran: ${year}`,
+            filename: `Laporan-Tahunan-${year}`,
+            sections: [{
+                headers: ['Bulan', 'Iuran Warga', 'Pemasukan Lain', 'Total Masuk', 'Pengeluaran', 'Saldo Bersih'],
+                rows: monthlySummary.map(m => [m.monthName, m.iuran, m.other, m.income, m.expense, m.net]),
+                totals: ['TOTAL', totalIuran, totalOther, totalInc, totalExp, netBalance],
+                moneyCols: [1, 2, 3, 4, 5],
+            }],
+        });
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
@@ -134,6 +149,7 @@ const YearlyReport: React.FC = () => {
                         ))}
                     </select>
                 </div>
+                <button onClick={handleExportExcel} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"><FileExcelIcon /> Export Excel</button>
                 <button onClick={handlePrint} className="bg-slate-800 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition-all shadow-lg shadow-slate-900/10"><DownloadIcon /> Cetak Laporan</button>
             </div>
 

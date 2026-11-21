@@ -5,6 +5,7 @@ import { getAllWarga, getAllDukuh, getAllRT, getTransactionsByWargaId, deleteTra
 import { useAuth } from '@/context/AuthContext';
 import type { Warga, Dukuh, RT, Transaksi } from '@/types';
 import { DownloadIcon, ClipboardListIcon, FileExcelIcon, SearchIcon, TrashIcon, XIcon, InfoIcon, ScaleBalancedIcon, CheckCircleIcon, AlertCircleIcon } from '@/components/icons';
+import { exportReportToExcel } from '@/lib/exportExcel';
 import Modal from '@/components/Modal';
 
 const UnpaidReport: React.FC = () => {
@@ -277,6 +278,27 @@ const UnpaidReport: React.FC = () => {
         printWindow.document.close();
     };
 
+    const handleExportExcel = () => {
+        const totalTunggakan = filteredList.reduce((s, i) => s + (i.totalDebt || 0), 0);
+        exportReportToExcel({
+            title: 'Daftar Tunggakan Iuran',
+            subtitle: `Dicetak: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })} • ${filteredList.length} warga`,
+            filename: `Daftar-Tunggakan-${new Date().toISOString().slice(0, 10)}`,
+            sections: [{
+                headers: ['No', 'Nama', 'Dukuh', 'RT', 'Nilai Tunggakan'],
+                rows: filteredList.map((w, idx) => [
+                    idx + 1,
+                    w.name,
+                    dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A',
+                    `RT ${rtList.find(r => r.id === w.rtId)?.number || 'N/A'}`,
+                    w.totalDebt || 0,
+                ]),
+                totals: ['TOTAL TUNGGAKAN', '', '', '', totalTunggakan],
+                moneyCols: [4],
+            }],
+        });
+    };
+
     const generateSlipHtml = (w: Warga) => {
         // FIX: Use rtList state lookup instead of async getRTById to avoid Promise property errors
         const rtNum = rtList.find(r => r.id === w.rtId)?.number || 'N/A';
@@ -391,6 +413,9 @@ const UnpaidReport: React.FC = () => {
                             className="flex-1 lg:flex-none px-5 py-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-[10px] uppercase tracking-widest border border-emerald-100 disabled:opacity-50"
                         >
                             <ScaleBalancedIcon className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sinkronisasi...' : 'Sinkron Saldo'}
+                        </button>
+                        <button onClick={handleExportExcel} className="flex-1 lg:flex-none bg-emerald-600 text-white hover:bg-emerald-700 px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all text-[10px] uppercase tracking-widest">
+                            <FileExcelIcon className="text-sm" /> Export Excel
                         </button>
                         <button onClick={handlePrintTable} className="flex-1 lg:flex-none bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-sm transition-all text-[10px] uppercase tracking-widest">
                             <FileExcelIcon className="text-emerald-500 text-sm" /> Cetak Daftar (Tabel)

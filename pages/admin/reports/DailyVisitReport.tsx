@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getAllWarga, getAllDukuh, getAllRT, getReports, getSchedule, getVisitNotes, saveVisitNote } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
-import { DownloadIcon, UsersIcon, CheckCircleIcon, SearchIcon } from '@/components/icons';
+import { DownloadIcon, UsersIcon, CheckCircleIcon, SearchIcon, FileExcelIcon } from '@/components/icons';
+import { exportReportToExcel } from '@/lib/exportExcel';
 
 const DAYS_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -213,6 +214,27 @@ const DailyVisitReport: React.FC = () => {
         printWindow.document.close();
     };
 
+    const handleExportExcel = () => {
+        const dukuhLabel = dukuhId === 'all' ? 'Semua Dukuh' : dukuhList.find(d => d.id === Number(dukuhId))?.name || '-';
+        const dateLabel = new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        exportReportToExcel({
+            title: 'Laporan Kunjungan Harian',
+            subtitle: `${dayName}, ${dateLabel} • Dukuh: ${dukuhLabel} • Terjadwal: ${scheduledWarga.length} rumah • Sudah dikunjungi: ${visitedCount} • Belum di-scan: ${notVisitedCount} • Cakupan: ${coverage.toFixed(1)}%`,
+            filename: `Kunjungan-Harian-${dateStr}`,
+            sections: [{
+                headers: ['No', 'Nama Warga', 'Dukuh', 'RT', 'Keterangan / Alasan'],
+                rows: sortedNotVisited.map((w, idx) => [
+                    idx + 1,
+                    w.name,
+                    dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A',
+                    `RT ${rtList.find(r => r.id === w.rtId)?.number || 'N/A'}`,
+                    savedNotes[w.id] || '-',
+                ]),
+                totals: [`JUMLAH BELUM DI-SCAN (${sortedNotVisited.length} warga)`, '', '', '', ''],
+            }],
+        });
+    };
+
     return (
         <div className="space-y-6">
             <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 space-y-4">
@@ -240,6 +262,7 @@ const DailyVisitReport: React.FC = () => {
                     Rumah yang masuk jadwal tapi tanpa jejak sama sekali berarti tidak di-scan.
                 </p>
                 <div className="flex flex-wrap gap-2 justify-end">
+                    <button onClick={handleExportExcel} className="px-5 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all text-[10px] uppercase tracking-widest"><FileExcelIcon /> Export Excel</button>
                     <button onClick={handlePrint} className="px-5 py-3 bg-slate-800 text-white hover:bg-slate-900 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-slate-900/10 transition-all text-[10px] uppercase tracking-widest"><DownloadIcon /> Cetak Tabel</button>
                 </div>
             </div>

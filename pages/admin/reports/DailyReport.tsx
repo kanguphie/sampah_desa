@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getReports, getPengeluaran, getPemasukanLain } from '@/services/api';
 import type { Pengeluaran, PemasukanLain } from '@/types';
-import { DownloadIcon } from '@/components/icons';
+import { DownloadIcon, FileExcelIcon } from '@/components/icons';
+import { exportReportToExcel } from '@/lib/exportExcel';
 
 const toLocalDateString = (d: Date | string | null | undefined): string => {
     if (!d) return '';
@@ -261,6 +262,57 @@ const DailyReport: React.FC = () => {
         printWindow.document.close();
     };
 
+    const handleExportExcel = () => {
+        const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('id-ID', { dateStyle: 'long' });
+        exportReportToExcel({
+            title: 'Laporan Harian SapaDesa',
+            subtitle: `Tanggal: ${dateLabel}`,
+            filename: `Laporan-Harian-${date}`,
+            sections: [
+                {
+                    title: 'Rincian Iuran Warga (Tunai)',
+                    headers: ['Waktu', 'Warga', 'Wilayah', 'Petugas', 'Nominal'],
+                    rows: sortedReports.map(r => [
+                        new Date(r.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+                        r.wargaName,
+                        `RT ${r.rtNumber}, ${r.dukuhName}`,
+                        r.petugasName || '-',
+                        Number(r.amount) || 0,
+                    ]),
+                    totals: ['TOTAL IURAN TUNAI', '', '', '', totalIuran],
+                    moneyCols: [4],
+                },
+                ...(groupedDepositReports.length > 0 ? [{
+                    title: 'Dibayar dari Deposit (Bukan Tunai)',
+                    headers: ['Waktu', 'Warga', 'Wilayah', 'Petugas', 'Nominal'],
+                    rows: groupedDepositReports.map((r: any) => [
+                        new Date(r.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+                        r.wargaName,
+                        `RT ${r.rtNumber}, ${r.dukuhName}`,
+                        r.petugasName || '-',
+                        Number(r.amount) || 0,
+                    ]),
+                    totals: ['TOTAL DARI DEPOSIT', '', '', '', totalDepositUsed],
+                    moneyCols: [4],
+                }] : []),
+                ...(filteredOtherIncomes.length > 0 ? [{
+                    title: 'Pemasukan Lain (Non-Iuran)',
+                    headers: ['Sumber', 'Keterangan', 'Nominal'],
+                    rows: filteredOtherIncomes.map(o => [o.source || 'Lainnya', o.description || '-', Number(o.amount) || 0]),
+                    totals: ['TOTAL PEMASUKAN LAIN', '', totalOther],
+                    moneyCols: [2],
+                }] : []),
+                ...(filteredExpenses.length > 0 ? [{
+                    title: 'Pengeluaran',
+                    headers: ['Deskripsi', 'Nominal'],
+                    rows: filteredExpenses.map(e => [e.description, Number(e.amount) || 0]),
+                    totals: ['TOTAL PENGELUARAN', totalExpense],
+                    moneyCols: [1],
+                }] : []),
+            ],
+        });
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
@@ -268,6 +320,7 @@ const DailyReport: React.FC = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Pilih Tanggal Laporan</label>
                     <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20" />
                 </div>
+                <button onClick={handleExportExcel} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"><FileExcelIcon /> Export Excel</button>
                 <button onClick={handlePrint} className="bg-slate-800 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition-all shadow-lg shadow-slate-900/10"><DownloadIcon /> Cetak Laporan</button>
             </div>
             

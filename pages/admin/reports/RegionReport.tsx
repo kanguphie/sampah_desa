@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { getAllDukuh, getReports } from '@/services/api';
 import type { Dukuh } from '@/types';
-import { DownloadIcon } from '@/components/icons';
+import { DownloadIcon, FileExcelIcon } from '@/components/icons';
+import { exportReportToExcel } from '@/lib/exportExcel';
 
 const RegionReport: React.FC = () => {
     const [dukuhs, setDukuhs] = useState<Dukuh[]>([]);
@@ -50,6 +51,24 @@ const RegionReport: React.FC = () => {
         printWindow.print();
     };
 
+    const handleExportExcel = () => {
+        const now = new Date();
+        const period = now.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+        const totalCount = filtered.reduce((s, r) => s + r.count, 0);
+        const totalSum = filtered.reduce((s, r) => s + r.total, 0);
+        exportReportToExcel({
+            title: 'Rekapitulasi Pemasukan per Wilayah',
+            subtitle: `Periode: ${period}`,
+            filename: `Rekap-Wilayah-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+            sections: [{
+                headers: ['Dukuh / Wilayah', 'Volume Transaksi', 'Total Kontribusi'],
+                rows: filtered.map(r => [r.name, r.count, r.total]),
+                totals: ['TOTAL', totalCount, totalSum],
+                moneyCols: [2],
+            }],
+        });
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
@@ -60,6 +79,7 @@ const RegionReport: React.FC = () => {
                         {dukuhs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                 </div>
+                <button onClick={handleExportExcel} className="w-full md:w-auto bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"><FileExcelIcon /> Export Excel</button>
                 <button onClick={handlePrint} className="w-full md:w-auto bg-slate-800 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition-all"><DownloadIcon /> Cetak Laporan Wilayah</button>
             </div>
 

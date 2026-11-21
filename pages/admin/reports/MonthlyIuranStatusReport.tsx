@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getReports, getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
-import { DownloadIcon } from '@/components/icons';
+import { DownloadIcon, FileExcelIcon } from '@/components/icons';
+import { exportReportToExcel } from '@/lib/exportExcel';
 
 const MonthlyIuranStatusReport: React.FC = () => {
     const now = new Date();
@@ -191,6 +192,20 @@ const MonthlyIuranStatusReport: React.FC = () => {
         printWindow.document.close();
     };
 
+    const handleExportExcel = () => {
+        exportReportToExcel({
+            title: 'Status Iuran Bulanan',
+            subtitle: `Periode: ${monthName} ${year} • Wilayah: ${dukuhName}`,
+            filename: `Status-Iuran-Bulanan-${monthName}-${year}`,
+            sections: [{
+                headers: ['No', 'Nama', 'Dukuh', 'RT', 'Tarif', 'Status', 'Tgl Bayar', 'Nominal'],
+                rows: filteredMonthly.map((m, i) => [i + 1, m.name, m.dukuhName, String(m.rtNumber), m.monthlyFee, m.paid ? 'Lunas' : 'Belum', m.paidDate || '-', m.paid ? m.paidAmount : 0]),
+                totals: [`JUMLAH (${filteredMonthly.length} warga)`, '', '', '', totalTarifShown, `${paidShown} Lunas`, '', totalNominalShown],
+                moneyCols: [4, 7],
+            }],
+        });
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
@@ -229,6 +244,7 @@ const MonthlyIuranStatusReport: React.FC = () => {
                             </button>
                         ))}
                     </div>
+                    <button onClick={handleExportExcel} className="bg-emerald-600 text-white px-8 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"><FileExcelIcon /> Export Excel</button>
                     <button onClick={handlePrint} className="bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 transition-all shadow-lg shadow-slate-900/10"><DownloadIcon /> Cetak Laporan</button>
                 </div>
             </div>

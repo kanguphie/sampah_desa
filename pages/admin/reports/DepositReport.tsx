@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getAllWarga, getAllDukuh, getAllRT } from '@/services/api';
 import type { Warga, Dukuh, RT } from '@/types';
 import { BanknotesIcon, FileExcelIcon, SearchIcon } from '@/components/icons';
+import { exportReportToExcel } from '@/lib/exportExcel';
 
 const DepositReport: React.FC = () => {
     const [list, setList] = useState<Warga[]>([]);
@@ -113,6 +114,26 @@ const DepositReport: React.FC = () => {
         printWindow.document.close();
     };
 
+    const handleExportExcel = () => {
+        exportReportToExcel({
+            title: 'Laporan Deposit Warga',
+            subtitle: `Dicetak: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })}`,
+            filename: `Laporan-Deposit-${new Date().toISOString().slice(0, 10)}`,
+            sections: [{
+                headers: ['No', 'ID', 'Nama Warga', 'Wilayah', 'Deposit'],
+                rows: filteredList.map((w, idx) => [
+                    idx + 1,
+                    String(w.id),
+                    w.name,
+                    `RT ${rtList.find(r => r.id === w.rtId)?.number || 'N/A'}, ${dukuhList.find(d => d.id === w.dukuhId)?.name || 'N/A'}`,
+                    w.deposit || 0,
+                ]),
+                totals: ['TOTAL DEPOSIT', '', '', '', totalDeposit],
+                moneyCols: [4],
+            }],
+        });
+    };
+
     return (
         <div className="space-y-6">
             <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 space-y-4">
@@ -128,6 +149,9 @@ const DepositReport: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+                        <button onClick={handleExportExcel} className="flex-1 lg:flex-none bg-emerald-600 text-white hover:bg-emerald-700 px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all text-[10px] uppercase tracking-widest">
+                            <FileExcelIcon className="text-sm" /> Export Excel
+                        </button>
                         <button onClick={handlePrintTable} className="flex-1 lg:flex-none bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-sm transition-all text-[10px] uppercase tracking-widest">
                             <FileExcelIcon className="text-emerald-500 text-sm" /> Cetak Daftar (Tabel)
                         </button>
