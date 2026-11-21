@@ -82,7 +82,12 @@ const DailyVisitReport: React.FC = () => {
         return wargaList.filter(w => {
             const inSchedule = scheduledDukuhIds.includes(Number(w.dukuhId));
             const matchDukuh = dukuhId === 'all' || w.dukuhId === Number(dukuhId);
-            return inSchedule && matchDukuh;
+            // Hanya warga harian yang dipindai setiap hari. Warga tarif
+            // bulanan hanya dikunjungi sebulan sekali (saat bayar iuran
+            // bulanan) dan dipantau di tab Iuran Bulanan — kalau ikut
+            // dihitung di sini mereka selalu tampil sebagai "belum di-scan".
+            const isHarian = !w.billingType || String(w.billingType).toUpperCase() === 'HARIAN';
+            return inSchedule && matchDukuh && isHarian;
         });
     }, [wargaList, scheduledDukuhIds, dukuhId]);
 

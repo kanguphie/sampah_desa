@@ -1817,9 +1817,12 @@ async function startServer() {
         // (Sebelumnya: belum bayar saja, sehingga rumah yang sudah
         // dikunjungi tapi TIDAK BAYAR tetap tampil dan daftar terasa
         // menampilkan hampir semua warga terjadwal.)
+        // Hanya warga harian: warga tarif bulanan hanya dikunjungi
+        // sebulan sekali dan dipantau di tab Iuran Bulanan.
         const [wargas]: any = await db.execute(`
             SELECT w.* FROM wargas w 
             WHERE w.dukuhId IN (${placeholders})
+            AND (w.billingType = 'HARIAN' OR w.billingType IS NULL)
             AND NOT EXISTS (
                 SELECT 1 FROM transactions t 
                 WHERE t.wargaId = w.id AND DATE(t.timestamp) = ?
