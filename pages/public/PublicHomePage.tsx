@@ -8,8 +8,7 @@ import {
     getAllDukuh, 
     getAllRT, 
     getActiveAnnouncements, 
-    getPublicDashboardStats, 
-    checkIfWargaPaidToday 
+    getPublicDashboardStats 
 } from '@/services/api';
 import type { Warga, Transaksi, Announcement, PublicStats, Dukuh, RT } from '@/types';
 import { 
@@ -19,7 +18,6 @@ import {
     SparklesIcon, 
     BanknotesIcon, 
     CheckCircleIcon, 
-    ClockIcon,
     ChartBarIcon,
     ReportIcon,
     UsersIcon,
@@ -34,7 +32,6 @@ const PublicHomePage: React.FC = () => {
   const [wargaId, setWargaId] = useState('');
   const [warga, setWarga] = useState<Warga | null>(null);
   const [transactions, setTransactions] = useState<Transaksi[]>([]);
-  const [hasPaidToday, setHasPaidToday] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -87,12 +84,8 @@ const PublicHomePage: React.FC = () => {
       const wargaData = await getWargaById(id);
       if (wargaData) {
         setWarga(wargaData);
-        const [transactionData, paidToday] = await Promise.all([
-            getTransactionsByWargaId(id, 10),
-            checkIfWargaPaidToday(id)
-        ]);
+        const transactionData = await getTransactionsByWargaId(id, 10);
         setTransactions(transactionData);
-        setHasPaidToday(paidToday?.paid === true);
       } else {
         setError('ID Warga tidak ditemukan. Cek kembali nomor Anda.');
         setWarga(null);
@@ -447,10 +440,6 @@ const PublicHomePage: React.FC = () => {
                       <h3 className="font-black text-slate-900 leading-tight truncate">Halo, {warga.name.split(' ')[0]}! 👋</h3>
                       <p className="text-[11px] text-slate-500 font-bold truncate">ID {warga.id} • {getDukuhName(warga.dukuhId)} • RT {getRTNumber(warga.rtId)}</p>
                     </div>
-                    <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${hasPaidToday ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
-                      {hasPaidToday ? <CheckCircleIcon className="text-xs" /> : <ClockIcon className="text-xs" />}
-                      {hasPaidToday ? 'Lunas' : 'Pending'}
-                    </span>
                     <button onClick={closeResult} aria-label="Tutup" className="shrink-0 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
                       <i className="fa-solid fa-xmark"></i>
                     </button>
