@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import jsQR from 'jsqr';
 import { 
     getWargaById, 
     getTransactionsByWargaId, 
@@ -24,7 +25,8 @@ import {
     UsersIcon,
     ClipboardListIcon,
     IdentificationIcon,
-    HomeIcon
+    HomeIcon,
+    QrCodeIcon
 } from '@/components/icons';
 import PublicHeader from '@/components/PublicHeader';
 
@@ -35,6 +37,15 @@ const PublicHomePage: React.FC = () => {
   const [hasPaidToday, setHasPaidToday] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Scan QR stiker (publik): kamera + jsQR, pola yang sama dengan scan petugas.
+  const [showScan, setShowScan] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isScanningRef = useRef(false);
+  const isProcessingRef = useRef(false);
+  const lastScanTimeRef = useRef(0);
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [stats, setStats] = useState<PublicStats | null>(null);
@@ -63,9 +74,9 @@ const PublicHomePage: React.FC = () => {
       fetchPublicData();
   }, []);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (wargaId.length !== 6) {
+  // Inti pengecekan (dipakai form ketik ID maupun hasil scan QR).
+  const doSearch = useCallback(async (id: string) => {
+    if (id.length !== 6) {
       setError('ID Warga harus 6 digit angka.');
       setWarga(null);
       return;
@@ -73,12 +84,12 @@ const PublicHomePage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const wargaData = await getWargaById(wargaId);
+      const wargaData = await getWargaById(id);
       if (wargaData) {
         setWarga(wargaData);
         const [transactionData, paidToday] = await Promise.all([
-            getTransactionsByWargaId(wargaId, 10),
-            checkIfWargaPaidToday(wargaId)
+            getTransactionsByWargaId(id, 10),
+            checkIfWargaPaidToday(id)
         ]);
         setTransactions(transactionData);
         setHasPaidToday(paidToday?.paid === true);
@@ -91,7 +102,81 @@ const PublicHomePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    doSearch(wargaId);
   };
+
+  const closeScan = () => { setShowScan(false); setScanError(null); };
+
+  // Kamera + jsQR: buka saat modal scan tampil, matikan saat ditutup.
+  useEffect(() => {
+    if (!showScan) return;
+    let stream: MediaStream | null = null;
+    let animationFrameId: number;
+
+    const tick = (time: number) => {
+      animationFrameId = requestAnimationFrame(tick);
+      if (!isScanningRef.current || isProcessingRef.current) return;
+      // Throttling: pindai tiap 200ms agar CPU tidak panas.
+      if (time - lastScanTimeRef.current < 200) return;
+      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
+        lastScanTimeRef.current = time;
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        canvas.height = video.videoHeight / 2;
+        canvas.width = video.videoWidth / 2;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+          if (code && code.data) {
+            const id = code.data.trim();
+            if (/^\d{6}$/.test(id)) {
+              // QR stiker berisi ID warga 6 digit: tutup kamera, isi ID, langsung cek.
+              isProcessingRef.current = true;
+              isScanningRef.current = false;
+              setShowScan(false);
+              setScanError(null);
+              setWargaId(id);
+              doSearch(id);
+            } else {
+              setScanError('QR ini bukan stiker SapaDesa. Arahkan kamera ke QR di stiker rumah Anda.');
+            }
+          }
+        }
+      }
+    };
+
+    const startCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play();
+            isScanningRef.current = true;
+            animationFrameId = requestAnimationFrame(tick);
+          };
+        }
+      } catch (err) {
+        setScanError('Akses kamera ditolak atau tidak tersedia. Ketik ID secara manual.');
+      }
+    };
+    startCamera();
+
+    return () => {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      cancelAnimationFrame(animationFrameId);
+      isScanningRef.current = false;
+      isProcessingRef.current = false;
+    };
+  }, [showScan, doSearch]);
 
   const closeResult = () => { setWarga(null); setWargaId(''); };
 
@@ -157,7 +242,7 @@ const PublicHomePage: React.FC = () => {
                             Digitalisasi <span className="text-emerald-500">Retribusi</span><br className="hidden md:block" /> Sampah Desa
                         </h1>
                         <p className="mt-5 text-slate-500 text-base md:text-lg leading-relaxed text-center md:text-left max-w-xl mx-auto md:mx-0">
-                            Layanan pengecekan iuran warga Desa Rowosari. Masukkan ID Anda untuk melihat status pembayaran terbaru.
+                            Layanan pengecekan iuran warga Desa Rowosari. Masukkan ID Anda atau scan QR di stiker rumah untuk melihat status pembayaran terbaru.
                         </p>
 
                         <div className="mt-9 max-w-xl mx-auto md:mx-0">
@@ -192,6 +277,16 @@ const PublicHomePage: React.FC = () => {
                                 )}
                             </form>
 
+                            {/* Scan QR stiker: arahkan kamera ke QR di stiker rumah, ID terisi otomatis lalu dicek */}
+                            <button
+                                type="button"
+                                onClick={() => { setScanError(null); setShowScan(true); }}
+                                className="mt-4 w-full inline-flex items-center justify-center gap-2.5 bg-white text-emerald-600 font-bold px-6 py-3.5 rounded-full border-2 border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-50 active:scale-[0.98] transition-all text-sm md:text-base shadow-sm"
+                            >
+                                <QrCodeIcon /> Scan QR di Stiker Rumah
+                            </button>
+                            <p className="mt-2.5 text-center md:text-left text-xs text-slate-400 font-semibold">Tidak hafal ID? Arahkan kamera ke QR di stiker rumah Anda.</p>
+
                             <div className="mt-7 flex flex-wrap items-center justify-center md:justify-start gap-x-5 gap-y-2 text-[13px] font-semibold text-slate-600">
                                 <span className="flex items-center gap-2">
                                     <i className="fa-solid fa-shield-halved text-emerald-500"></i> Gunakan ID yang Valid
@@ -220,7 +315,7 @@ const PublicHomePage: React.FC = () => {
             <section className="container mx-auto px-6 relative z-10 -mt-16 pb-4">
                 <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-[0_25px_60px_-25px_rgba(15,60,40,0.25)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-slate-100 overflow-hidden">
                     {[
-                        { icon: ClipboardListIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Cek Iuran Mudah', desc: 'Cukup masukkan ID warga, langsung ketahuan statusnya.', to: null as string | null },
+                        { icon: ClipboardListIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Cek Iuran Mudah', desc: 'Masukkan ID atau scan QR stiker, langsung ketahuan statusnya.', to: null as string | null },
                         { icon: ReportIcon, tint: 'bg-blue-50 text-blue-500', title: 'Laporan Transparan', desc: 'Data pembayaran dapat diakses kapan saja.', to: '/laporan-publik' },
                         { icon: LeafIcon, tint: 'bg-emerald-50 text-emerald-500', title: 'Pengelolaan Sampah', desc: 'Dukung lingkungan bersih dan berkelanjutan.', to: null },
                         { icon: UsersIcon, tint: 'bg-violet-50 text-violet-500', title: 'Untuk Semua Warga', desc: 'Mudah diakses di mana saja dan kapan saja.', to: null },
@@ -261,7 +356,7 @@ const PublicHomePage: React.FC = () => {
                     </div>
                     <div className="grid sm:grid-cols-3 gap-8 sm:gap-6 lg:pt-4">
                         {[
-                            { icon: IdentificationIcon, title: 'Masukkan ID Warga', desc: 'Ketik 6 digit ID warga Anda pada kolom pencarian.' },
+                            { icon: IdentificationIcon, title: 'ID Warga / Scan QR', desc: 'Ketik 6 digit ID warga Anda, atau pindai QR di stiker rumah.' },
                             { icon: SearchIcon, title: 'Klik Cek', desc: 'Sistem akan menampilkan informasi pembayaran Anda.' },
                             { icon: CheckCircleIcon, title: 'Lihat Hasil', desc: 'Status iuran, riwayat pembayaran, dan informasi lainnya.' },
                         ].map((s, i) => (
@@ -307,6 +402,37 @@ const PublicHomePage: React.FC = () => {
             )}
             
         </main>
+
+            {/* Scan QR Stiker - Modal kamera */}
+            {showScan && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Scan QR stiker">
+                <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={closeScan}></div>
+                <div className="relative bg-white w-full sm:max-w-md rounded-3xl shadow-2xl overflow-hidden animate-slide-in-up">
+                  <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100">
+                    <h3 className="font-black text-slate-900">Scan QR Stiker</h3>
+                    <button onClick={closeScan} aria-label="Tutup" className="shrink-0 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors">
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  </div>
+                  <div className="p-4">
+                    <div className="relative rounded-2xl overflow-hidden bg-slate-900 aspect-[4/3]">
+                      <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
+                      <canvas ref={canvasRef} className="hidden" />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-56 h-56 rounded-3xl border-[3px] border-emerald-400/90 shadow-[0_0_0_9999px_rgba(2,6,23,0.45)]"></div>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-center text-sm text-slate-500 font-semibold">Arahkan kamera ke QR di stiker rumah Anda.</p>
+                    {scanError && (
+                      <p className="mt-3 text-center text-rose-500 font-bold text-xs bg-rose-50 border border-rose-100 rounded-xl px-4 py-2.5">{scanError}</p>
+                    )}
+                    <button onClick={closeScan} className="mt-4 w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-full transition-colors text-sm">
+                      Ketik ID Manual
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Hasil Pencarian - Modal */}
             {warga && (
