@@ -125,6 +125,7 @@ const AdminWargaPage: React.FC = () => {
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [selectedWarga, setSelectedWarga] = useState<Warga | null>(null);
     const [qrToShow, setQrToShow] = useState<Warga | null>(null);
+    const [downloadingQR, setDownloadingQR] = useState(false);
     const [wargaToDelete, setWargaToDelete] = useState<Warga | null>(null);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -135,6 +136,37 @@ const AdminWargaPage: React.FC = () => {
     const headerCheckboxRef = useRef<HTMLInputElement>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Unduh kartu QR sebagai JPG (pola yang sama dengan AdminCetakBarcodePage: html2canvas).
+    const handleDownloadQR = async () => {
+        if (!qrToShow) return;
+        const cardEl = document.getElementById('qr-card-printable');
+        if (!cardEl) return;
+        setDownloadingQR(true);
+        try {
+            // @ts-ignore
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(cardEl, {
+                scale: 3,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+            });
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            const link = document.createElement('a');
+            const safeName = (qrToShow.name || 'warga').replace(/[^a-zA-Z0-9-_]+/g, '-');
+            link.href = imgData;
+            link.download = `QR-${safeName}-${qrToShow.id || ''}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error('Gagal mengunduh QR:', error);
+            alert('Gagal mengunduh QR. Silakan coba lagi.');
+        } finally {
+            setDownloadingQR(false);
+        }
+    };
 
     useEffect(() => {
         if (message) {
@@ -863,6 +895,14 @@ const AdminWargaPage: React.FC = () => {
                                 className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-black transition-all"
                             >
                                 <QrCodeIcon /> Cetak Kartu QR
+                            </button>
+                            <button
+                                onClick={handleDownloadQR}
+                                disabled={downloadingQR}
+                                className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:bg-slate-300 disabled:shadow-none"
+                            >
+                                {downloadingQR ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <DownloadIcon />}
+                                {downloadingQR ? 'Mengunduh...' : 'Unduh QR (JPG)'}
                             </button>
                             <button onClick={() => setQrToShow(null)} className="text-slate-400 font-bold text-xs py-2">Tutup</button>
                         </div>
