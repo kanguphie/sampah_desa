@@ -837,9 +837,9 @@ const AdminWargaPage: React.FC = () => {
                             </div>
 
                             <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mt-6 leading-tight">{(qrToShow.name || 'N/A')}</h4>
-                            <p className="text-sm font-bold text-slate-500 font-mono mt-1 tracking-wider">ID: {(qrToShow.id || 'N/A')}</p>
+                            <p className="text-lg font-bold text-black font-mono mt-1 tracking-wider">ID: {(qrToShow.id || 'N/A')}</p>
                             
-                            <p className="text-[11px] text-slate-400 mt-4 font-bold uppercase tracking-widest border-t border-slate-50 pt-3 w-full">
+                            <p className="text-sm text-black mt-4 font-bold uppercase tracking-widest border-t border-slate-50 pt-3 w-full">
                                 {dukuhList.find(d => d.id === qrToShow.dukuhId)?.name || '?'} — RT {rtList.find(r => r.id === qrToShow.rtId)?.number || '?'}
                             </p>
                         </div>
@@ -872,8 +872,8 @@ const AdminWargaPage: React.FC = () => {
                                                         img { height: 30px; margin-bottom: 20px; object-fit: contain; }
                                                         .qr-container { margin: 10px 0; }
                                                         h4 { margin: 20px 0 5px; font-size: 18pt; font-weight: 800; text-transform: uppercase; color: #0f172a; }
-                                                        p { margin: 0; font-size: 12pt; font-weight: 700; color: #64748b; font-family: monospace; }
-                                                        .loc { margin-top: 20px; font-size: 10pt; font-weight: 700; color: #94a3b8; text-transform: uppercase; border-top: 1px solid #f1f5f9; padding-top: 15px; width: 100%; }
+                                                        p { margin: 0; font-size: 14pt; font-weight: 700; color: #000000; font-family: monospace; }
+                                                        .loc { margin-top: 20px; font-size: 12pt; font-weight: 700; color: #000000; text-transform: uppercase; border-top: 1px solid #f1f5f9; padding-top: 15px; width: 100%; }
                                                     </style>
                                                 </head>
                                                 <body>
